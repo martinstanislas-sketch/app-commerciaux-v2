@@ -1021,16 +1021,23 @@ const Recap2UI = (function () {
 
   function detailNR(label, d) {
     const tous = (d && d.liste) || [];
+    const nb = { tous: tous.length, aucun: tous.filter((c) => !statutNR(c)).length };
+    STATUTS_NR.forEach((s) => { nb[s.val] = tous.filter((c) => statutNR(c) === s.val).length; });
+    // Un filtre dont le compteur est retombé à 0 (statut modifié) ne laisse pas
+    // une vue vide derrière une puce devenue inactive : retour à « Tous ».
+    if (filtreNR[label] && !nb[filtreNR[label]]) filtreNR[label] = 'tous';
     const f = filtreNR[label] || 'tous';
     const passe = (c) => f === 'tous' || (f === 'aucun' ? !statutNR(c) : statutNR(c) === f);
     const liste = tous.filter(passe);
     const m1 = cap(moisLabel(rapport.m1)), m = cap(moisLabel(rapport.mois));
+    // Une puce à 0 reste visible (elle rappelle le statut possible) mais n'est
+    // ni cliquable ni mise en avant.
     const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (f === val ? ' is-on' : '')
-      + '" data-filtrenr="' + esc(label) + '|' + val + '">' + txt + ' <b>' + n + '</b></button>';
+      + '" data-filtrenr="' + esc(label) + '|' + val + '"' + (n ? '' : ' disabled aria-disabled="true"') + '>' + txt + ' <b>' + n + '</b></button>';
     const chips = tous.length
-      ? '<div class="rec2-chips">' + chip('tous', 'Tous', tous.length)
-        + STATUTS_NR.map((s) => chip(s.val, s.filtre, tous.filter((c) => statutNR(c) === s.val).length)).join('')
-        + chip('aucun', 'Non traités', tous.filter((c) => !statutNR(c)).length) + '</div>'
+      ? '<div class="rec2-chips">' + chip('tous', 'Tous', nb.tous)
+        + STATUTS_NR.map((s) => chip(s.val, s.filtre, nb[s.val])).join('')
+        + chip('aucun', 'Non traités', nb.aucun) + '</div>'
       : '';
     const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocNote('non_reconduit', label, c) + '</td>'
       + casesSuiviNR(c, label)
