@@ -57,6 +57,7 @@ const Recap2UI = (function () {
   // noms diffèrent ne doivent pas se retrouver confondus par le filtre.
   let commercial = '';
   let filtreCom = 'tous';   // 'tous' | 'retrouves' | 'verifier'
+  let refsOuvertes = false; // détail des prises de référence du commercial
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -68,7 +69,7 @@ const Recap2UI = (function () {
   function wire() {
     $('#rec2-mois').addEventListener('change', () => {
       mois = $('#rec2-mois').value; ouvert = ''; alertesOuvertes = false;
-      commercial = ''; filtreCom = 'tous'; charger();
+      commercial = ''; filtreCom = 'tous'; refsOuvertes = false; charger();
     });
     $('#rec2-body').addEventListener('click', onBodyClick);
     // Les cases de contrôle : `change`, pour ne réagir qu'à un vrai basculement.
@@ -79,7 +80,7 @@ const Recap2UI = (function () {
       if (resil && rapport) basculerResiliation(resil);
     });
     const sel = $('#rec2-commercial');
-    if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; ouvert = ''; render(); });
+    if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; refsOuvertes = false; ouvert = ''; render(); });
   }
 
   // Le sélecteur est rempli DEPUIS LE RAPPORT : aucun nom en dur. Il n'apparaît
@@ -95,10 +96,14 @@ const Recap2UI = (function () {
     const liste = MM ? MM.commerciauxDuRapport(rapport) : [];
     // Si le commercial retenu n'existe pas dans ce mois, on retombe sur « tous »
     // plutôt que d'afficher une vue vide sans l'expliquer.
-    if (commercial && !liste.some((c) => c.commercial === commercial)) commercial = '';
+    //  La valeur d'une option est la CLÉ du commercial (son identifiant Vendor) ;
+    //  le nom n'est que le texte affiché.
+    if (commercial && !liste.some((c) => c.cle === commercial)) commercial = '';
+    const avecIds = liste.some((c) => c.commercialId);
     const opts = ['<option value="">Tous les commerciaux</option>'].concat(liste.map((c) => {
-      const lbl = MM.libelleCommercial(c.commercial) || '(sans nom)';
-      return '<option value="' + esc(c.commercial) + '"' + (c.commercial === commercial ? ' selected' : '') + '>'
+      const lbl = (MM.libelleCommercial(c.commercial) || '(sans nom)')
+        + (avecIds && !c.commercialId && !/^pas de commercial$/i.test(String(c.commercial).trim()) ? ' — identifiant Vendor manquant' : '');
+      return '<option value="' + esc(c.cle) + '"' + (c.cle === commercial ? ' selected' : '') + '>'
         + esc(lbl) + ' (' + c.ventes + ')</option>';
     }));
     sel.innerHTML = opts.join('');
@@ -826,12 +831,15 @@ const Recap2UI = (function () {
     const MM = window.Recap2Metrics;
     if (!MM || !MM.consoliderCommercial) return '';
     const d = MM.consoliderCommercial(rapport, commercial);
-    const nom = MM.libelleCommercial(commercial) || '(sans nom)';
+    const nom = MM.libelleCommercial(d.nom) || '(sans nom)';
 
     if (!d.signees) {
       return '<section class="rec2-com"><div class="rec2-com-head"><h3 class="rec2-com-nom">'
-        + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3></div>'
-        + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p></section>';
+        + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3>'
+        + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
+        + (d.referencesPresentes ? '<div class="rec2-com-stats">' + compteurReferences(d) + '</div>' : '')
+        + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p>'
+        + detailReferences(d) + '</section>';
     }
 
     const liste = d.ventes.filter((v) => passeFiltre(v, filtreCom));
@@ -869,6 +877,7 @@ const Recap2UI = (function () {
       + (rep0.resilies ? n(rep0.resilies, 'résilié', 'résiliés') : '')
       + (rep0.divergents ? '<span class="rec2-com-det rec2-com-det-div"><b>' + rep0.divergents + '</b> '
         + (rep0.divergents > 1 ? 'sites Deciplus divergents' : 'site Deciplus divergent') + '</span>' : '')
+      + (d.referencesPresentes ? compteurReferences(d) : '')
       + '</div>';
     const ou = '<p class="rec2-com-studios">Studios : ' + esc(d.studios.join(', ')) + '</p>';
 
@@ -876,7 +885,7 @@ const Recap2UI = (function () {
       + '<div class="rec2-com-head"><h3 class="rec2-com-nom">' + esc(nom.toUpperCase()) + ' — '
       + esc(cap(moisLabel(rapport.mois))) + '</h3>'
       + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
-      + stats + ou
+      + stats + ou + detailReferences(d)
       + '<div class="rec2-chips">' + chip('tous', 'Tous', rep0.total)
       + chip('retrouves', 'Retrouvés', rep0.retrouves)
       + (rep0.proposes ? chip('proposes', 'Rapprochements proposés', rep0.proposes) : '')
@@ -888,6 +897,38 @@ const Recap2UI = (function () {
       + '<p class="rec2-det-note">Ce filtre ne concerne que « clients retrouvés dans Deciplus ». '
       + 'La non-reconduction, ci-dessous, ne dépend d\'aucun commercial.</p>'
       + '</section>';
+  }
+
+  // ── PRISES DE RÉFÉRENCE (Vendor) ────────────────────────────────────────────
+  //  Ce que Vendor compte dans sa ligne « Prise de référence » : les contacts
+  //  créés dans le mois avec cette source, attribués à leur AUTEUR (identifiant
+  //  Vendor). Additionnées sur tous les studios du commercial. Un repère : aucun
+  //  taux, aucun KPI n'en dépend. Un studio dont la lecture a échoué est DIT,
+  //  jamais compté comme 0.
+  function compteurReferences(d) {
+    const n = d.references.length;
+    return '<button type="button" class="rec2-com-det rec2-com-refs" data-refs="1" aria-expanded="' + (refsOuvertes ? 'true' : 'false') + '">'
+      + '<b>' + n + '</b> ' + (n > 1 ? 'prises de référence' : 'prise de référence') + '</button>';
+  }
+  function detailReferences(d) {
+    if (!d.referencesPresentes) return '';
+    const manque = d.referencesIndisponibles.length
+      ? '<p class="rec2-info rec2-info-err">Prises de référence indisponibles pour : '
+        + esc(d.referencesIndisponibles.map((x) => x.studio).join(', ')) + ' — le total ne les inclut pas.</p>'
+      : '';
+    if (!refsOuvertes) return manque;
+    const nomAff = (r) => (window.Recap2Metrics.libelleCommercial(r.createur) || '(sans nom)');
+    const corps = d.references.length
+      ? '<table class="rec2-table rec2-refs-table"><thead><tr><th class="rec2-num">Date</th><th>Studio</th>'
+        + '<th>Contact référencé</th><th>Commercial</th><th>Statut</th></tr></thead><tbody>'
+        + d.references.map((r) => '<tr><td class="rec2-num">' + esc(r.date) + '</td><td>' + esc(r.studio) + '</td>'
+          + '<td>' + esc(r.client || '—') + '</td><td>' + esc(nomAff(r)) + '</td><td>' + esc(r.statut || '—') + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<p class="rec2-info">Aucune prise de référence sur ce mois.</p>';
+    return '<div class="rec2-refs"><div class="rec2-det-head"><span>Prises de référence — ' + esc(cap(moisLabel(rapport.mois))) + '</span>'
+      + '<button type="button" class="rec2-det-x" data-refs="1" aria-label="Fermer le détail des prises de référence">✕ Fermer</button></div>' + corps
+      + '<p class="rec2-det-note">Source : Vendor, ligne « Prise de référence » (Anciennes performances → Sources des sportifs), '
+      + 'attribuée à l\'auteur de la saisie.</p></div>' + manque;
   }
 
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
@@ -911,10 +952,11 @@ const Recap2UI = (function () {
     if (e.target.closest('[data-alertes]')) { alertesOuvertes = !alertesOuvertes; render(); return; }
     const fil = e.target.closest('[data-filtre]');
     if (fil) { const [label, val] = fil.dataset.filtre.split('|'); filtreComp[label] = val; render(); return; }
+    if (e.target.closest('[data-refs]')) { refsOuvertes = !refsOuvertes; render(); return; }
     const fCom = e.target.closest('[data-filtrecom]');
     if (fCom) { filtreCom = fCom.dataset.filtrecom; render(); return; }
     if (e.target.closest('[data-toutcom]')) {
-      commercial = ''; filtreCom = 'tous';
+      commercial = ''; filtreCom = 'tous'; refsOuvertes = false;
       const sel = $('#rec2-commercial'); if (sel) sel.value = '';
       render(); return;
     }

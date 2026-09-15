@@ -21967,6 +21967,11 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-chip.rec2-chip-div.is-on { background: rgba(251,146,60,.16); border-color: #fb923c; }
 .rec2-card-div { display: block; margin-top: 4px; font-size: 12px; font-weight: 650; color: #fb923c; }
 .rec2-com-det.rec2-com-det-div, .rec2-com-det.rec2-com-det-div b { color: #fb923c; }
+/* Prises de référence (Vendor) : un compteur cliquable dans la ligne des stats du commercial. */
+.rec2-com-refs { font: inherit; font-size: 12.5px; background: transparent; border: 1px solid var(--r2-line-2); border-radius: 999px; padding: 2px 10px; color: var(--r2-text-2); cursor: pointer; }
+.rec2-com-refs:hover, .rec2-com-refs[aria-expanded="true"] { border-color: var(--r2-accent); color: var(--r2-text); }
+.rec2-refs { margin: 12px 0 4px; }
+.rec2-refs-table td, .rec2-refs-table th { white-space: nowrap; }
 
 /* Cases de contrôle manuel (prélèvement / réservation) : discrètes, centrées,
    sans effet sur les KPI. Colonne étroite pour ne pas pousser le statut. */

@@ -302,6 +302,58 @@ function analyserLigne(texte) {
   };
 }
 
+// ── IDENTIFIANTS VENDOR (Bubble) ───────────────────────────────────────────
+//  Un identifiant d'objet Bubble : « 1676534557603x269706782936696800 ». Dans
+//  les données, une référence vers un autre objet arrive souvent préfixée
+//  (« 1348695171700984260__LOOKUP__1676534557603x… ») : seul le dernier segment
+//  est l'identifiant. Tout ce qui n'a pas cette forme rend '' — un identifiant
+//  douteux n'est jamais « à peu près » celui de quelqu'un.
+const RE_ID_BUBBLE = /^\d{10,16}x\d{10,24}$/;
+function idBubble(v) {
+  const id = String(v == null ? '' : v).split('__LOOKUP__').pop().trim();
+  return RE_ID_BUBBLE.test(id) ? id : '';
+}
+
+// ── LE COMMERCIAL D'UN CONTRAT, PAR SON IDENTIFIANT (pure, testable) ───────
+//  Chaque ligne du panneau « CONTRATS SOUSCRITS » est, pour Vendor, l'affichage
+//  d'une vente (custom.commerciaux_vente). L'écran n'en montre que le nom du
+//  commercial (« Fabian F. ») ; la vente, elle, porte son identifiant
+//  (`commercial_user`). On lit donc, LIGNE PAR LIGNE, l'objet que Vendor a
+//  lié à la cellule — jamais un rapprochement par nom.
+//
+//  `liaisons[i]` = { texte, type, venteId, commercialId } relevés sur la MÊME
+//  ligne du groupe répétitif. Garde-fous, ligne par ligne :
+//   · même nombre de liaisons que de lignes lues, sinon aucune n'est retenue ;
+//   · le texte relu doit redonner la même identité et la même date (l'ordre des
+//     lignes n'a pas bougé entre deux lectures) ;
+//   · l'objet doit être une vente, avec des identifiants bien formés ;
+//   · une même vente ne peut pas servir deux lignes.
+//  Une ligne qui échoue garde son nom affiché et un `commercialId` VIDE : elle
+//  est comptée dans `manquants`, jamais complétée « d'après le nom ».
+function lierCommerciaux(lignes, liaisons) {
+  const ok = Array.isArray(liaisons) && Array.isArray(lignes) && liaisons.length === lignes.length;
+  const vues = new Set();
+  let manquants = 0, sansCommercial = 0;
+  const ids = (lignes || []).map((l, i) => {
+    const li = ok ? liaisons[i] : null;
+    const relu = li ? analyserLigne(li.texte) : null;
+    const venteId = li ? idBubble(li.venteId) : '';
+    const commercialId = li ? idBubble(li.commercialId) : '';
+    const lie = !!li && li.type === 'custom.commerciaux_vente' && !!venteId
+      && relu.identite === l.identite && relu.date === l.date && !vues.has(venteId);
+    if (!lie) { manquants += 1; return { venteId: '', commercialId: '' }; }
+    vues.add(venteId);
+    // Vente bien liée mais SANS commercial dans Vendor (« Pas de commercial ») :
+    // l'identifiant vide est alors la vérité, pas une lecture ratée.
+    if (!commercialId) {
+      if (String(li.commercialId || '').trim()) { manquants += 1; return { venteId, commercialId: '' }; }
+      sansCommercial += 1;
+    }
+    return { venteId, commercialId };
+  });
+  return { ids, manquants, sansCommercial };
+}
+
 // ── Lecture d'un studio pour un mois ───────────────────────────────────────
 async function lireStudio(page, studio, ym, journal = () => {}) {
   await choisirClub(page, studio, journal);
@@ -411,19 +463,50 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
       + ' sans date ni identité exploitables (panneau à moitié peint)');
   }
 
-  const contrats = lignes.map((l) => ({
+  // L'IDENTIFIANT VENDOR DU COMMERCIAL, ligne par ligne (voir lierCommerciaux).
+  //  Lecture de l'objet que Bubble a lié à chaque cellule. Un échec ici ne
+  //  touche ni le compteur, ni les KPI : l'identifiant reste vide et c'est dit.
+  const liaisons = await page.evaluate((n) => {
+    const rgs = [...document.querySelectorAll('.bubble-element.RepeatingGroup')];
+    const rg = rgs.find((e) => e.children.length === n);
+    if (!rg) return null;
+    return [...rg.children].map((ch) => {
+      const r = { texte: ch.innerText || '', type: '', venteId: '', commercialId: '' };
+      try {
+        const inst = ch.bubble_data && ch.bubble_data.bubble_instance;
+        let v = inst && inst.state('group_data');
+        if (typeof v === 'function') v = v();
+        const raw = v && typeof v.raw === 'function' ? v.raw() : null;
+        if (raw) {
+          r.type = String(raw._type || '');
+          r.venteId = String(raw._id || '');
+          r.commercialId = String(raw.commercial_user || '');
+        }
+      } catch (_) { /* liaison illisible : identifiant vide */ }
+      return r;
+    });
+  }, compteur).catch(() => null);
+  const lies = lierCommerciaux(lignes, liaisons);
+  if (lies.manquants) {
+    journal('⚠️ ' + studio + ' : identifiant Vendor du commercial illisible sur ' + lies.manquants + '/' + compteur + ' contrat(s) — nom affiché conservé, aucun rapprochement par nom');
+  }
+  if (lies.sansCommercial) journal(studio + ' : ' + lies.sansCommercial + ' vente(s) sans commercial dans Vendor');
+
+  const contrats = lignes.map((l, i) => ({
     identite: l.identite, prestation: l.prestation, source: l.source,
-    date: l.date, commercial: l.commercial,
+    date: l.date, commercial: l.commercial, commercialId: lies.ids[i].commercialId, venteId: lies.ids[i].venteId,
     annulee: l.annulee, dateAnnulation: l.dateAnnulation,
   }));
   const annulees = contrats.filter((c) => c.annulee).length;
-  journal(studio + ' : ' + compteur + ' contrat(s) souscrit(s), dont ' + annulees + ' annulé(s) — période ' + periodeDetail.du + ' → ' + periodeDetail.au);
+  journal(studio + ' : ' + compteur + ' contrat(s) souscrit(s), dont ' + annulees + ' annulé(s) — période ' + periodeDetail.du + ' → ' + periodeDetail.au
+    + ' · identifiant commercial lu sur ' + (compteur - lies.manquants - lies.sansCommercial) + '/' + compteur
+    + (lies.sansCommercial ? ' (+' + lies.sansCommercial + ' sans commercial)' : ''));
 
   await fermerPanneau(page);
-  return { studio, club, mois: ym, compteur, contrats, annulees, periodeDetail };
+  return { studio, club, mois: ym, compteur, contrats, annulees, periodeDetail, commerciauxSansId: lies.manquants };
 }
 
 module.exports = {
-  lireStudio, analyserLigne, fermerPanneau, choisirClub, basculerClub, verifierClub, clubAttendu,
+  lireStudio, analyserLigne, lierCommerciaux, idBubble, fermerPanneau, choisirClub, basculerClub, verifierClub, clubAttendu,
   CLUBS_FB, TENTATIVES_BASCULE, decalageMois, urlStats, MOIS_FR2, norm,
 };

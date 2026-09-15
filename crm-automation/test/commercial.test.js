@@ -255,9 +255,10 @@ test('août 2026 réel : un commercial multi-studios est bien consolidé',
   { skip: !dispo && 'rapport local absent' }, () => {
     const r = JSON.parse(fs.readFileSync(REEL, 'utf8'));
     if (r.businessVersion !== 2) return;
-    const multi = M.commerciauxDuRapport(r).find((c) => c.studios.length > 1);
+    const multi = M.commerciauxDuRapport(r).find((c) => c.ventes > 0 && c.studios.length > 1);
     assert.ok(multi, 'au moins un commercial vend dans plusieurs studios');
-    const d = M.consoliderCommercial(r, multi.commercial);
+    // Depuis le 2026-09-14 la clé est l'identifiant Vendor (le nom n'affiche que).
+    const d = M.consoliderCommercial(r, multi.cle);
     assert.equal(d.total, multi.ventes);
     assert.equal(d.retrouves, multi.retrouves);
     assert.ok(d.studios.length > 1);
