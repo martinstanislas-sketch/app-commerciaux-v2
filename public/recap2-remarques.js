@@ -127,5 +127,47 @@
     return { nb, texte, html };
   }
 
-  return { remarquesClub, moisEnClair, cleIdentite, memePersonne, prenomNom };
+  // ── REMARQUES D'UN COMMERCIAL ────────────────────────────────────────────
+  //  commercial + mois > studio > type > personne + remarque. Même règle de clé
+  //  que la vue commerciale (Recap2Metrics.cleCommercial) : l'identifiant Vendor
+  //  s'il existe (« id:… »), sinon le nom exact affiché (« nom:… »).
+  //   · Ventes signées : le commercial de la vente ;
+  //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé) ;
+  //   · Clients non reconduits : JAMAIS inclus. Une ligne de non-reconduction
+  //     vient du journal des encaissements Deciplus, qui ne porte aucun vendeur :
+  //     RECAP 2 n'a aucun rattachement fiable à un commercial, et on n'en
+  //     fabrique pas (ni par le nom, ni autrement).
+  const SECTIONS_COMMERCIAL = [
+    { titre: 'Ventes signées', bloc: 'clientsRetrouves', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
+    { titre: 'VNI', bloc: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
+  ];
+
+  // { nb, texte, html, studios: [...], categories: [...] } — nb = 0 : rien à copier.
+  function remarquesCommercial(rapport, cleCommercial, nomAffiche) {
+    const cle = String(cleCommercial || '');
+    const studios = [];
+    Object.keys((rapport && rapport.studios) || {}).forEach((s) => {
+      const b = rapport.studios[s];
+      const sections = SECTIONS_COMMERCIAL.map((sec) => ({
+        titre: sec.titre,
+        personnes: personnesAvecRemarque(((b && b[sec.bloc] && b[sec.bloc].liste) || []).filter((l) => cle && sec.cle(l) === cle)),
+      })).filter((sec) => sec.personnes.length);
+      if (sections.length) studios.push({ studio: s, sections });
+    });
+    const nb = studios.reduce((n, st) => n + st.sections.reduce((m, sec) => m + sec.personnes.length, 0), 0);
+    if (!nb) return { nb: 0, texte: '', html: '', studios: [], categories: [] };
+
+    const titre = String(nomAffiche || '').toUpperCase() + ' — ' + moisEnClair(rapport.mois);
+    const texte = [titre].concat(studios.map((st) => String(st.studio).toUpperCase() + '\n\n'
+      + st.sections.map((sec) => sec.titre + '\n\n' + sec.personnes.map((p) => p.client + '\n' + p.remarque).join('\n\n')).join('\n\n'))).join('\n\n') + '\n';
+    const para = (contenu, marge) => '<p style="margin:' + (marge || '0 0 12px') + '">' + contenu + '</p>';
+    const html = '<div>' + para('<b>' + echapper(titre) + '</b>', '0 0 16px')
+      + studios.map((st) => para('<b><u>' + echapper(String(st.studio).toUpperCase()) + '</u></b>', '16px 0 12px')
+        + st.sections.map((sec) => para('<b>' + echapper(sec.titre) + '</b>')
+          + sec.personnes.map((p) => para('<b>' + echapper(p.client) + '</b><br>' + echapper(p.remarque).replace(/\n/g, '<br>'))).join('')).join('')).join('')
+      + '</div>';
+    return { nb, texte, html, studios: studios.map((st) => st.studio), categories: [...new Set(studios.flatMap((st) => st.sections.map((sec) => sec.titre)))] };
+  }
+
+  return { remarquesClub, remarquesCommercial, moisEnClair, cleIdentite, memePersonne, prenomNom };
 }));
