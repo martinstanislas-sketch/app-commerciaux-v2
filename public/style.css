@@ -21982,6 +21982,10 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-ctl-box { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--r2-green); vertical-align: middle; }
 .rec2-ctl-box[disabled] { cursor: progress; opacity: .5; }
 .rec2-ctl-na { color: var(--r2-text-3); }
+/* Suivi des non-reconduits : une couleur par statut (exclusifs). */
+.rec2-nr-box.is-sous_controle { accent-color: var(--r2-green); }
+.rec2-nr-box.is-resilie { accent-color: #a78bfa; }
+.rec2-nr-box.is-a_creuser { accent-color: #fbbf24; }
 /* Deux colonnes de plus : sur écran étroit, le tableau défile dans son cadre
    plutôt que d'élargir la page. */
 .rec2-detail { overflow-x: auto; }
