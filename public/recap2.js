@@ -60,6 +60,7 @@ const Recap2UI = (function () {
   let filtreCom = 'tous';   // 'tous' | 'retrouves' | 'verifier'
   let refsOuvertes = false; // détail des prises de référence du commercial
   let vniComOuvert = false; // détail des VNI du commercial
+  let animerOuverture = false; // le prochain rendu fait entrer le détail en fondu
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -270,6 +271,33 @@ const Recap2UI = (function () {
       + vueCommercial() + LABELS.map(blocStudio).join('');
     mesurerEntetes();
     marquerEntetesColles();
+    if (animerOuverture) {
+      animerOuverture = false;
+      const d = host.querySelector('.rec2-detail, .rec2-alertes-liste');
+      if (d) d.classList.add('rec2-anim-entree');
+    }
+  }
+
+  // ── MICRO-INTERACTIONS (affichage seulement) ────────────────────────────────
+  const mouvementReduit = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // Referme en fondu, PUIS applique exactement le même changement d'état qu'avant.
+  function fermerEnDouceur(el, appliquer) {
+    if (!el || mouvementReduit()) { appliquer(); render(); return; }
+    el.classList.add('rec2-anim-sortie');
+    setTimeout(() => { appliquer(); render(); }, 150);
+  }
+  // « Copié ✓ » sur le bouton pendant 2 s, uniquement après une copie réussie.
+  function confirmerCopie(bouton) {
+    if (!bouton.dataset.libelle) bouton.dataset.libelle = bouton.textContent;
+    bouton.style.minWidth = bouton.offsetWidth + 'px';   // pas de saut de mise en page
+    bouton.textContent = 'Copié ✓';
+    bouton.classList.add('is-copie');
+    clearTimeout(bouton._minuteur);
+    bouton._minuteur = setTimeout(() => {
+      bouton.textContent = bouton.dataset.libelle;
+      bouton.classList.remove('is-copie');
+      bouton.style.minWidth = '';
+    }, 2000);
   }
 
   // Fraîcheur + provenance, discrets, en haut.
@@ -934,6 +962,7 @@ const Recap2UI = (function () {
     const r = window.Recap2Remarques.remarquesClub(rapport, label);
     if (!r.nb) { dire('Aucune remarque à copier pour ce mois', false); return; }
     const ok = await ecrirePressePapiers(r.texte, r.html);
+    if (ok) confirmerCopie(bouton);
     dire(ok ? 'Remarques copiées' : 'Copie impossible — le navigateur a refusé l\'accès au presse-papiers', ok);
   }
 
@@ -959,6 +988,7 @@ const Recap2UI = (function () {
     const r = window.Recap2Remarques.remarquesCommercial(rapport, commercial, bouton.dataset.nom);
     if (!r.nb) { dire('Aucune remarque à copier pour ce commercial sur ce mois', false); return; }
     const ok = await ecrirePressePapiers(r.texte, r.html);
+    if (ok) confirmerCopie(bouton);
     dire(ok ? 'Remarques du commercial copiées' : 'Copie impossible — le navigateur a refusé l\'accès au presse-papiers', ok);
   }
 
@@ -1347,7 +1377,10 @@ const Recap2UI = (function () {
       } catch (_) { /* sans conséquence : le lien s'ouvre quand même */ }
       return; // on ne préempte pas la navigation
     }
-    if (e.target.closest('[data-alertes]')) { alertesOuvertes = !alertesOuvertes; render(); return; }
+    if (e.target.closest('[data-alertes]')) {
+      if (alertesOuvertes) { fermerEnDouceur($('#rec2-body .rec2-alertes-liste'), () => { alertesOuvertes = false; }); return; }
+      alertesOuvertes = true; animerOuverture = true; render(); return;
+    }
     const fil = e.target.closest('[data-filtre]');
     if (fil) { const [label, val] = fil.dataset.filtre.split('|'); filtreComp[label] = val; render(); return; }
     if (e.target.closest('[data-refs]')) { refsOuvertes = !refsOuvertes; render(); return; }
@@ -1363,10 +1396,16 @@ const Recap2UI = (function () {
     if (filNR) { const [label, val] = filNR.dataset.filtrenr.split('|'); filtreNR[label] = val; render(); return; }
     const filC = e.target.closest('[data-filtrecrm]');
     if (filC) { const [label, val] = filC.dataset.filtrecrm.split('|'); filtreCrm[label] = val; render(); return; }
-    if (e.target.closest('[data-close]')) { ouvert = ''; render(); return; }
+    const fermer = e.target.closest('[data-close]');
+    if (fermer) { fermerEnDouceur(fermer.closest('.rec2-detail'), () => { ouvert = ''; }); return; }
     const btn = e.target.closest('[data-open]');
     if (!btn) return;
-    ouvert = (ouvert === btn.dataset.open) ? '' : btn.dataset.open; // re-clic = referme
+    if (ouvert === btn.dataset.open) { // re-clic = referme
+      fermerEnDouceur(btn.closest('.rec2-studio') && btn.closest('.rec2-studio').querySelector('.rec2-detail'), () => { ouvert = ''; });
+      return;
+    }
+    ouvert = btn.dataset.open;
+    animerOuverture = true;
     render();
   }
 
