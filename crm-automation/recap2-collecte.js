@@ -39,6 +39,7 @@ const CSV = require('./lib/csvEncaissements.js');
 const VENTES = require('./lib/csvVentes.js');
 const DEC = require('./lib/deciplus.js');
 const FB = require('./lib/booster.js');
+const REF = require('./lib/boosterReferences.js');
 const CTRL = require('./lib/recap2Controles.js');
 const RAPPRO = require('./lib/rapprochement.js');
 const MATCHES = require('../lib/recap2Matches.js');
@@ -246,6 +247,10 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   //  signées CE mois-là. Auparavant on lisait M-1, ce qui obligeait à
   //  sélectionner septembre pour contrôler le travail d'août.
   const contratsFB = {};
+  // PRISES DE RÉFÉRENCE (Vendor) — lues juste après les contrats, club déjà actif.
+  //  Un repère, pas un KPI : un échec ici ne bloque ni le studio ni l'envoi, il
+  //  prive seulement CE studio de son chiffre de références (et c'est dit).
+  const referencesFB = {};
   try {
     const page = pageDe('fitness-booster');
     if (!page) throw new Error('Aucun onglet Fitness Booster ouvert');
@@ -259,6 +264,16 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         dire('⚠️ FB ' + studio + ' : ' + e.message);
         contratsFB[studio] = { studio, mois, echec: e.message };
       }
+      try {
+        referencesFB[studio] = await REESSAI.avecReessai('Prises de référence ' + studio, TENTATIVES, async () => {
+          const r = await REF.lireReferences(contexte, studio, mois, { journal: dire });
+          if (!r.ok) throw Object.assign(new Error(r.problemes.join(' ; ')), { resultat: r });
+          return r;
+        }, { journal: dire });
+      } catch (e) {
+        referencesFB[studio] = { studio, mois, ok: false, problemes: [e.message] };
+        dire('⚠️ Prises de référence ' + studio + ' : ' + e.message + ' — pas de chiffre pour ce studio');
+      }
     }
   } catch (e) {
     erreurs.push('Fitness Booster : ' + e.message);
@@ -267,6 +282,14 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   rapport.source.fitnessBooster = Object.fromEntries(Object.entries(contratsFB).map(([s, r]) => [s, {
     club: r.club || null, periodeDetail: r.periodeDetail || null, compteur: r.compteur == null ? null : r.compteur,
     annulees: r.annulees == null ? null : r.annulees, echec: r.echec || null,
+    commerciauxSansId: r.commerciauxSansId == null ? null : r.commerciauxSansId,
+    prisesReference: referencesFB[s] ? {
+      ok: !!referencesFB[s].ok, total: referencesFB[s].total == null ? null : referencesFB[s].total,
+      affiche: referencesFB[s].affiche == null ? null : referencesFB[s].affiche,
+      tuileContacts: referencesFB[s].tuileContacts == null ? null : referencesFB[s].tuileContacts,
+      contactsDuMois: referencesFB[s].contactsDuMois == null ? null : referencesFB[s].contactsDuMois,
+      problemes: referencesFB[s].problemes || [],
+    } : null,
   }]));
 
   // ── 3 bis) LES DÉCISIONS HUMAINES DÉJÀ PRISES ────────────────────────────
@@ -308,6 +331,16 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     // Pas de `completion` ici, même à null : ce champ appartient à la règle v1.
     // Un rapport v2 qui le porterait laisserait croire que le KPI existe encore.
     const bloc = { studio, nonReconduction: null, clientsRetrouves: null, avertissements: [] };
+    // Les prises de référence ne dépendent d'aucun fichier Deciplus : elles sont
+    // posées AVANT le contrôle bloquant, qui ne concerne que les deux KPI.
+    const refs = referencesFB[studio];
+    if (refs && refs.ok) {
+      bloc.prisesReference = { total: refs.total, affiche: refs.affiche, liste: refs.liste };
+    } else {
+      const raison = refs ? refs.problemes.join(' ; ') : 'non lues';
+      bloc.prisesReference = { echec: raison };
+      bloc.avertissements.push('Prises de référence indisponibles : ' + raison);
+    }
 
     // Contrôle bloquant PAR STUDIO : si le fichier de M ou de M-1 ne passe pas
     // pour ce studio, on ne produit AUCUN KPI pour lui — et on dit pourquoi.
@@ -363,12 +396,12 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       const valides = toutes.filter((c) => !c.annulee);
       const annulees = toutes.filter((c) => c.annulee).map((c) => ({
         prenom: c.identite.trim(), nom: '',
-        date: c.date, prestation: c.prestation, commercial: c.commercial,
+        date: c.date, prestation: c.prestation, commercial: c.commercial, commercialId: c.commercialId || '',
         dateAnnulation: c.dateAnnulation || '',
       }));
       const signataires = valides.map((c) => ({
         cles: R.clesContrat(c.identite), prenom: c.identite.trim(), nom: '',
-        date: c.date, prestation: c.prestation, commercial: c.commercial,
+        date: c.date, prestation: c.prestation, commercial: c.commercial, commercialId: c.commercialId || '',
       }));
       const vueVentes = VENTES.vueParNom(ventesM, R.clesContrat);
       const vueEnc = enc[mois] ? CSV.vueParNom(enc[mois], studio, M.studioLabel, R.clesContrat) : [];
@@ -416,6 +449,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         return Object.assign({
           client,
           date: c.date || '', prestation: c.prestation || '', commercial: c.commercial || '',
+          // L'identifiant Vendor du commercial : la clé de la vue par commercial.
+          // Le nom ci-dessus ne sert qu'à l'affichage.
+          commercialId: c.commercialId || '',
           annulee: !!c.annulee, dateAnnulation: c.dateAnnulation || '',
           retrouve: c.retrouve, site: c.site || '', dateVente: c.dateVente || '',
           // Id_client Deciplus : sert UNIQUEMENT à ouvrir la fiche membre au

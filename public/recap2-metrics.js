@@ -191,6 +191,7 @@
         date: s.date || '',
         prestation: s.prestation || '',
         commercial: s.commercial || '',
+        commercialId: s.commercialId || '',
         annulee: false,
         dateAnnulation: '',
         retrouve: !!vente,
@@ -218,6 +219,7 @@
       date: a.date || '',
       prestation: a.prestation || '',
       commercial: a.commercial || '',
+      commercialId: a.commercialId || '',
       dateAnnulation: a.dateAnnulation || '',
       annulee: true,
       retrouve: false,
@@ -269,20 +271,57 @@
     return out;
   }
 
-  // Les commerciaux présents dans les ventes du mois, dérivés des données.
-  // Rendus avec leur compte, pour que le sélecteur puisse les ordonner.
+  // ── LA CLÉ D'UN COMMERCIAL : SON IDENTIFIANT VENDOR ───────────────────────
+  //  Depuis le 2026-09-14, chaque vente porte `commercialId` (l'identifiant
+  //  Vendor lu sur la vente elle-même) et chaque prise de référence `createurId`.
+  //  C'est LUI qui regroupe : deux personnes au même nom affiché restent deux
+  //  commerciaux, et un nom modifié dans Vendor ne coupe pas l'historique.
+  //  Le nom ne sert plus qu'à l'affichage.
+  //  Sans identifiant (rapport d'avant, ou identifiant illisible — signalé à la
+  //  collecte), la clé retombe sur le NOM EXACT, comme avant : jamais de
+  //  rapprochement « à peu près ».
+  const cleCommercial = (v) => (v && v.commercialId ? 'id:' + v.commercialId : 'nom:' + String(v && v.commercial != null ? v.commercial : ''));
+  // Une clé passée par l'écran, ou un nom brut (usage historique).
+  const normCle = (c) => (/^(id|nom):/.test(String(c)) ? String(c) : 'nom:' + String(c == null ? '' : c));
+
+  // Les prises de référence du rapport, à plat, chacune portant son studio.
+  //  `indisponibles` : les studios dont la lecture Vendor a échoué — on ne les
+  //  confond jamais avec « 0 prise de référence ».
+  function referencesDuRapport(rapport) {
+    const liste = [], indisponibles = [];
+    let presentes = false;
+    LABELS.forEach((s) => {
+      const pr = rapport && rapport.studios && rapport.studios[s] && rapport.studios[s].prisesReference;
+      if (!pr) return;
+      presentes = true;
+      if (pr.echec) { indisponibles.push({ studio: s, raison: pr.echec }); return; }
+      (pr.liste || []).forEach((r) => liste.push(Object.assign({ studio: s }, r)));
+    });
+    return { presentes, liste, indisponibles };
+  }
+
+  // Les commerciaux du mois — ventes ET prises de référence —, avec leurs comptes.
   function commerciauxDuRapport(rapport) {
     const par = new Map();
+    const entree = (cle, nom, id) => {
+      if (!par.has(cle)) par.set(cle, { cle, commercial: nom, commercialId: id || '', ventes: 0, annulees: 0, retrouves: 0, references: 0, studios: [] });
+      return par.get(cle);
+    };
     ventesDuRapport(rapport).forEach((v) => {
-      const nom = String(v.commercial == null ? '' : v.commercial);
-      if (!par.has(nom)) par.set(nom, { commercial: nom, ventes: 0, annulees: 0, retrouves: 0, studios: [] });
-      const e = par.get(nom);
+      const e = entree(cleCommercial(v), String(v.commercial == null ? '' : v.commercial), v.commercialId);
       e.ventes += 1;
       if (v.annulee) e.annulees += 1;
       else if (v.retrouve) e.retrouves += 1;
       if (e.studios.indexOf(v.studio) < 0) e.studios.push(v.studio);
     });
-    return [...par.values()].sort((a, b) => b.ventes - a.ventes
+    referencesDuRapport(rapport).liste.forEach((r) => {
+      if (!r.createurId) return;
+      const e = entree('id:' + r.createurId, r.createur || '', r.createurId);
+      if (!e.commercial) e.commercial = r.createur || '';
+      e.references += 1;
+      if (e.studios.indexOf(r.studio) < 0) e.studios.push(r.studio);
+    });
+    return [...par.values()].sort((a, b) => b.ventes - a.ventes || b.references - a.references
       || a.commercial.localeCompare(b.commercial, 'fr'));
   }
 
@@ -292,29 +331,45 @@
   //     que la vue affiche, parce qu'on contrôle tout ce qui a été vendu ;
   //   · `total`   = ses ventes ACTIVES, et donc le dénominateur du taux. Une
   //     annulation ne pénalise pas sa saisie CRM.
+  //  Les PRISES DE RÉFÉRENCE s'ajoutent à côté : un repère, qui n'entre dans
+  //  aucun taux. Additionnées sur tous ses studios, par identifiant d'auteur.
   function consoliderCommercial(rapport, commercial) {
-    const ventes = ventesDuRapport(rapport).filter((v) => v.commercial === commercial);
+    const cle = normCle(commercial);
+    const ventes = ventesDuRapport(rapport).filter((v) => cleCommercial(v) === cle);
     // Annulées en dernier : la vue se lit d'abord sur ce qui compte.
     ventes.sort((a, b) => (a.annulee ? 1 : 0) - (b.annulee ? 1 : 0)
       || (a.studio || '').localeCompare(b.studio || '', 'fr')
       || (a.client || '').localeCompare(b.client || '', 'fr'));
+    const refs = referencesDuRapport(rapport);
+    const references = cle.indexOf('id:') === 0
+      ? refs.liste.filter((r) => 'id:' + r.createurId === cle).sort((a, b) => versIso(a.date).localeCompare(versIso(b.date))
+        || (a.studio || '').localeCompare(b.studio || '', 'fr'))
+      : [];
     const annulees = ventes.filter((v) => v.annulee).length;
     const actives = ventes.length - annulees;
     const retrouves = ventes.filter((v) => !v.annulee && v.retrouve).length;
+    const studios = ventes.concat(references).reduce((acc, v) => (acc.indexOf(v.studio) < 0 ? acc.concat([v.studio]) : acc), []);
     return {
       commercial,
+      cle,
+      commercialId: cle.indexOf('id:') === 0 ? cle.slice(3) : '',
+      nom: (ventes[0] && ventes[0].commercial) || (references[0] && references[0].createur) || (cle.indexOf('nom:') === 0 ? cle.slice(4) : ''),
       ventes,
       signees: ventes.length,
       annulees,
       total: actives,
       retrouves,
       aVerifier: actives - retrouves,
-      studios: ventes.reduce((acc, v) => (acc.indexOf(v.studio) < 0 ? acc.concat([v.studio]) : acc), []),
+      studios,
       // Pas de vente active -> pas de dénominateur -> taux null, jamais 0 % ni
       // NaN. Des annulations seules ne créent pas un taux : rien à retrouver.
       taux: actives > 0 ? retrouves / actives : null,
+      references,
+      referencesPresentes: refs.presentes,
+      referencesIndisponibles: refs.indisponibles,
     };
   }
+  const versIso = (fr) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(fr || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
 
   // ── SITE DECIPLUS DIVERGENT ────────────────────────────────────────────────
   //  La vente est portée par un studio dans Fitness Booster, mais Deciplus l'a
@@ -421,7 +476,7 @@
   return {
     STUDIOS, LABELS, normStudio, studioLabel,
     nonReconduction, completion, clientsRetrouves, analyserStudio,
-    ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial,
+    ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
     siteDivergent, caNetStudio, eurosArrondis,
   };
 }));
