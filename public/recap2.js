@@ -215,7 +215,11 @@ const Recap2UI = (function () {
     if (!rapport) { host.innerHTML = ''; return; }
 
     majSelecteurCommercial();
-    host.innerHTML = bandeauSource() + bandeauAlertes() + vueCommercial() + LABELS.map(blocStudio).join('');
+    // Fraîcheur/provenance à gauche, contrôles à droite, sur UNE ligne ; la
+    // liste des contrôles, quand elle est ouverte, se déplie en dessous.
+    const alertes = bandeauAlertes();
+    host.innerHTML = '<div class="rec2-barre">' + bandeauSource() + alertes.bouton + '</div>' + alertes.liste
+      + vueCommercial() + LABELS.map(blocStudio).join('');
   }
 
   // Fraîcheur + provenance, discrets, en haut.
@@ -223,6 +227,7 @@ const Recap2UI = (function () {
     const manquants = LABELS.filter((s) => !(rapport.studios && rapport.studios[s]));
     return '<div class="rec2-meta">'
       + '<span>Données actualisées le <b>' + esc(fmtDate(rapport.genere)) + '</b></span>'
+      + '<span class="rec2-meta-sep" aria-hidden="true">·</span>'
       + '<span class="rec2-meta-src">Source : Deciplus + Fitness Booster</span>'
       + (manquants.length ? '<span class="rec2-meta-ko">⚠ studio(s) absent(s) du fichier : ' + esc(manquants.join(', ')) + '</span>' : '')
       + '</div>';
@@ -240,14 +245,15 @@ const Recap2UI = (function () {
       ((rapport.source[k] || {}).avertissements || []).forEach((a) => liste.push({ studio: k, texte: a }));
     });
     (rapport.erreurs || []).forEach((e) => liste.push({ studio: 'collecte', texte: e, bloquant: true }));
-    if (!liste.length) return '';
+    if (!liste.length) return { bouton: '', liste: '' };
     const n = liste.length;
-    return '<div class="rec2-alertes">'
-      + '<button type="button" class="rec2-alertes-btn" data-alertes="1" aria-expanded="' + (alertesOuvertes ? 'true' : 'false') + '">'
-      + '⚠ ' + n + ' contrôle' + (n > 1 ? 's' : '') + ' à vérifier</button>'
-      + (alertesOuvertes ? '<ul class="rec2-alertes-liste">'
-        + liste.map((a) => '<li><b>' + esc(a.studio) + '</b> — ' + esc(a.texte) + '</li>').join('') + '</ul>' : '')
-      + '</div>';
+    return {
+      bouton: '<div class="rec2-alertes">'
+        + '<button type="button" class="rec2-alertes-btn" data-alertes="1" aria-expanded="' + (alertesOuvertes ? 'true' : 'false') + '">'
+        + '<span class="rec2-alertes-ico" aria-hidden="true">⚠</span> ' + n + ' contrôle' + (n > 1 ? 's' : '') + ' à vérifier</button></div>',
+      liste: alertesOuvertes ? '<ul class="rec2-alertes-liste">'
+        + liste.map((a) => '<li><b>' + esc(a.studio) + '</b> — ' + esc(a.texte) + '</li>').join('') + '</ul>' : '',
+    };
   }
 
   function blocStudio(label) {
