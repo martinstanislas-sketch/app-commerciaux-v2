@@ -22106,3 +22106,42 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 .rec2-barre + .rec2-alertes-liste { margin: -4px 0 16px; }
 /* Plus de trait entre la ligne et le premier studio. */
 .rec2-barre + .rec2-studio, .rec2-barre + .rec2-alertes-liste + .rec2-studio { border-top: 0; padding-top: 4px; }
+
+/* ═══ RECAP 2 — en-tête de studio : titre, CA, VNI cliquable, collant ════════
+   Collant DANS sa section : au studio suivant, l'en-tête suivant prend le
+   relais. `--rec2-haut` = hauteur de la barre du haut (mesurée par recap2.js).
+   Fond opaque et marges négatives : il recouvre toute la largeur du panneau.
+   ⚠️ `html` ET `body` sont en `overflow-x: hidden` : `body` devient alors un
+   conteneur de défilement qui ne défile jamais, et plus rien n'y colle.
+   `clip` coupe le débordement de la même façon sans créer ce conteneur.
+   Écran large seulement : sur mobile la barre du haut occupe déjà ~200 px, on
+   n'y ajoute rien de collant (comportement de défilement inchangé). */
+@media (min-width: 901px) {
+  body:has(#tab-recap2.active) { overflow-x: clip; }
+  .rec2-studio-tete { position: sticky; top: var(--rec2-haut, 0px); z-index: 6; }
+  .rec2-studio-tete.is-colle { box-shadow: 0 1px 0 rgba(255,255,255,.09), 0 10px 18px -10px rgba(0,0,0,.75); }
+}
+.rec2-studio-tete {
+  align-items: center; column-gap: 14px; row-gap: 8px;
+  margin: 0 -22px 12px; padding: 10px 22px;
+  background: var(--r2-bg);
+  transition: box-shadow .15s ease;
+}
+.rec2-studio-tete .rec2-studio-nom { font-size: 20px; font-weight: 750; letter-spacing: -.015em; line-height: 1.2; color: #fff; }
+.rec2-studio-ca { display: inline-flex; align-items: baseline; gap: 8px; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.1); letter-spacing: 0; }
+.rec2-studio-ca-lbl { font-size: 10.5px; font-weight: 650; letter-spacing: .08em; color: var(--r2-text-3); }
+.rec2-studio-ca b { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: #EDEFF3; font-variant-numeric: tabular-nums; }
+.rec2-vni-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: #A5B4FC; background: rgba(99,102,241,.08); border-color: rgba(129,140,248,.38);
+  font-size: 12px; font-weight: 650; padding: 4px 10px 4px 11px;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.rec2-vni-chip::after { content: '›'; font-size: 15px; line-height: 1; transition: transform .15s ease; }
+.rec2-vni-chip:hover, .rec2-vni-chip.is-on { color: #fff; background: rgba(99,102,241,.2); border-color: rgba(129,140,248,.8); }
+.rec2-vni-chip:hover::after { transform: translateX(2px); }
+.rec2-vni-chip.is-on::after { transform: rotate(90deg); }
+@media (max-width: 768px) {
+  .rec2-studio-tete .rec2-studio-nom { font-size: 18px; }
+  .rec2-studio-tete button { min-height: 34px; }
+}

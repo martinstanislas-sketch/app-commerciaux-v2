@@ -89,8 +89,43 @@ const Recap2UI = (function () {
       const zone = e.target.closest && e.target.closest('textarea[data-note-texte]');
       if (zone && editionNote) editionNote.texte = zone.value;
     });
+    suivreHautDePage();
     const sel = $('#rec2-commercial');
     if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; refsOuvertes = false; vniComOuvert = false; ouvert = ''; render(); });
+  }
+
+  // ── EN-TÊTE DE STUDIO COLLANT ──────────────────────────────────────────────
+  //  Pur affichage. L'en-tête d'un studio reste visible pendant qu'on parcourt
+  //  ce studio, calé SOUS la barre du haut — elle-même collante et de hauteur
+  //  variable selon la largeur d'écran, d'où la mesure. `is-colle` ne sert qu'à
+  //  poser l'ombre de séparation quand l'en-tête est effectivement décollé.
+  function suivreHautDePage() {
+    const tab = $('#tab-recap2');
+    const barre = document.querySelector('body > header');
+    if (!tab || !barre) return;
+    const maj = () => {
+      const collante = getComputedStyle(barre).position === 'sticky';
+      tab.style.setProperty('--rec2-haut', (collante ? barre.offsetHeight : 0) + 'px');
+      marquerEntetesColles();
+    };
+    if (window.ResizeObserver) new ResizeObserver(maj).observe(barre);
+    window.addEventListener('resize', maj);
+    let attente = false;
+    window.addEventListener('scroll', () => {
+      if (attente) return;
+      attente = true;
+      requestAnimationFrame(() => { attente = false; marquerEntetesColles(); });
+    }, { passive: true });
+    maj();
+  }
+  function marquerEntetesColles() {
+    const tab = $('#tab-recap2');
+    if (!tab || !tab.classList.contains('active')) return;
+    const haut = parseFloat(tab.style.getPropertyValue('--rec2-haut')) || 0;
+    $$('#rec2-body .rec2-studio-tete').forEach((t) => {
+      const section = t.parentElement.getBoundingClientRect();
+      t.classList.toggle('is-colle', section.top < haut - 1 && section.bottom > haut + t.offsetHeight);
+    });
   }
 
   // Le sélecteur est rempli DEPUIS LE RAPPORT : aucun nom en dur. Il n'apparaît
@@ -220,6 +255,7 @@ const Recap2UI = (function () {
     const alertes = bandeauAlertes();
     host.innerHTML = '<div class="rec2-barre">' + bandeauSource() + alertes.bouton + '</div>' + alertes.liste
       + vueCommercial() + LABELS.map(blocStudio).join('');
+    marquerEntetesColles();
   }
 
   // Fraîcheur + provenance, discrets, en haut.
@@ -282,7 +318,7 @@ const Recap2UI = (function () {
         corps = '<div class="rec2-cards">' + carteNR(label, b.nonReconduction) + c2 + '</div>' + detail(label, b);
       }
     }
-    return '<section class="rec2-studio"><div class="rec2-studio-tete"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>'
+    return '<section class="rec2-studio"><div class="rec2-studio-tete"><h3 class="rec2-studio-nom">' + esc(label) + '</h3>'
       + caStudio(label, b) + compteurVniStudio(label, b) + boutonCopierClub(label, b) + '</div>' + corps + '</section>';
   }
 
@@ -299,9 +335,9 @@ const Recap2UI = (function () {
       + (ca.partielAu ? ', jusqu\'au ' + ca.partielAu + ' seulement — mois non clos à la collecte' : '')
       + ' — ' + ca.lignes + ' lignes : tous les encaissements du studio, remboursements et décaissements déduits. '
       + 'Indépendant du commercial sélectionné.';
-    return '<span class="rec2-studio-ca" title="' + esc(titre) + '">CA ' + esc(moisLabel(rapport.mois).toUpperCase())
+    return '<span class="rec2-studio-ca" title="' + esc(titre) + '"><span class="rec2-studio-ca-lbl">CA ' + esc(moisLabel(rapport.mois).toUpperCase())
       + (ca.partielAu ? ' <i class="rec2-studio-ca-partiel">(au ' + esc(ca.partielAu) + ')</i>' : '')
-      + ' : <b>' + esc(MM.eurosArrondis(ca.montant)) + '</b></span>';
+      + '</span> <b>' + esc(MM.eurosArrondis(ca.montant)) + '</b></span>';
   }
 
   function carte(label, ind, titre, valeur, sous, actif, cliquable) {
