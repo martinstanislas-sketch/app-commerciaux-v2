@@ -22086,3 +22086,23 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 }
 .rec2-head .rec2-mois input:hover,
 .rec2-head .rec2-commercial select:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); }
+
+/* ═══ RECAP 2 — ligne compacte : fraîcheur des données · contrôles à vérifier ═ */
+.rec2-barre { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 0 2px 14px; }
+.rec2-barre .rec2-meta { margin: 0; gap: 2px 8px; font-size: 12px; color: rgba(237,239,243,.5); min-width: 0; }
+.rec2-barre .rec2-meta b { color: rgba(237,239,243,.72); font-weight: 600; }
+.rec2-barre .rec2-meta-src { color: rgba(237,239,243,.5); }
+.rec2-meta-sep { color: rgba(237,239,243,.3); }
+.rec2-barre .rec2-alertes { margin: 0 0 0 auto; }
+.rec2-barre .rec2-alertes-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; padding: 6px 13px;
+  background: rgba(251,191,36,.10); border-color: rgba(251,191,36,.45); color: #FCD34D;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.rec2-barre .rec2-alertes-btn:hover,
+.rec2-barre .rec2-alertes-btn[aria-expanded="true"] { background: rgba(251,191,36,.17); border-color: rgba(251,191,36,.75); color: #FDE68A; }
+.rec2-alertes-ico { color: #FBBF24; }
+.rec2-barre + .rec2-alertes-liste { margin: -4px 0 16px; }
+/* Plus de trait entre la ligne et le premier studio. */
+.rec2-barre + .rec2-studio, .rec2-barre + .rec2-alertes-liste + .rec2-studio { border-top: 0; padding-top: 4px; }
