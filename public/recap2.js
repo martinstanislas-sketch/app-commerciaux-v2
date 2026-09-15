@@ -1147,7 +1147,7 @@ const Recap2UI = (function () {
 
     if (!d.signees) {
       return '<section class="rec2-com"><div class="rec2-com-head"><h3 class="rec2-com-nom">'
-        + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3>'
+        + esc(nom) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3>'
         + boutonCopierCommercial(nom) + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
         + ((d.referencesPresentes || d.vniPresents) ? '<div class="rec2-com-stats">' + (d.referencesPresentes ? compteurReferences(d) : '') + compteurVniCom(d) + '</div>' : '')
         + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p>'
@@ -1196,7 +1196,7 @@ const Recap2UI = (function () {
     const ou = '<p class="rec2-com-studios">Studios : ' + esc(d.studios.join(', ')) + '</p>';
 
     return '<section class="rec2-com">'
-      + '<div class="rec2-com-head"><h3 class="rec2-com-nom">' + esc(nom.toUpperCase()) + ' — '
+      + '<div class="rec2-com-head"><h3 class="rec2-com-nom">' + esc(nom) + ' — '
       + esc(cap(moisLabel(rapport.mois))) + '</h3>'
       + boutonCopierCommercial(nom) + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
       + stats + ou + detailReferences(d) + detailVniCom(d)
