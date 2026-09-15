@@ -879,6 +879,31 @@ const Recap2UI = (function () {
     dire(ok ? 'Remarques copiées' : 'Copie impossible — le navigateur a refusé l\'accès au presse-papiers', ok);
   }
 
+  // ── COPIER LES REMARQUES DU COMMERCIAL ──────────────────────────────────────
+  //  Visible seulement dans la vue d'un commercial précis. Même presse-papiers
+  //  que la copie du club. Studios > Ventes signées / VNI. Les non-reconduits
+  //  n'y sont JAMAIS : RECAP 2 n'a aucun commercial fiable pour eux (voir
+  //  Recap2Remarques.remarquesCommercial).
+  function boutonCopierCommercial(nom) {
+    if (!commercial || !window.Recap2Remarques || !window.Recap2Remarques.remarquesCommercial) return '';
+    return '<span class="rec2-copier"><button type="button" class="rec2-copier-btn" data-copier-com="1" data-nom="' + esc(nom) + '"'
+      + ' title="Ventes signées et VNI de ce commercial, regroupés par studio. Les clients non reconduits ne sont pas inclus : RECAP 2 ne les rattache à aucun commercial.">Copier les remarques du commercial</button>'
+      + '<span class="rec2-copier-msg" role="status" aria-live="polite"></span></span>';
+  }
+  async function copierRemarquesCommercial(bouton) {
+    const msg = bouton.parentNode && bouton.parentNode.querySelector('.rec2-copier-msg');
+    const dire = (t, ok) => {
+      if (!msg) return;
+      msg.textContent = t; msg.classList.toggle('is-ok', !!ok);
+      clearTimeout(msg._minuteur);
+      msg._minuteur = setTimeout(() => { msg.textContent = ''; }, 3000);
+    };
+    const r = window.Recap2Remarques.remarquesCommercial(rapport, commercial, bouton.dataset.nom);
+    if (!r.nb) { dire('Aucune remarque à copier pour ce commercial sur ce mois', false); return; }
+    const ok = await ecrirePressePapiers(r.texte, r.html);
+    dire(ok ? 'Remarques du commercial copiées' : 'Copie impossible — le navigateur a refusé l\'accès au presse-papiers', ok);
+  }
+
   // ── DÉTAILS (fermés par défaut, un seul ouvert à la fois) ────────────────────
   function detail(label, b) {
     if (ouvert === label + '|nr') return detailNR(label, b.nonReconduction);
@@ -1058,7 +1083,7 @@ const Recap2UI = (function () {
     if (!d.signees) {
       return '<section class="rec2-com"><div class="rec2-com-head"><h3 class="rec2-com-nom">'
         + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3>'
-        + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
+        + boutonCopierCommercial(nom) + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
         + ((d.referencesPresentes || d.vniPresents) ? '<div class="rec2-com-stats">' + (d.referencesPresentes ? compteurReferences(d) : '') + compteurVniCom(d) + '</div>' : '')
         + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p>'
         + detailReferences(d) + detailVniCom(d) + '</section>';
@@ -1108,7 +1133,7 @@ const Recap2UI = (function () {
     return '<section class="rec2-com">'
       + '<div class="rec2-com-head"><h3 class="rec2-com-nom">' + esc(nom.toUpperCase()) + ' — '
       + esc(cap(moisLabel(rapport.mois))) + '</h3>'
-      + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
+      + boutonCopierCommercial(nom) + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
       + stats + ou + detailReferences(d) + detailVniCom(d)
       + '<div class="rec2-chips">' + chip('tous', 'Tous', rep0.total)
       + chip('retrouves', 'Retrouvés', rep0.retrouves)
@@ -1237,6 +1262,8 @@ const Recap2UI = (function () {
   function onBodyClick(e) {
     const actNote = e.target.closest('[data-note-action]');
     if (actNote) { actionNote(actNote); return; }
+    const copieCom = e.target.closest('[data-copier-com]');
+    if (copieCom) { copierRemarquesCommercial(copieCom); return; }
     const copieClub = e.target.closest('[data-copier-club]');
     if (copieClub) { copierRemarquesClub(copieClub); return; }
     const resil = e.target.closest('[data-resil-action]');
