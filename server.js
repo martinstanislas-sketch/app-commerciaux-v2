@@ -5248,6 +5248,8 @@ const Recap2Matches = require('./lib/recap2Matches.js');
 const Recap2Checks = require('./lib/recap2Checks.js');
 // Les remarques par personne, même principe : en base, posées à la lecture.
 const Recap2Notes = require('./lib/recap2Notes.js');
+// Les VNI : liste historique du mois − transformations connues aujourd'hui.
+const Recap2Vni = require('./lib/recap2Vni.js');
 // Le suivi des non-reconduits, même principe : en base, posé à la lecture.
 const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
@@ -5479,11 +5481,13 @@ app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
   const type = String(b.type || '').trim();
   const client = String(b.client || '').trim();
   const idClient = String(b.idClient || '').trim();
+  const idVendor = String(b.idVendor || '').trim();
   const remarque = typeof b.remarque === 'string' ? b.remarque : null;
 
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
   if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
-  if (Recap2Notes.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : vente ou non_reconduit' });
+  if (Recap2Notes.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : vente, non_reconduit ou vni' });
+  if (idVendor && !Recap2Vni.ID_VENDOR_RE.test(idVendor)) return res.status(400).json({ error: 'idVendor : identifiant Vendor attendu' });
   if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
   if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
   if (remarque === null) return res.status(400).json({ error: 'remarque : texte attendu (vide pour supprimer)' });
@@ -5493,12 +5497,12 @@ app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
 
   const lu = recap2LireRapport(mois);
   if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
-  const ligne = Recap2Notes.ligneDe(recap2AvecDecisions(lu.rapport), { studio, type, client, idClient });
+  const ligne = Recap2Notes.ligneDe(recap2AvecDecisions(lu.rapport), { studio, type, client, idClient, idVendor });
   if (!ligne) return res.status(404).json({ error: 'Personne introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
   try {
     const qui = (req.session && (req.session.name || req.session.role)) || '';
     const note = Recap2Notes.enregistrer(getDb(), {
-      mois, studio, type, client: ligne.client, idClient: ligne.idClient || '', remarque, par: String(qui).slice(0, 80),
+      mois, studio, type, client: ligne.client, idClient: ligne.idClient || '', idVendor: type === 'vni' ? (ligne.contactId || '') : '', remarque, par: String(qui).slice(0, 80),
     });
     console.log('recap2 remarque ' + (note.remarque ? 'enregistrée' : 'supprimée') + ' (' + type + ') : ' + mois + ' ' + studio);
     res.json({ ok: true, note });
@@ -5576,6 +5580,16 @@ function recap2AvecDecisions(rapport) {
   } catch (e) {
     console.error('recap2 suivi non-reconduits :', e && e.message);
   }
+  // Les VNI : la liste historique moins les transformations connues AUJOURD'HUI
+  // (tous rapports). Aucun autre champ que `vni` n'est touché.
+  try {
+    if (r && r.studios) {
+      const connues = recap2TransformationsConnues();
+      r = Recap2Vni.appliquer(r, connues.index, { connuesJusquau: connues.connuesJusquau });
+    }
+  } catch (e) {
+    console.error('recap2 VNI :', e && e.message);
+  }
   // Les remarques par personne : une information par ligne, aucun compteur touché.
   try {
     if (r && r.mois) r = Recap2Notes.appliquer(r, Recap2Notes.notesDuMois(getDb(), r.mois));
@@ -5583,6 +5597,42 @@ function recap2AvecDecisions(rapport) {
     console.error('recap2 remarques :', e && e.message);
   }
   return r;
+}
+
+// ─── VNI : TOUTES LES TRANSFORMATIONS CONNUES, TOUS RAPPORTS CONFONDUS ───────
+//  C'est ce qui rend le retrait RÉTROACTIF sans jamais recollecter un vieux
+//  mois : la collecte d'octobre dépose les signatures d'octobre, et la lecture
+//  d'août les applique. Un fichier par mois ; le volume prime sur le dossier
+//  local du Mac pour un même mois. Relus seulement s'ils ont changé (mtime).
+const recap2CacheTransfo = new Map(); // fichier -> { mtimeMs, rapport: { genere, transformations } }
+function recap2TransformationsConnues() {
+  const parMois = new Map();
+  [Recap2Store.dossier(), RECAP2_DIR_LOCAL].forEach((d) => {
+    let noms = [];
+    try { noms = fs.readdirSync(d); } catch (_) { return; }
+    noms.forEach((f) => {
+      const m = /^recap2-(\d{4}-\d{2})\.json$/.exec(f);
+      if (m && !parMois.has(m[1])) parMois.set(m[1], path.join(d, f));
+    });
+  });
+  return Recap2Vni.lireTous({
+    lister: () => [...parMois.keys()].sort(),
+    lire: (mois) => {
+      const f = parMois.get(mois);
+      try {
+        const mt = fs.statSync(f).mtimeMs;
+        const c = recap2CacheTransfo.get(f);
+        if (c && c.mtimeMs === mt) return c.rapport;
+        const r = JSON.parse(fs.readFileSync(f, 'utf8'));
+        const rapport = { genere: r.genere, transformations: Array.isArray(r.transformations) ? r.transformations : [] };
+        recap2CacheTransfo.set(f, { mtimeMs: mt, rapport });
+        return rapport;
+      } catch (e) {
+        console.error('recap2 transformations ' + mois + ' :', e && e.message);
+        return null;
+      }
+    },
+  });
 }
 
 // Le rapport BRUT d'un mois : le volume d'abord, puis — sur le Mac — le JSON

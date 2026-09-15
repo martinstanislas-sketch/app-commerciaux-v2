@@ -59,6 +59,7 @@ const Recap2UI = (function () {
   let commercial = '';
   let filtreCom = 'tous';   // 'tous' | 'retrouves' | 'verifier'
   let refsOuvertes = false; // détail des prises de référence du commercial
+  let vniComOuvert = false; // détail des VNI du commercial
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -70,7 +71,7 @@ const Recap2UI = (function () {
   function wire() {
     $('#rec2-mois').addEventListener('change', () => {
       mois = $('#rec2-mois').value; ouvert = ''; alertesOuvertes = false;
-      commercial = ''; filtreCom = 'tous'; refsOuvertes = false; charger();
+      commercial = ''; filtreCom = 'tous'; refsOuvertes = false; vniComOuvert = false; charger();
     });
     $('#rec2-body').addEventListener('click', onBodyClick);
     // Les cases de contrôle : `change`, pour ne réagir qu'à un vrai basculement.
@@ -89,7 +90,7 @@ const Recap2UI = (function () {
       if (zone && editionNote) editionNote.texte = zone.value;
     });
     const sel = $('#rec2-commercial');
-    if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; refsOuvertes = false; ouvert = ''; render(); });
+    if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; refsOuvertes = false; vniComOuvert = false; ouvert = ''; render(); });
   }
 
   // Le sélecteur est rempli DEPUIS LE RAPPORT : aucun nom en dur. Il n'apparaît
@@ -259,11 +260,11 @@ const Recap2UI = (function () {
     } else if (b.controleBloquant && b.controleBloquant.ok === false) {
       // Contrôle bloquant : on n'affiche AUCUN chiffre pour ce studio.
       const r = (b.controleBloquant.raisons || []).join(' · ');
-      corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', r) + carteNA(t2, r) + '</div>';
+      corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', r) + carteNA(t2, r) + '</div>' + detailVniOuvert(label, b);
     } else {
       const pb = incoherences(b);
       if (pb.length) {
-        corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', pb.join(' · ')) + carteNA(t2, pb.join(' · ')) + '</div>';
+        corps = '<div class="rec2-cards">' + carteNA('NON-RECONDUCTION', pb.join(' · ')) + carteNA(t2, pb.join(' · ')) + '</div>' + detailVniOuvert(label, b);
       } else if (commercial && estV2()) {
         // Un commercial est sélectionné : sa vue consolidée, plus haut, porte
         // déjà le 2e KPI. On ne répète pas une carte studio qui, elle, compte
@@ -276,7 +277,7 @@ const Recap2UI = (function () {
       }
     }
     return '<section class="rec2-studio"><div class="rec2-studio-tete"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>'
-      + caStudio(label, b) + boutonCopierClub(label, b) + '</div>' + corps + '</section>';
+      + caStudio(label, b) + compteurVniStudio(label, b) + boutonCopierClub(label, b) + '</div>' + corps + '</section>';
   }
 
   // Le CA net du mois, discret, à côté du nom. Un repère, pas un KPI : il ne
@@ -758,14 +759,14 @@ const Recap2UI = (function () {
   //  ⚠️ AUCUN EFFET SUR LES KPI NI SUR LES STATUTS : rien ici n'entre dans un calcul.
   //  Pas de fenêtre de dialogue : le champ s'ouvre dans la ligne.
   let editionNote = null;   // { cle, texte, erreur, enCours }
-  const cleNote = (type, studio, l) => type + '|' + studio + '|' + (l.client || '') + '|' + (l.idClient || '');
+  const cleNote = (type, studio, l) => type + '|' + studio + '|' + (l.client || '') + '|' + (l.idClient || '') + '|' + (type === 'vni' ? (l.contactId || '') : '');
   const noteTexte = (l) => String((l && l.note && l.note.remarque) || '');
   const EXTRAIT_NOTE = 70;
 
   function blocNote(type, studio, l) {
     const cle = cleNote(type, studio, l);
     const data = ' data-type="' + type + '" data-studio="' + esc(studio) + '" data-client="' + esc(l.client)
-      + '" data-idclient="' + esc(l.idClient || '') + '"';
+      + '" data-idclient="' + esc(l.idClient || '') + '" data-idvendor="' + esc(type === 'vni' ? (l.contactId || '') : '') + '"';
     const btn = (action, texte, cls) => '<button type="button" class="' + cls + '" data-note-action="' + action + '"' + data + '>' + texte + '</button>';
     const existante = noteTexte(l);
     if (editionNote && editionNote.cle === cle) {
@@ -790,20 +791,20 @@ const Recap2UI = (function () {
 
   // Les lignes de la MÊME personne dans la liste du type (deux ventes d'une
   // même personne partagent leur remarque) — même règle que le serveur.
-  function lignesPersonne(type, studio, client, idClient) {
+  function lignesPersonne(type, studio, client, idClient, idVendor) {
     const b = rapport && rapport.studios && rapport.studios[studio];
-    const bloc = b && (type === 'vente' ? b.clientsRetrouves : b.nonReconduction);
+    const bloc = b && (type === 'vente' ? b.clientsRetrouves : type === 'vni' ? b.vni : b.nonReconduction);
     const RR = window.Recap2Remarques;
-    const ref = { client, idClient };
+    const ref = { client, idClient, contactId: idVendor || '' };
     return ((bloc && bloc.liste) || []).filter((l) => (RR ? RR.memePersonne(l, ref) : (l.client === client && String(l.idClient || '') === idClient)));
   }
 
   async function actionNote(bouton) {
     const d = bouton.dataset;
     const action = d.noteAction;
-    const cle = d.type + '|' + d.studio + '|' + d.client + '|' + d.idclient;
+    const cle = d.type + '|' + d.studio + '|' + d.client + '|' + d.idclient + '|' + (d.idvendor || '');
     if (action === 'ouvrir') {
-      const ligne = lignesPersonne(d.type, d.studio, d.client, d.idclient)[0];
+      const ligne = lignesPersonne(d.type, d.studio, d.client, d.idclient, d.idvendor)[0];
       editionNote = { cle, texte: noteTexte(ligne), erreur: '', enCours: false };
       render();
       const zone = $('#rec2-body textarea[data-note-texte]');
@@ -818,11 +819,11 @@ const Recap2UI = (function () {
     try {
       const r = await fetch('/api/recap2/note', {
         method: 'POST', headers: H(),
-        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, remarque }),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, idVendor: d.idvendor || '', remarque }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || !j.note) throw new Error((j && j.error) || ('HTTP ' + r.status));
-      lignesPersonne(d.type, d.studio, d.client, d.idclient).forEach((l) => { l.note = j.note; });
+      lignesPersonne(d.type, d.studio, d.client, d.idclient, d.idvendor).forEach((l) => { l.note = j.note; });
       editionNote = null;
     } catch (err) {
       if (editionNote) { editionNote.enCours = false; editionNote.erreur = 'Non enregistré : ' + (err && err.message ? err.message : 'erreur'); }
@@ -883,8 +884,9 @@ const Recap2UI = (function () {
     if (ouvert === label + '|nr') return detailNR(label, b.nonReconduction);
     if (ouvert === label + '|comp') return detailComp(label, b.completion);
     if (ouvert === label + '|crm') return detailCrm(label, b.clientsRetrouves);
-    return '';
+    return detailVniOuvert(label, b);
   }
+  const detailVniOuvert = (label, b) => ((b && ouvert === label + '|vni') ? detailVni(label, b.vni) : '');
   const detailHead = (titre) => '<div class="rec2-det-head"><span>' + titre + '</span>'
     + '<button type="button" class="rec2-det-x" data-close="1" aria-label="Fermer le détail">✕ Fermer</button></div>';
 
@@ -1057,9 +1059,9 @@ const Recap2UI = (function () {
       return '<section class="rec2-com"><div class="rec2-com-head"><h3 class="rec2-com-nom">'
         + esc(nom.toUpperCase()) + ' — ' + esc(cap(moisLabel(rapport.mois))) + '</h3>'
         + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
-        + (d.referencesPresentes ? '<div class="rec2-com-stats">' + compteurReferences(d) + '</div>' : '')
+        + ((d.referencesPresentes || d.vniPresents) ? '<div class="rec2-com-stats">' + (d.referencesPresentes ? compteurReferences(d) : '') + compteurVniCom(d) + '</div>' : '')
         + '<p class="rec2-info">Aucune vente pour ce commercial sur ce mois.</p>'
-        + detailReferences(d) + '</section>';
+        + detailReferences(d) + detailVniCom(d) + '</section>';
     }
 
     const liste = d.ventes.filter((v) => passeFiltre(v, filtreCom));
@@ -1099,6 +1101,7 @@ const Recap2UI = (function () {
       + (rep0.divergents ? '<span class="rec2-com-det rec2-com-det-div"><b>' + rep0.divergents + '</b> '
         + (rep0.divergents > 1 ? 'sites Deciplus divergents' : 'site Deciplus divergent') + '</span>' : '')
       + (d.referencesPresentes ? compteurReferences(d) : '')
+      + compteurVniCom(d)
       + '</div>';
     const ou = '<p class="rec2-com-studios">Studios : ' + esc(d.studios.join(', ')) + '</p>';
 
@@ -1106,7 +1109,7 @@ const Recap2UI = (function () {
       + '<div class="rec2-com-head"><h3 class="rec2-com-nom">' + esc(nom.toUpperCase()) + ' — '
       + esc(cap(moisLabel(rapport.mois))) + '</h3>'
       + '<button type="button" class="rec2-det-x" data-toutcom="1">✕ Tous les commerciaux</button></div>'
-      + stats + ou + detailReferences(d)
+      + stats + ou + detailReferences(d) + detailVniCom(d)
       + '<div class="rec2-chips">' + chip('tous', 'Tous', rep0.total)
       + chip('retrouves', 'Retrouvés', rep0.retrouves)
       + (rep0.proposes ? chip('proposes', 'Rapprochements proposés', rep0.proposes) : '')
@@ -1119,6 +1122,83 @@ const Recap2UI = (function () {
       + '<p class="rec2-det-note">Ce filtre ne concerne que « clients retrouvés dans Deciplus ». '
       + 'La non-reconduction, ci-dessous, ne dépend d\'aucun commercial.</p>'
       + '</section>';
+  }
+
+  // ── VNI (VISITEURS NON INSCRITS) ────────────────────────────────────────────
+  //  Venus à un rendez-vous dans le mois, jamais transformés depuis. La liste
+  //  vient du SERVEUR : historique du mois − transformations connues aujourd'hui
+  //  (tous rapports). Rien n'est recalculé ici. Aucun KPI n'en dépend.
+  //  Commercial = celui du DERNIER rendez-vous venu du mois.
+  const nbTexte = (n, un, pl) => n + ' ' + (n > 1 ? pl : un);
+  function repartitionVni(liste, champ) {
+    const par = new Map();
+    liste.forEach((l) => { const k = l[champ] || '—'; par.set(k, (par.get(k) || 0) + 1); });
+    return [...par.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), 'fr'))
+      .map(([k, n]) => esc(champ === 'commercial' ? (window.Recap2Metrics.libelleCommercial(k) || k) : k) + ' <b>' + n + '</b>').join(' · ');
+  }
+  function compteurVniStudio(label, b) {
+    const v = b && b.vni;
+    if (!v) return '';
+    if (v.echec) return '<span class="rec2-vni-indispo" title="' + esc(v.echec) + '">VNI indisponibles</span>';
+    const n = (v.liste || []).length;
+    const actif = ouvert === label + '|vni';
+    return '<button type="button" class="rec2-vni-chip' + (actif ? ' is-on' : '') + '" data-open="' + esc(label) + '|vni" aria-expanded="' + (actif ? 'true' : 'false') + '"'
+      + ' title="Visiteurs non inscrits : venus en rendez-vous ce mois-ci, sans vente ni signature depuis">' + n + ' VNI</button>';
+  }
+  function nomVni(l) {
+    const R = window.Retention;
+    const href = (l.idClient && R && R.lienDeciplusId) ? R.lienDeciplusId(l.idClient) : null;
+    if (!href) return esc(l.client);
+    return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + esc(l.client) + '</a>';
+  }
+  function piedVni(v) {
+    const morceaux = [];
+    if (v.retires) morceaux.push(nbTexte(v.retires, 'personne transformée depuis la collecte, retirée', 'personnes transformées depuis la collecte, retirées') + ' de la liste');
+    if (v.transformationsConnuesJusquau) morceaux.push('transformations connues au ' + v.transformationsConnuesJusquau);
+    morceaux.push('sans effet sur les KPI');
+    return '<p class="rec2-det-note">' + esc(morceaux.join(' · ')) + '.</p>';
+  }
+  function tableVni(liste, avecStudio) {
+    if (!liste.length) return '<p class="rec2-info">Aucun VNI.</p>';
+    const lignes = liste.map((l) => '<tr>'
+      + (avecStudio ? '<td class="rec2-com-studio">' + esc(l.studio) + '</td>' : '')
+      + '<td>' + nomVni(l) + blocNote('vni', l.studio, l) + '</td>'
+      + '<td class="rec2-num">' + esc(l.dateVenue) + (l.venues > 1 ? ' <span class="rec2-det-date">' + l.venues + ' venues</span>' : '') + '</td>'
+      + '<td>' + esc(window.Recap2Metrics.libelleCommercial(l.commercial) || l.commercial || '—') + '</td>'
+      + '<td>' + esc(l.statutVendor || '—') + '</td></tr>').join('');
+    return '<table class="rec2-table"><thead><tr>' + (avecStudio ? '<th>Studio</th>' : '') + '<th>Visiteur</th><th class="rec2-num">Dernier RDV venu</th>'
+      + '<th>Commercial</th><th>Statut Vendor</th></tr></thead><tbody>' + lignes + '</tbody></table>';
+  }
+  function detailVni(label, v) {
+    if (!v || v.echec) return '';
+    // On pose le studio sur les lignes du RAPPORT : la remarque s'y enregistre.
+    const liste = (v.liste || []).map((l) => Object.assign(l, { studio: label }));
+    return '<div class="rec2-detail">' + detailHead(esc(label) + ' · VNI de ' + esc(moisLabel(rapport.mois)) + ' — ' + liste.length)
+      + (liste.length ? '<p class="rec2-com-studios">Par commercial : ' + repartitionVni(liste, 'commercial') + '</p>' : '')
+      + tableVni(liste, false) + piedVni(v) + '</div>';
+  }
+  function compteurVniCom(d) {
+    if (!d.vniPresents) return '';
+    return '<button type="button" class="rec2-com-det rec2-com-refs" data-vnicom="1" aria-expanded="' + (vniComOuvert ? 'true' : 'false') + '">'
+      + '<b>' + d.vni.length + '</b> VNI</button>';
+  }
+  function detailVniCom(d) {
+    if (!d.vniPresents) return '';
+    const manque = d.vniIndisponibles.length
+      ? '<p class="rec2-info rec2-info-err">VNI indisponibles pour : ' + esc(d.vniIndisponibles.map((x) => x.studio).join(', ')) + ' — le total ne les inclut pas.</p>' : '';
+    if (!vniComOuvert) return manque;
+    // Les lignes du RAPPORT elles-mêmes (pas des copies) : une remarque posée ici
+    // se voit aussi dans le détail du studio.
+    const lignes = d.vni.map((x) => {
+      const b = rapport.studios[x.studio];
+      const l = ((b && b.vni && b.vni.liste) || []).find((y) => y.contactId === x.contactId) || x;
+      return Object.assign(l, { studio: x.studio });
+    });
+    return '<div class="rec2-refs"><div class="rec2-det-head"><span>VNI — ' + esc(cap(moisLabel(rapport.mois))) + '</span>'
+      + '<button type="button" class="rec2-det-x" data-vnicom="1" aria-label="Fermer le détail des VNI">✕ Fermer</button></div>'
+      + (lignes.length ? '<p class="rec2-com-studios">Par studio : ' + repartitionVni(lignes, 'studio') + '</p>' : '')
+      + tableVni(lignes, true)
+      + '<p class="rec2-det-note">Venus en rendez-vous ce mois-ci (dernier RDV venu avec ce commercial), sans vente ni signature depuis. Sans effet sur les KPI.</p></div>' + manque;
   }
 
   // ── PRISES DE RÉFÉRENCE (Vendor) ────────────────────────────────────────────
@@ -1179,10 +1259,11 @@ const Recap2UI = (function () {
     const fil = e.target.closest('[data-filtre]');
     if (fil) { const [label, val] = fil.dataset.filtre.split('|'); filtreComp[label] = val; render(); return; }
     if (e.target.closest('[data-refs]')) { refsOuvertes = !refsOuvertes; render(); return; }
+    if (e.target.closest('[data-vnicom]')) { vniComOuvert = !vniComOuvert; render(); return; }
     const fCom = e.target.closest('[data-filtrecom]');
     if (fCom) { filtreCom = fCom.dataset.filtrecom; render(); return; }
     if (e.target.closest('[data-toutcom]')) {
-      commercial = ''; filtreCom = 'tous'; refsOuvertes = false;
+      commercial = ''; filtreCom = 'tous'; refsOuvertes = false; vniComOuvert = false;
       const sel = $('#rec2-commercial'); if (sel) sel.value = '';
       render(); return;
     }

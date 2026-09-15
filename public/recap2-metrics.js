@@ -301,10 +301,28 @@
   }
 
   // Les commerciaux du mois — ventes ET prises de référence —, avec leurs comptes.
+  // ── VNI (visiteurs non inscrits) ─────────────────────────────────────────
+  //  La liste ACTIVE de chaque studio, telle que le serveur l'a posée (les
+  //  personnes transformées depuis la collecte en sont déjà retirées). Un repère
+  //  de suivi : aucun KPI n'en dépend. `presents` : le rapport en porte-t-il ?
+  //  `indisponibles` : studios dont la lecture a échoué — jamais « 0 VNI ».
+  function vniDuRapport(rapport) {
+    const liste = [], indisponibles = [];
+    let presents = false;
+    LABELS.forEach((s) => {
+      const v = rapport && rapport.studios && rapport.studios[s] && rapport.studios[s].vni;
+      if (!v) return;
+      presents = true;
+      if (v.echec) { indisponibles.push({ studio: s, raison: v.echec }); return; }
+      (v.liste || []).forEach((l) => liste.push(Object.assign({ studio: s }, l)));
+    });
+    return { presents, liste, indisponibles };
+  }
+
   function commerciauxDuRapport(rapport) {
     const par = new Map();
     const entree = (cle, nom, id) => {
-      if (!par.has(cle)) par.set(cle, { cle, commercial: nom, commercialId: id || '', ventes: 0, annulees: 0, retrouves: 0, references: 0, studios: [] });
+      if (!par.has(cle)) par.set(cle, { cle, commercial: nom, commercialId: id || '', ventes: 0, annulees: 0, retrouves: 0, references: 0, vni: 0, studios: [] });
       return par.get(cle);
     };
     ventesDuRapport(rapport).forEach((v) => {
@@ -321,7 +339,15 @@
       e.references += 1;
       if (e.studios.indexOf(r.studio) < 0) e.studios.push(r.studio);
     });
-    return [...par.values()].sort((a, b) => b.ventes - a.ventes || b.references - a.references
+    // Un commercial qui n'a QUE des VNI ce mois-là doit pouvoir être choisi.
+    vniDuRapport(rapport).liste.forEach((l) => {
+      if (!l.commercialId) return;
+      const e = entree('id:' + l.commercialId, l.commercial || '', l.commercialId);
+      if (!e.commercial) e.commercial = l.commercial || '';
+      e.vni += 1;
+      if (e.studios.indexOf(l.studio) < 0) e.studios.push(l.studio);
+    });
+    return [...par.values()].sort((a, b) => b.ventes - a.ventes || b.references - a.references || b.vni - a.vni
       || a.commercial.localeCompare(b.commercial, 'fr'));
   }
 
@@ -348,12 +374,15 @@
     const annulees = ventes.filter((v) => v.annulee).length;
     const actives = ventes.length - annulees;
     const retrouves = ventes.filter((v) => !v.annulee && v.retrouve).length;
-    const studios = ventes.concat(references).reduce((acc, v) => (acc.indexOf(v.studio) < 0 ? acc.concat([v.studio]) : acc), []);
+    const vniR = vniDuRapport(rapport);
+    const vni = cle.indexOf('id:') === 0
+      ? vniR.liste.filter((l) => 'id:' + l.commercialId === cle) : [];
+    const studios = ventes.concat(references).concat(vni).reduce((acc, v) => (acc.indexOf(v.studio) < 0 ? acc.concat([v.studio]) : acc), []);
     return {
       commercial,
       cle,
       commercialId: cle.indexOf('id:') === 0 ? cle.slice(3) : '',
-      nom: (ventes[0] && ventes[0].commercial) || (references[0] && references[0].createur) || (cle.indexOf('nom:') === 0 ? cle.slice(4) : ''),
+      nom: (ventes[0] && ventes[0].commercial) || (references[0] && references[0].createur) || (vni[0] && vni[0].commercial) || (cle.indexOf('nom:') === 0 ? cle.slice(4) : ''),
       ventes,
       signees: ventes.length,
       annulees,
@@ -370,6 +399,8 @@
       references,
       referencesPresentes: refs.presentes,
       referencesIndisponibles: refs.indisponibles,
+      // VNI du commercial (dernier RDV venu du mois), tous studios confondus.
+      vni, vniPresents: vniR.presents, vniIndisponibles: vniR.indisponibles,
     };
   }
   const versIso = (fr) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(fr || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
@@ -512,7 +543,7 @@
   return {
     STUDIOS, LABELS, normStudio, studioLabel,
     nonReconduction, completion, clientsRetrouves, analyserStudio,
-    ventesDuRapport, commerciauxDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
+    ventesDuRapport, commerciauxDuRapport, vniDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
     siteDivergent, caNetStudio, eurosArrondis, contratsValides, motifValidation, venteValidee,
   };
 }));

@@ -40,6 +40,7 @@ const VENTES = require('./lib/csvVentes.js');
 const DEC = require('./lib/deciplus.js');
 const FB = require('./lib/booster.js');
 const REF = require('./lib/boosterReferences.js');
+const VNI = require('./lib/boosterVni.js');
 const CTRL = require('./lib/recap2Controles.js');
 const RAPPRO = require('./lib/rapprochement.js');
 const MATCHES = require('../lib/recap2Matches.js');
@@ -271,7 +272,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
           return r;
         }, { journal: dire });
       } catch (e) {
-        referencesFB[studio] = { studio, mois, ok: false, problemes: [e.message] };
+        // La lecture a pu aboutir malgré un contrôle « références » en échec : ses
+        // données brutes restent utilisables pour les VNI, qui ont LEUR contrôle.
+        referencesFB[studio] = Object.assign({ studio, mois }, e.resultat || {}, { ok: false, problemes: [e.message] });
         dire('⚠️ Prises de référence ' + studio + ' : ' + e.message + ' — pas de chiffre pour ce studio');
       }
     }
@@ -291,6 +294,25 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       problemes: referencesFB[s].problemes || [],
     } : null,
   }]));
+
+  // ── 3 ter-a) VNI (visiteurs non inscrits) ────────────────────────────────
+  //  Un repère de suivi, jamais un KPI : un contrôle en échec ne prive QUE la
+  //  partie VNI du studio. Voir lib/boosterVni.js et lib/recap2Vni.js.
+  let vniCalc = { studios: {}, transformations: [], avertissements: [] };
+  try {
+    vniCalc = VNI.calculer({
+      ym: mois, studios: M.LABELS, lectures: referencesFB, contratsFB,
+      ventesDeciplus: ventesM ? ventesM.map((l) => ({ date: l.date, idClient: l.idClient })) : null,
+    });
+    const nb = M.LABELS.map((s) => { const b = vniCalc.studios[s]; return s + ' ' + (b && b.liste ? b.liste.length : '—'); }).join(', ');
+    dire('VNI : ' + nb + ' · ' + vniCalc.transformations.length + ' transformation(s) connue(s)');
+    vniCalc.avertissements.forEach((a) => dire('ℹ️ VNI : ' + a));
+  } catch (e) {
+    dire('⚠️ VNI : ' + e.message + ' — pas de VNI pour ce mois');
+    M.LABELS.forEach((s) => { vniCalc.studios[s] = { echec: 'calcul impossible : ' + e.message }; });
+  }
+  rapport.transformations = vniCalc.transformations;
+  rapport.source.vni = { avertissements: vniCalc.avertissements, transformations: vniCalc.transformations.length };
 
   // ── 3 bis) LES DÉCISIONS HUMAINES DÉJÀ PRISES ────────────────────────────
   //  Lues sur le serveur AVANT le moteur fuzzy : une correspondance confirmée
@@ -341,6 +363,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       bloc.prisesReference = { echec: raison };
       bloc.avertissements.push('Prises de référence indisponibles : ' + raison);
     }
+    // Les VNI non plus ne dépendent d'aucun fichier Deciplus du studio.
+    bloc.vni = vniCalc.studios[studio] || { echec: 'non calculés' };
+    if (bloc.vni.echec) bloc.avertissements.push('VNI indisponibles : ' + bloc.vni.echec);
 
     // Contrôle bloquant PAR STUDIO : si le fichier de M ou de M-1 ne passe pas
     // pour ce studio, on ne produit AUCUN KPI pour lui — et on dit pourquoi.
