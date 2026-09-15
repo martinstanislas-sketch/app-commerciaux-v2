@@ -22207,3 +22207,47 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
     background: var(--r2-surface); box-shadow: inset 0 -1px 0 var(--r2-line-2);
   }
 }
+
+/* ═══ RECAP 2 — cohérence visuelle ═══════════════════════════════════════════
+   Trois rayons : 16 px le panneau · 12 px les blocs (bandeau, cartes, détails)
+   · 8 px tout ce qui est petit (boutons, champs, puces, badges).
+   Trois niveaux : page #07080D · panneau #0D0F16 · carte #14161F, bordures à
+   8-10 % de blanc.
+   Deux boutons : primaire (fond accent) et secondaire (contour). Exceptions
+   assumées : « Coaching » (bascule vers une autre application), la puce ambre
+   des contrôles à vérifier (une alerte), les puces de filtre et « X VNI ».
+   Petites capitales espacées réservées aux en-têtes de tableau et aux libellés
+   fonctionnels (filtres, libellé du CA). */
+.rec2-wrap { border-radius: 16px; border: 1px solid rgba(255,255,255,.06); }
+.rec2-head, .rec2-card, .rec2-detail, .rec2-com, .rec2-vide, .rec2-alertes-liste { border-radius: 12px; }
+.rec2-card { border-color: rgba(255,255,255,.09); }
+.rec2-detail { border-color: rgba(255,255,255,.10); }
+.rec2-studio { border-top-color: rgba(255,255,255,.08); }
+.rec2-chip, .rec2-alertes-btn, .rec2-vni-chip, .rec2-com-refs, .rec2-etat, .rec2-decale, .rec2-note-voir,
+.rec2-note-zone, .rec2-resil-date, .rec2-head .rec2-mois input, .rec2-head .rec2-commercial select { border-radius: 8px; }
+
+/* Typographie : la hiérarchie par la taille et la graisse, pas par les capitales. */
+.rec2-card-lbl { font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--r2-text-2); text-transform: lowercase; }
+.rec2-card-lbl::first-letter { text-transform: uppercase; }
+.rec2-com-nom { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.rec2-com-studio { font-size: 12.5px; letter-spacing: 0; text-transform: none; color: var(--r2-text-2); }
+.rec2-etat.is-div { text-transform: none; letter-spacing: 0; }
+
+/* Boutons : secondaire… */
+.rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok,
+body:has(#tab-recap2.active) .btn-change-pin, body:has(#tab-recap2.active) .btn-logout {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 30px; padding: 0 12px; box-sizing: border-box;
+  font: inherit; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
+  border-radius: 8px; cursor: pointer;
+  background: transparent; border: 1px solid rgba(255,255,255,.14); color: rgba(237,239,243,.72);
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.rec2-det-x:hover, .rec2-copier-btn:hover, .rec2-btn-non:hover,
+body:has(#tab-recap2.active) .btn-change-pin:hover, body:has(#tab-recap2.active) .btn-logout:hover {
+  background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.28); color: #fff;
+}
+/* … et primaire. */
+.rec2-btn-ok { background: var(--r2-accent); border-color: var(--r2-accent); color: #fff; }
+.rec2-btn-ok:hover { background: #7C7FF5; border-color: #7C7FF5; color: #fff; }
+.rec2-btn-ok[disabled], .rec2-btn-non[disabled] { opacity: .5; cursor: default; }
