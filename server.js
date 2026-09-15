@@ -4641,6 +4641,11 @@ function ensureRecap2ChecksSchema() {
   require('./lib/recap2Checks.js').creerTable(getDb());
 }
 ensureRecap2ChecksSchema();
+// Et pour les remarques manuelles par personne (ventes signées / non reconduits).
+function ensureRecap2NotesSchema() {
+  require('./lib/recap2Notes.js').creerTable(getDb());
+}
+ensureRecap2NotesSchema();
 // Et pour le suivi des clients non reconduits (Sous contrôle / Résilié / À creuser).
 function ensureRecap2NrStatutsSchema() {
   require('./lib/recap2NrStatuts.js').creerTable(getDb());
@@ -5241,6 +5246,8 @@ const Recap2Store = require('./lib/recap2Store.js');
 const Recap2Matches = require('./lib/recap2Matches.js');
 // Les cases de contrôle manuel, même principe : en base, posées à la lecture.
 const Recap2Checks = require('./lib/recap2Checks.js');
+// Les remarques par personne, même principe : en base, posées à la lecture.
+const Recap2Notes = require('./lib/recap2Notes.js');
 // Le suivi des non-reconduits, même principe : en base, posé à la lecture.
 const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
@@ -5457,6 +5464,50 @@ app.post('/api/recap2/nr-statut', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ─── REMARQUE MANUELLE SUR UNE PERSONNE ─────────────────────────────────────
+//  Admin connecté uniquement. { mois, studio, type: 'vente'|'non_reconduit',
+//  client, idClient (facultatif), remarque }. Remarque vide = suppression.
+//  La personne doit figurer dans la liste du type, dans le rapport du mois TEL
+//  QU'IL EST AFFICHÉ (décisions de rapprochement posées) ; on enregistre le nom
+//  et l'Id membre DU RAPPORT, jamais ceux envoyés.
+//  Aucun KPI, aucun statut, aucune donnée du rapport n'en dépend.
+//  Déclarée AVANT `POST /api/recap2/:mois`, sinon « note » serait lu comme un mois.
+app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim();
+  const studio = String(b.studio || '').trim();
+  const type = String(b.type || '').trim();
+  const client = String(b.client || '').trim();
+  const idClient = String(b.idClient || '').trim();
+  const remarque = typeof b.remarque === 'string' ? b.remarque : null;
+
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (Recap2Notes.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : vente ou non_reconduit' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
+  if (remarque === null) return res.status(400).json({ error: 'remarque : texte attendu (vide pour supprimer)' });
+  if (remarque.trim().length > Recap2Notes.LONGUEUR_MAX) {
+    return res.status(400).json({ error: 'remarque trop longue (' + Recap2Notes.LONGUEUR_MAX + ' caractères maximum)' });
+  }
+
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const ligne = Recap2Notes.ligneDe(recap2AvecDecisions(lu.rapport), { studio, type, client, idClient });
+  if (!ligne) return res.status(404).json({ error: 'Personne introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const note = Recap2Notes.enregistrer(getDb(), {
+      mois, studio, type, client: ligne.client, idClient: ligne.idClient || '', remarque, par: String(qui).slice(0, 80),
+    });
+    console.log('recap2 remarque ' + (note.remarque ? 'enregistrée' : 'supprimée') + ' (' + type + ') : ' + mois + ' ' + studio);
+    res.json({ ok: true, note });
+  } catch (e) {
+    console.error('recap2 remarque :', e && e.message);
+    res.status(400).json({ error: e && e.message ? e.message : 'remarque refusée' });
+  }
+});
+
 app.post('/api/recap2/:mois', (req, res) => {
   const mois = String(req.params.mois || '');
   if (!recap2CleAttendue()) {
@@ -5524,6 +5575,12 @@ function recap2AvecDecisions(rapport) {
     if (r && r.mois) r = Recap2NrStatuts.appliquer(r, Recap2NrStatuts.statutsDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 suivi non-reconduits :', e && e.message);
+  }
+  // Les remarques par personne : une information par ligne, aucun compteur touché.
+  try {
+    if (r && r.mois) r = Recap2Notes.appliquer(r, Recap2Notes.notesDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 remarques :', e && e.message);
   }
   return r;
 }

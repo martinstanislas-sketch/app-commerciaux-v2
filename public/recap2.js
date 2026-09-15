@@ -82,6 +82,12 @@ const Recap2UI = (function () {
       const resil = e.target.closest && e.target.closest('input[data-resil]');
       if (resil && rapport) basculerResiliation(resil);
     });
+    // Le texte d'une remarque en cours de saisie : gardé dans l'état, pour qu'un
+    // rendu (autre case cochée, filtre) ne l'efface pas.
+    $('#rec2-body').addEventListener('input', (e) => {
+      const zone = e.target.closest && e.target.closest('textarea[data-note-texte]');
+      if (zone && editionNote) editionNote.texte = zone.value;
+    });
     const sel = $('#rec2-commercial');
     if (sel) sel.addEventListener('change', () => { commercial = sel.value; filtreCom = 'tous'; refsOuvertes = false; ouvert = ''; render(); });
   }
@@ -127,7 +133,7 @@ const Recap2UI = (function () {
 
   // ── CHARGEMENT ──────────────────────────────────────────────────────────────
   async function charger() {
-    etat = 'chargement'; rapport = null; message = ''; editionResil = null; render();
+    etat = 'chargement'; rapport = null; message = ''; editionResil = null; editionNote = null; render();
     try {
       const r = await fetch('/api/recap2/' + mois, { headers: H() });
       const j = await r.json().catch(() => null);
@@ -270,7 +276,7 @@ const Recap2UI = (function () {
       }
     }
     return '<section class="rec2-studio"><div class="rec2-studio-tete"><h3 class="rec2-studio-nom">' + esc(label.toUpperCase()) + '</h3>'
-      + caStudio(label, b) + '</div>' + corps + '</section>';
+      + caStudio(label, b) + boutonCopierClub(label, b) + '</div>' + corps + '</section>';
   }
 
   // Le CA net du mois, discret, à côté du nom. Un repère, pas un KPI : il ne
@@ -744,6 +750,134 @@ const Recap2UI = (function () {
   // Le filtre de repérage, habillé en alerte pour se distinguer des populations.
   const chipDiv = (chip, n) => chip('divergents', '⚠ Sites divergents', n).replace('rec2-chip', 'rec2-chip rec2-chip-div');
 
+  // ── REMARQUES PAR PERSONNE (ventes signées / non reconduits) ────────────────
+  //  Une remarque libre par personne, liée au MOIS du rapport, au studio et au
+  //  type de liste. L'état vient du SERVEUR (`l.note`, posé à la lecture) : il
+  //  survit à l'actualisation, à la reconnexion, au redéploiement et à une
+  //  nouvelle collecte. Une remarque vide = supprimée.
+  //  ⚠️ AUCUN EFFET SUR LES KPI NI SUR LES STATUTS : rien ici n'entre dans un calcul.
+  //  Pas de fenêtre de dialogue : le champ s'ouvre dans la ligne.
+  let editionNote = null;   // { cle, texte, erreur, enCours }
+  const cleNote = (type, studio, l) => type + '|' + studio + '|' + (l.client || '') + '|' + (l.idClient || '');
+  const noteTexte = (l) => String((l && l.note && l.note.remarque) || '');
+  const EXTRAIT_NOTE = 70;
+
+  function blocNote(type, studio, l) {
+    const cle = cleNote(type, studio, l);
+    const data = ' data-type="' + type + '" data-studio="' + esc(studio) + '" data-client="' + esc(l.client)
+      + '" data-idclient="' + esc(l.idClient || '') + '"';
+    const btn = (action, texte, cls) => '<button type="button" class="' + cls + '" data-note-action="' + action + '"' + data + '>' + texte + '</button>';
+    const existante = noteTexte(l);
+    if (editionNote && editionNote.cle === cle) {
+      const e = editionNote;
+      return '<div class="rec2-note-edit">'
+        + '<textarea class="rec2-note-zone" rows="2" maxlength="2000" data-note-texte="1" placeholder="Remarque sur ' + esc(l.client) + ' — ' + esc(moisLabel(rapport.mois)) + '"'
+        + (e.enCours ? ' disabled' : '') + '>' + esc(e.texte) + '</textarea>'
+        + '<div class="rec2-prop-actions">' + btn('enregistrer', 'Enregistrer', 'rec2-btn-ok')
+        + (existante ? btn('supprimer', 'Supprimer', 'rec2-btn-non') : '')
+        + btn('annuler', 'Annuler', 'rec2-btn-non') + '</div>'
+        + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + '</div>';
+    }
+    if (existante) {
+      const n = l.note;
+      const qui = (n.modifiePar ? ' par ' + n.modifiePar : '') + (n.modifieLe ? ' le ' + fmtDate(n.modifieLe) : '');
+      const extrait = existante.length > EXTRAIT_NOTE ? existante.slice(0, EXTRAIT_NOTE).trim() + '…' : existante;
+      return '<div class="rec2-note"><button type="button" class="rec2-note-voir" data-note-action="ouvrir"' + data
+        + ' title="' + esc(existante + '\n\nRemarque enregistrée' + qui + ' — cliquer pour modifier') + '">📝 <span>' + esc(extrait) + '</span></button></div>';
+    }
+    return '<div class="rec2-note">' + btn('ouvrir', '+ Ajouter une remarque', 'rec2-note-ajout') + '</div>';
+  }
+
+  // Les lignes de la MÊME personne dans la liste du type (deux ventes d'une
+  // même personne partagent leur remarque) — même règle que le serveur.
+  function lignesPersonne(type, studio, client, idClient) {
+    const b = rapport && rapport.studios && rapport.studios[studio];
+    const bloc = b && (type === 'vente' ? b.clientsRetrouves : b.nonReconduction);
+    const RR = window.Recap2Remarques;
+    const ref = { client, idClient };
+    return ((bloc && bloc.liste) || []).filter((l) => (RR ? RR.memePersonne(l, ref) : (l.client === client && String(l.idClient || '') === idClient)));
+  }
+
+  async function actionNote(bouton) {
+    const d = bouton.dataset;
+    const action = d.noteAction;
+    const cle = d.type + '|' + d.studio + '|' + d.client + '|' + d.idclient;
+    if (action === 'ouvrir') {
+      const ligne = lignesPersonne(d.type, d.studio, d.client, d.idclient)[0];
+      editionNote = { cle, texte: noteTexte(ligne), erreur: '', enCours: false };
+      render();
+      const zone = $('#rec2-body textarea[data-note-texte]');
+      if (zone) { zone.focus(); zone.setSelectionRange(zone.value.length, zone.value.length); }
+      return;
+    }
+    if (!editionNote || editionNote.cle !== cle) return;
+    if (action === 'annuler') { editionNote = null; render(); return; }
+    // Enregistrer (texte vide = supprimer) ou supprimer : le serveur fait foi.
+    const remarque = action === 'supprimer' ? '' : String(editionNote.texte || '');
+    editionNote.enCours = true; editionNote.erreur = ''; render();
+    try {
+      const r = await fetch('/api/recap2/note', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, remarque }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.note) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      lignesPersonne(d.type, d.studio, d.client, d.idclient).forEach((l) => { l.note = j.note; });
+      editionNote = null;
+    } catch (err) {
+      if (editionNote) { editionNote.enCours = false; editionNote.erreur = 'Non enregistré : ' + (err && err.message ? err.message : 'erreur'); }
+    }
+    render();
+  }
+
+  // ── COPIER LES REMARQUES DU CLUB ────────────────────────────────────────────
+  //  Un clic = le texte dans le presse-papiers, en HTML (collage propre dans
+  //  Gmail) ET en texte brut. Aucun fichier, aucun téléchargement. Le texte est
+  //  construit par Recap2Remarques depuis le rapport affiché, sans filtre.
+  function boutonCopierClub(label, b) {
+    if (!b || (b.controleBloquant && b.controleBloquant.ok === false) || !window.Recap2Remarques) return '';
+    return '<span class="rec2-copier"><button type="button" class="rec2-copier-btn" data-copier-club="' + esc(label) + '">Copier les remarques du club</button>'
+      + '<span class="rec2-copier-msg" role="status" aria-live="polite"></span></span>';
+  }
+
+  async function ecrirePressePapiers(texte, html) {
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([texte], { type: 'text/plain' }),
+        })]);
+        return true;
+      }
+    } catch (_) { /* on tente le texte brut */ }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(texte); return true; }
+    } catch (_) { /* dernier recours ci-dessous */ }
+    try {
+      const zone = document.createElement('textarea');
+      zone.value = texte; zone.setAttribute('readonly', ''); zone.style.position = 'fixed'; zone.style.opacity = '0';
+      document.body.appendChild(zone); zone.select();
+      const ok = document.execCommand('copy');
+      zone.remove();
+      return ok;
+    } catch (_) { return false; }
+  }
+
+  async function copierRemarquesClub(bouton) {
+    const label = bouton.dataset.copierClub;
+    const msg = bouton.parentNode && bouton.parentNode.querySelector('.rec2-copier-msg');
+    const dire = (t, ok) => {
+      if (!msg) return;
+      msg.textContent = t; msg.classList.toggle('is-ok', !!ok);
+      clearTimeout(msg._minuteur);
+      msg._minuteur = setTimeout(() => { msg.textContent = ''; }, 3000);
+    };
+    const r = window.Recap2Remarques.remarquesClub(rapport, label);
+    if (!r.nb) { dire('Aucune remarque à copier pour ce mois', false); return; }
+    const ok = await ecrirePressePapiers(r.texte, r.html);
+    dire(ok ? 'Remarques copiées' : 'Copie impossible — le navigateur a refusé l\'accès au presse-papiers', ok);
+  }
+
   // ── DÉTAILS (fermés par défaut, un seul ouvert à la fois) ────────────────────
   function detail(label, b) {
     if (ouvert === label + '|nr') return detailNR(label, b.nonReconduction);
@@ -829,7 +963,7 @@ const Recap2UI = (function () {
         + STATUTS_NR.map((s) => chip(s.val, s.filtre, tous.filter((c) => statutNR(c) === s.val).length)).join('')
         + chip('aucun', 'Non traités', tous.filter((c) => !statutNR(c)).length) + '</div>'
       : '';
-    const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + '</td>'
+    const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocNote('non_reconduit', label, c) + '</td>'
       + casesSuiviNR(c, label)
       + '<td class="rec2-num">' + esc(eur(c.netM1)) + '</td>'
       + '<td class="rec2-num">' + esc(eur(c.netM)) + '</td></tr>').join('');
@@ -885,7 +1019,7 @@ const Recap2UI = (function () {
       + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
-      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + '</td>'
+      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocNote('vente', label, v) + '</td>'
       + casesControle(v, label)
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(v.commercial || '—') + '</td>'
@@ -934,7 +1068,7 @@ const Recap2UI = (function () {
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, v.studio) + '>'
       + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
-      + '<td>' + nomClient(v) + '</td>'
+      + '<td>' + nomClient(v) + blocNote('vente', v.studio, v) + '</td>'
       + casesControle(v, v.studio)
       + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
       + '<td>' + esc(v.prestation || '—') + '</td>'
@@ -1021,6 +1155,10 @@ const Recap2UI = (function () {
 
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
+    const actNote = e.target.closest('[data-note-action]');
+    if (actNote) { actionNote(actNote); return; }
+    const copieClub = e.target.closest('[data-copier-club]');
+    if (copieClub) { copierRemarquesClub(copieClub); return; }
     const resil = e.target.closest('[data-resil-action]');
     if (resil) { actionResiliation(resil); return; }
     const dec = e.target.closest('[data-match]');
