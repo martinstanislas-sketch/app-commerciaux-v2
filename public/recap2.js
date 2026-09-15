@@ -106,6 +106,7 @@ const Recap2UI = (function () {
     const maj = () => {
       const collante = getComputedStyle(barre).position === 'sticky';
       tab.style.setProperty('--rec2-haut', (collante ? barre.offsetHeight : 0) + 'px');
+      mesurerEntetes();
       marquerEntetesColles();
     };
     if (window.ResizeObserver) new ResizeObserver(maj).observe(barre);
@@ -117,6 +118,13 @@ const Recap2UI = (function () {
       requestAnimationFrame(() => { attente = false; marquerEntetesColles(); });
     }, { passive: true });
     maj();
+  }
+  // Chaque studio connaît la hauteur de SON en-tête (elle varie si la ligne passe
+  // sur deux lignes) : l'en-tête de colonnes de ses tableaux se cale juste dessous.
+  function mesurerEntetes() {
+    $$('#rec2-body .rec2-studio-tete').forEach((t) => {
+      t.parentElement.style.setProperty('--rec2-tete', t.offsetHeight + 'px');
+    });
   }
   function marquerEntetesColles() {
     const tab = $('#tab-recap2');
@@ -220,6 +228,11 @@ const Recap2UI = (function () {
   // ── RENDU ───────────────────────────────────────────────────────────────────
   const pct = (x) => (x == null ? '—' : (x * 100).toFixed(1).replace('.', ',') + ' %');
   const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
+  // Cellule de montant : négatif en rouge, nul atténué. Le texte est celui de eur().
+  const celluleMontant = (n) => {
+    const c = Math.round((Number(n) || 0) * 100);
+    return '<td class="rec2-num rec2-montant' + (c < 0 ? ' is-neg' : c === 0 ? ' is-nul' : '') + '">' + esc(eur(n)) + '</td>';
+  };
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function fmtDate(iso) {
     const d = new Date(iso);
@@ -255,6 +268,7 @@ const Recap2UI = (function () {
     const alertes = bandeauAlertes();
     host.innerHTML = '<div class="rec2-barre">' + bandeauSource() + alertes.bouton + '</div>' + alertes.liste
       + vueCommercial() + LABELS.map(blocStudio).join('');
+    mesurerEntetes();
     marquerEntetesColles();
   }
 
@@ -546,7 +560,9 @@ const Recap2UI = (function () {
     const court = (d) => String(d || '').slice(0, 5);
     if (p.etat === 'encaisse') {
       const suivant = p.premier && v.date && p.premier.slice(3) !== String(v.date).slice(3);
-      return { note: 'encaissé le ' + esc(court(p.premier)) + (suivant ? ' (mois suivant)' : ''), alerte: '' };
+      return { note: 'encaissé le ' + esc(court(p.premier)) + (suivant
+        ? ' <span class="rec2-decale" title="Premier encaissement le mois suivant la signature — dans les 31 jours, ce n\'est pas une anomalie">mois suivant</span>'
+        : ''), alerte: '' };
     }
     if (p.etat === 'attendu') return { note: 'premier encaissement attendu', alerte: '' };
     if (p.etat === 'indetermine') {
@@ -1041,10 +1057,10 @@ const Recap2UI = (function () {
       : '';
     const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocNote('non_reconduit', label, c) + '</td>'
       + casesSuiviNR(c, label)
-      + '<td class="rec2-num">' + esc(eur(c.netM1)) + '</td>'
-      + '<td class="rec2-num">' + esc(eur(c.netM)) + '</td></tr>').join('');
+      + celluleMontant(c.netM1)
+      + celluleMontant(c.netM) + '</tr>').join('');
     const corps = liste.length
-      ? '<table class="rec2-table"><thead><tr><th>Client</th>'
+      ? '<table class="rec2-table rec2-table-nr"><thead><tr><th>Client</th>'
         + STATUTS_NR.map((s) => '<th class="rec2-ctl">' + s.libelle + '</th>').join('')
         + '<th class="rec2-num">Net ' + esc(m1) + '</th><th class="rec2-num">Net ' + esc(m) + '</th></tr></thead><tbody>' + lignes + '</tbody></table>'
       : '<p class="rec2-info">' + (tous.length ? 'Aucun client dans ce filtre.' : 'Aucun client non reconduit.') + '</p>';
@@ -1101,7 +1117,7 @@ const Recap2UI = (function () {
       + '<td>' + esc(v.commercial || '—') + '</td>'
       + '<td class="rec2-num">' + statutVente(v, label) + '</td></tr>').join('');
     const corps = liste.length
-      ? '<table class="rec2-table"><thead><tr><th>Signataire ' + esc(cap(moisLabel(rapport.mois)))
+      ? '<table class="rec2-table rec2-table-crm"><thead><tr><th>Signataire ' + esc(cap(moisLabel(rapport.mois)))
         + '</th>' + entetesControle() + '<th>Prestation</th><th>Commercial</th><th class="rec2-num">Dans Deciplus</th></tr></thead><tbody>'
         + lignes + '</tbody></table>'
       : '<p class="rec2-info">Aucune vente dans ce filtre.</p>';

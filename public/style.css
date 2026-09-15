@@ -22151,3 +22151,59 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 .rec2-chip:not([disabled]):not(.is-on):hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.3); color: var(--r2-text); }
 .rec2-chip[disabled] { opacity: .4; cursor: default; border-color: var(--r2-line); }
 .rec2-chip[disabled] b { color: var(--r2-text-2); }
+
+/* ═══ RECAP 2 — tableaux : densité, alignements, montants, cases, liens ══════ */
+.rec2-table { line-height: 1.35; }
+.rec2-table td { padding: 7px 8px; vertical-align: middle; }
+.rec2-table th { padding: 8px 8px 7px; }
+.rec2-table th.rec2-num { text-align: right; }
+.rec2-table tbody tr td { transition: background-color .12s; }
+.rec2-table tbody tr:hover td { background: rgba(255,255,255,.035); }
+/* Colonnes à la taille de leur contenu : le client ne prend plus la moitié. */
+.rec2-table-nr { width: auto; min-width: min(100%, 620px); }
+.rec2-table-nr td:first-child, .rec2-table-nr th:first-child { min-width: 220px; padding-right: 28px; }
+.rec2-table-crm { min-width: 920px; }
+.rec2-table-crm td:first-child { min-width: 200px; }
+.rec2-montant { min-width: 108px; white-space: nowrap; padding-left: 20px; }
+/* Une largeur en % sur une cellule étire le tableau entier : pas ici. */
+.rec2-table-nr th.rec2-ctl, .rec2-table-nr td.rec2-ctl { width: auto; padding-inline: 10px; }
+.rec2-table-crm .rec2-montant { width: 1%; }
+.rec2-table th.rec2-num { white-space: nowrap; }
+.rec2-montant.is-neg { color: var(--r2-red); }
+.rec2-montant.is-nul { color: var(--r2-text-3); }
+/* Remarque : présente mais légère ; pleine au survol de la ligne. */
+.rec2-table .rec2-note { margin-top: 1px; line-height: 1.3; }
+.rec2-note-ajout { font-size: 11px; opacity: .5; }
+.rec2-table tr:hover .rec2-note-ajout, .rec2-note-ajout:focus-visible { opacity: 1; color: var(--r2-text-2); }
+/* Noms cliquables : langage de lien (accent, souligné au survol seulement). */
+.rec2-lien-fiche { color: #A5B4FC; border-bottom: 0; text-underline-offset: 3px; }
+.rec2-lien-fiche:hover, .rec2-lien-fiche:focus-visible { color: #C7D2FE; text-decoration: underline; }
+.rec2-lien-rech { color: #A5B4FC; border-bottom: 0; text-underline-offset: 3px; }
+.rec2-lien-rech:hover, .rec2-lien-rech:focus-visible { color: #C7D2FE; text-decoration: underline; }
+/* Cases : vide = contour discret ; cochée = pleine couleur du statut. */
+.rec2-ctl-box {
+  --c: var(--r2-green);
+  appearance: none; -webkit-appearance: none; display: inline-grid; place-content: center;
+  width: 16px; height: 16px; border: 1.5px solid rgba(255,255,255,.26); border-radius: 4px;
+  background: transparent; transition: background-color .12s, border-color .12s;
+}
+.rec2-ctl-box::after { content: ''; width: 8px; height: 4px; border-left: 2px solid #0D0F16; border-bottom: 2px solid #0D0F16; transform: translateY(-1px) rotate(-45deg); opacity: 0; }
+.rec2-ctl-box:hover:not([disabled]) { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.05); }
+.rec2-ctl-box:checked { background: var(--c); border-color: var(--c); }
+.rec2-ctl-box:checked::after { opacity: 1; }
+.rec2-ctl-box:checked:hover:not([disabled]) { background: var(--c); filter: brightness(1.1); }
+.rec2-nr-box.is-sous_controle { --c: var(--r2-green); }
+.rec2-nr-box.is-resilie { --c: #a78bfa; }
+.rec2-nr-box.is-a_creuser { --c: #fbbf24; }
+/* « encaissé le … mois suivant » : une précision, pas une anomalie. */
+.rec2-decale { font-family: Inter, -apple-system, sans-serif; font-size: 10.5px; font-weight: 600; color: var(--r2-text-2); border: 1px solid var(--r2-line-2); border-radius: 999px; padding: 0 6px; cursor: help; }
+/* En-tête de colonnes collant, sous l'en-tête du studio. Il faut que le détail
+   ne soit pas un conteneur de défilement : réservé aux écrans où les tableaux
+   tiennent en largeur ; en dessous, défilement horizontal (sans collant). */
+@media (min-width: 1280px) {
+  .rec2-studio .rec2-detail { overflow-x: visible; }
+  .rec2-studio .rec2-table thead th {
+    position: sticky; top: calc(var(--rec2-haut, 0px) + var(--rec2-tete, 0px)); z-index: 3;
+    background: var(--r2-surface); box-shadow: inset 0 -1px 0 var(--r2-line-2);
+  }
+}
