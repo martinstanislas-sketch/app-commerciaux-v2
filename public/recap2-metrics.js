@@ -204,6 +204,10 @@
         // vente, donc aucun id.
         idClient: vente ? String(vente.idClient || '') : '',
         encaisse: netM > 0,
+        // Identifiants du contact VENDOR de la vente (facultatifs, aucun effet
+        // sur le taux) : voir identifiantDeciplus().
+        contactIdVendor: s.contactIdVendor || '',
+        idDeciplusVendor: s.idDeciplusVendor || '',
       };
     });
     clients.sort((x, y) => ((x.nom || '') + ' ' + (x.prenom || '')).localeCompare((y.nom || '') + ' ' + (y.prenom || ''), 'fr'));
@@ -227,6 +231,8 @@
       dateVente: '',
       idClient: '',
       encaisse: false,
+      contactIdVendor: a.contactIdVendor || '',
+      idDeciplusVendor: a.idDeciplusVendor || '',
     }));
     annules.sort((x, y) => ((x.nom || '') + ' ' + (x.prenom || '')).localeCompare((y.nom || '') + ' ' + (y.prenom || ''), 'fr'));
 
@@ -617,6 +623,27 @@
   // Convention d'entrée : `null` = import ABSENT (rien n'a jamais été déposé) ;
   // `[]` = import présent mais vide (ex. aucun contrat signé ce mois-là). Les
   // deux cas ne se disent pas pareil à l'écran, donc ils ne se confondent pas ici.
+  // ── IDENTIFIANT DECIPLUS D'UNE VENTE ──────────────────────────────────────
+  //  Priorité validée par Stan le 2026-09-16 :
+  //    1. `idDeciplusVendor` — l'Id Deciplus de la fiche Vendor du contact de la
+  //       vente (chaînage vente -> contact -> Id Deciplus, sans nom) ;
+  //    2. `idClient`         — vente RETROUVÉE dans le journal Deciplus du mois ;
+  //    3. `ficheId`          — fiche trouvée par identité exacte ET unique.
+  //  Deux sources fiables qui DIVERGENT -> `aTrancher`, id vide : on ne choisit
+  //  jamais. `candidatId` (quasi-homonyme) n'est JAMAIS une source. Aucun repli
+  //  sur le nom. N'influence aucun KPI : `retrouve` et `idClient` sont inchangés.
+  function identifiantDeciplus(ligne) {
+    const l = ligne || {};
+    const ok = (x) => /^[0-9]{1,20}$/.test(String(x == null ? '' : x));
+    const sources = [];
+    if (ok(l.idDeciplusVendor)) sources.push({ source: 'vendor', id: String(l.idDeciplusVendor) });
+    if (l.retrouve === true && l.annulee !== true && ok(l.idClient)) sources.push({ source: 'journal', id: String(l.idClient) });
+    if (ok(l.ficheId)) sources.push({ source: 'fiche', id: String(l.ficheId) });
+    if (!sources.length) return { id: '', source: '', aTrancher: false, sources };
+    if (new Set(sources.map((x) => x.id)).size > 1) return { id: '', source: '', aTrancher: true, sources };
+    return { id: sources[0].id, source: sources[0].source, aTrancher: false, sources };
+  }
+
   function analyserStudio({ encM1, encM, contratsM1 } = {}) {
     const manqueNR = [];
     if (!Array.isArray(encM1)) manqueNR.push('encM1');
@@ -640,6 +667,6 @@
     ventesDuRapport, commerciauxDuRapport, vniDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
     siteDivergent, caNetStudio, eurosArrondis, contratsValides, motifValidation, venteValidee,
     VENDEURS_DECIPLUS, commercialDuVendeurDeciplus, attributionAutomatique, attributionNonReconduit, nonReconduitsDuRapport,
-    commerciauxAttribuables,
+    commerciauxAttribuables, identifiantDeciplus,
   };
 }));

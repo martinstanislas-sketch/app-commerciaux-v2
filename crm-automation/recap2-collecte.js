@@ -290,6 +290,11 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     erreurs.push('Fitness Booster : ' + e.message);
     dire('⚠️ Fitness Booster : ' + e.message);
   }
+  // Secours du chaînage : contacts Vendor captés sur /sales-stats (tous studios).
+  const contactsVendor = new Map();
+  Object.values(referencesFB).forEach((r) => ((r && r.vni && r.vni.contacts) || []).forEach((c) => {
+    if (c && c.id && /^[0-9]{1,20}$/.test(String(c.deciplusId || ''))) contactsVendor.set(c.id, String(c.deciplusId));
+  }));
   rapport.source.fitnessBooster = Object.fromEntries(Object.entries(contratsFB).map(([s, r]) => [s, {
     club: r.club || null, periodeDetail: r.periodeDetail || null, compteur: r.compteur == null ? null : r.compteur,
     annulees: r.annulees == null ? null : r.annulees, echec: r.echec || null,
@@ -427,15 +432,24 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       // CRM : on ne peut pas reprocher l'absence d'un contrat qui n'existe plus.
       const toutes = fbr.contrats || [];
       const valides = toutes.filter((c) => !c.annulee);
-      const annulees = toutes.filter((c) => c.annulee).map((c) => ({
+      // CONTACT VENDOR de chaque vente, annulées comprises : son identifiant et
+      // l'Id Deciplus de sa fiche (lu pendant le détail, sinon dans les contacts
+      // captés sur /sales-stats). Par identifiant uniquement, jamais par nom.
+      const idsVendor = (c) => {
+        const contactIdVendor = /^\d{10,16}x\d{10,24}$/.test(String(c.contactId || '')) ? c.contactId : '';
+        const lu = /^[0-9]{1,20}$/.test(String(c.idDeciplusVendor || '')) ? String(c.idDeciplusVendor) : '';
+        const secours = contactIdVendor ? String(contactsVendor.get(contactIdVendor) || '') : '';
+        return { contactIdVendor, idDeciplusVendor: lu || (/^[0-9]{1,20}$/.test(secours) ? secours : '') };
+      };
+      const annulees = toutes.filter((c) => c.annulee).map((c) => Object.assign({
         prenom: c.identite.trim(), nom: '',
         date: c.date, prestation: c.prestation, commercial: c.commercial, commercialId: c.commercialId || '',
         dateAnnulation: c.dateAnnulation || '',
-      }));
-      const signataires = valides.map((c) => ({
+      }, idsVendor(c)));
+      const signataires = valides.map((c) => Object.assign({
         cles: R.clesContrat(c.identite), prenom: c.identite.trim(), nom: '',
         date: c.date, prestation: c.prestation, commercial: c.commercial, commercialId: c.commercialId || '',
-      }));
+      }, idsVendor(c)));
       const vueVentes = VENTES.vueParNom(ventesM, R.clesContrat);
       const vueEnc = enc[mois] ? CSV.vueParNom(enc[mois], studio, M.studioLabel, R.clesContrat) : [];
       const cr = M.clientsRetrouves({ signataires, annulees, ventesM: vueVentes, encM: vueEnc });
@@ -493,7 +507,10 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
           encaisse: !!paiement && paiement.etat === 'encaisse',
         }, pisteDe(c),
         paiement ? { paiement } : {},
-        fiche ? { ficheId: fiche.idClient, ficheNom: fiche.nom, ficheSite: fiche.site } : {});
+        fiche ? { ficheId: fiche.idClient, ficheNom: fiche.nom, ficheSite: fiche.site } : {},
+        // Facultatifs : absents plutôt que vides (compatibilité, rapport léger).
+        c.contactIdVendor ? { contactIdVendor: c.contactIdVendor } : {},
+        c.idDeciplusVendor ? { idDeciplusVendor: c.idDeciplusVendor } : {});
       };
       bloc.clientsRetrouves = {
         // `annulees` : comptées, affichées, mais hors du taux. `annulesExclus`
@@ -533,6 +550,11 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         bloc.avertissements.push(pa.indetermine + ' paiement(s) non vérifiable(s) : encaissements connus jusqu\'au '
           + (couvertPaiement ? PAI.texte(couvertPaiement.au) : '—') + ' seulement');
       }
+      // Identifiant Deciplus : deux sources fiables qui divergent = à trancher.
+      const aTrancher = lignesCr.filter((l) => M.identifiantDeciplus(l).aTrancher).length;
+      if (aTrancher) bloc.avertissements.push(aTrancher + ' vente(s) avec des identifiants Deciplus divergents (fiche Vendor / journal / fiche trouvée) — à trancher, aucun choix automatique');
+      dire(studio + ' : identifiant Deciplus — ' + lignesCr.filter((l) => l.idDeciplusVendor).length + '/' + lignesCr.length
+        + ' par la fiche Vendor, ' + lignesCr.filter((l) => M.identifiantDeciplus(l).id).length + '/' + lignesCr.length + ' résolu(s), ' + aTrancher + ' à trancher');
       const nbFiches = lignesCr.filter((l) => l.ficheId).length;
       if (nbFiches) bloc.avertissements.push(nbFiches + ' « à vérifier » avec fiche Deciplus trouvée mais aucune vente saisie');
       // Le site Deciplus peut différer du studio qui a porté la vente côté FB.
