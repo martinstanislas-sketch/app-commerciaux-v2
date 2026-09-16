@@ -29,9 +29,10 @@
 // ============================================================================
 
 (function (racine, fabrique) {
-  if (typeof module === 'object' && module.exports) module.exports = fabrique();
-  else racine.Recap2Remarques = fabrique();
-}(typeof self !== 'undefined' ? self : this, function () {
+  // Dépend de Recap2Metrics (attribution d'un non-reconduit) : même règle que l'écran.
+  if (typeof module === 'object' && module.exports) module.exports = fabrique(require('./recap2-metrics.js'));
+  else racine.Recap2Remarques = fabrique(racine.Recap2Metrics);
+}(typeof self !== 'undefined' ? self : this, function (Metrics) {
   const MOIS = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
   const SECTIONS = [
     { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves' },
@@ -132,13 +133,14 @@
   //  que la vue commerciale (Recap2Metrics.cleCommercial) : l'identifiant Vendor
   //  s'il existe (« id:… »), sinon le nom exact affiché (« nom:… »).
   //   · Ventes signées : le commercial de la vente ;
-  //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé) ;
-  //   · Clients non reconduits : JAMAIS inclus. Une ligne de non-reconduction
-  //     vient du journal des encaissements Deciplus, qui ne porte aucun vendeur :
-  //     RECAP 2 n'a aucun rattachement fiable à un commercial, et on n'en
-  //     fabrique pas (ni par le nom, ni autrement).
+  //   · Clients non reconduits : le commercial RESPONSABLE, tel que l'écran
+  //     l'affiche (Recap2Metrics.attributionNonReconduit) — choix manuel d'abord,
+  //     sinon vendeur de la première vente Deciplus (par Id_client, table
+  //     explicite), sinon personne. « Non attribué » ne sort chez aucun commercial ;
+  //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé).
   const SECTIONS_COMMERCIAL = [
     { titre: 'Ventes signées', bloc: 'clientsRetrouves', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
+    { titre: 'Clients non reconduits', bloc: 'nonReconduction', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
     { titre: 'VNI', bloc: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
   ];
 

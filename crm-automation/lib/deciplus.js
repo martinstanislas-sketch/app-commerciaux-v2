@@ -119,7 +119,15 @@ async function poserDate(page, rang, annee, moisIdx, jour) {
     await page.locator('[data-pc-section="year"]').filter({ hasText: new RegExp('^' + annee) }).first().click({ timeout: 6000 });
     await page.waitForTimeout(1200);
   }
-  await page.locator('.p-datepicker-select-month').first().click({ timeout: 6000 });
+  // ⚠️ APRÈS UN CHANGEMENT D'ANNÉE, PrimeVue affiche DÉJÀ la grille des mois :
+  // le bouton d'en-tête « mois » n'existe alors plus, et le cliquer expirait.
+  // C'est ce qui bloquait tout export d'un mois d'une autre année que celle
+  // affichée (historique des ventes sur 24 mois). On ne l'ouvre donc que s'il
+  // est là ; sinon la grille est déjà sous nos yeux.
+  const boutonMois = page.locator('.p-datepicker-select-month');
+  if (await boutonMois.first().isVisible().catch(() => false)) {
+    await boutonMois.first().click({ timeout: 6000 });
+  }
   // ⚠️ ATTENDRE que la grille des mois soit rendue avant de viser une cellule :
   // sans cette attente le sélecteur ne trouvait rien, et le repli getByText()
   // tombait sur le doublon `data-pc-section="hiddenmonth"` que PrimeVue destine

@@ -81,6 +81,8 @@ const Recap2UI = (function () {
       if (box && rapport) { enregistrerControle(box); return; }
       const nrBox = e.target.closest && e.target.closest('input[data-nrstatut]');
       if (nrBox && rapport) { enregistrerStatutNR(nrBox); return; }
+      const nrCom = e.target.closest && e.target.closest('select[data-nrcom]');
+      if (nrCom && rapport) { enregistrerCommercialNR(nrCom); return; }
       const resil = e.target.closest && e.target.closest('input[data-resil]');
       if (resil && rapport) basculerResiliation(resil);
     });
@@ -971,13 +973,13 @@ const Recap2UI = (function () {
 
   // ── COPIER LES REMARQUES DU COMMERCIAL ──────────────────────────────────────
   //  Visible seulement dans la vue d'un commercial précis. Même presse-papiers
-  //  que la copie du club. Studios > Ventes signées / VNI. Les non-reconduits
-  //  n'y sont JAMAIS : RECAP 2 n'a aucun commercial fiable pour eux (voir
-  //  Recap2Remarques.remarquesCommercial).
+  //  que la copie du club. Studios > Ventes signées / Clients non reconduits /
+  //  VNI. Un non-reconduit y figure s'il est ATTRIBUÉ à ce commercial (choix
+  //  manuel, sinon première vente Deciplus) — voir Recap2Remarques.remarquesCommercial.
   function boutonCopierCommercial(nom) {
     if (!commercial || !window.Recap2Remarques || !window.Recap2Remarques.remarquesCommercial) return '';
     return '<span class="rec2-copier"><button type="button" class="rec2-copier-btn" data-copier-com="1" data-nom="' + esc(nom) + '"'
-      + ' title="Ventes signées et VNI de ce commercial, regroupés par studio. Les clients non reconduits ne sont pas inclus : RECAP 2 ne les rattache à aucun commercial.">Copier les remarques du commercial</button>'
+      + ' title="Ventes signées, clients non reconduits dont il est responsable et VNI de ce commercial, regroupés par studio.">Copier les remarques du commercial</button>'
       + '<span class="rec2-copier-msg" role="status" aria-live="polite"></span></span>';
   }
   async function copierRemarquesCommercial(bouton) {
@@ -1068,6 +1070,59 @@ const Recap2UI = (function () {
     }
   }
 
+  // ── COMMERCIAL RESPONSABLE D'UN NON-RECONDUIT ───────────────────────────────
+  //  Automatique = vendeur de la première vente Deciplus du client (par
+  //  Id_client, table explicite des vendeurs) ; le choix manuel l'emporte
+  //  toujours, « Non attribué » compris. Règle unique :
+  //  Recap2Metrics.attributionNonReconduit. AUCUN EFFET SUR UN KPI.
+  function celluleCommercialNR(c, studio) {
+    const MM = window.Recap2Metrics;
+    if (!MM || !MM.attributionNonReconduit) return '<td class="rec2-nr-com">—</td>';
+    const a = MM.attributionNonReconduit(c);
+    const choix = MM.commerciauxAttribuables(rapport);
+    const opt = (val, txt, sel) => '<option value="' + esc(val) + '"' + (sel ? ' selected' : '') + '>' + esc(txt) + '</option>';
+    let opts = opt('', 'Non attribué', !a.cle) + choix.map((ch) => opt(ch.cle, ch.nom, ch.cle === a.cle)).join('');
+    if (a.cle && !choix.some((ch) => ch.cle === a.cle)) opts += opt(a.cle, a.nom || 'commercial', true);
+    if (a.mode === 'manuel') opts += opt('auto', '↺ Automatique : ' + (a.auto.cle ? a.auto.nom : 'Non attribué'), false);
+    const o = a.vendeurOrigine;
+    let info = '';
+    if (a.mode === 'manuel') info = 'choix manuel';
+    else if (a.mode === 'auto') info = 'auto · 1re vente ' + o.date;
+    else if (o && o.vendeur) info = 'Deciplus : ' + o.vendeur;
+    else if (o && o.ambigu) info = 'Deciplus : plusieurs vendeurs';
+    const titre = a.mode === 'manuel'
+      ? 'Choisi à la main' + (a.modifiePar ? ' par ' + a.modifiePar : '') + (a.modifieLe ? ' le ' + fmtDate(a.modifieLe) : '') + '. Automatique : ' + (a.auto.cle ? a.auto.nom + ' — ' : 'Non attribué — ') + a.auto.motif
+      : (a.mode === 'auto' ? 'Automatique : ' : 'Non attribué : ') + a.motif;
+    return '<td class="rec2-nr-com"><select class="rec2-nr-com-sel' + (a.cle ? '' : ' is-aucun') + (a.mode === 'manuel' ? ' is-manuel' : '') + '"'
+      + ' data-nrcom="1" data-studio="' + esc(studio) + '" data-client="' + esc(c.client) + '" data-idclient="' + esc(c.idClient || '') + '"'
+      + ' title="' + esc(titre) + '" aria-label="' + esc('Commercial responsable — ' + c.client) + '">' + opts + '</select>'
+      + (info ? '<div class="rec2-nr-com-info" title="' + esc(titre) + '">' + esc(info) + '</div>' : '') + '</td>';
+  }
+
+  // Pas d'optimisme : le sélecteur est bloqué pendant l'appel, la réponse du
+  // serveur fait foi, et en cas d'échec l'écran revient à l'état connu.
+  async function enregistrerCommercialNR(sel) {
+    const d = sel.dataset;
+    const commercial = sel.value;
+    sel.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/nr-commercial', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, idClient: d.idclient, commercial }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const nr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].nonReconduction;
+      const ligne = nr && (nr.liste || []).find((l) => l.client === d.client && String(l.idClient || '') === d.idclient);
+      if (ligne) { if (j.attribution) ligne.attribution = j.attribution; else delete ligne.attribution; }
+      majSelecteurCommercial();
+      render();
+    } catch (err) {
+      render();
+      alert('Commercial non enregistré : ' + (err && err.message ? err.message : 'erreur'));
+    }
+  }
+
   function detailNR(label, d) {
     const tous = (d && d.liste) || [];
     const nb = { tous: tous.length, aucun: tous.filter((c) => !statutNR(c)).length };
@@ -1089,11 +1144,12 @@ const Recap2UI = (function () {
         + chip('aucun', 'Non traités', nb.aucun) + '</div>'
       : '';
     const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocNote('non_reconduit', label, c) + '</td>'
+      + celluleCommercialNR(c, label)
       + casesSuiviNR(c, label)
       + celluleMontant(c.netM1)
       + celluleMontant(c.netM) + '</tr>').join('');
     const corps = liste.length
-      ? '<table class="rec2-table rec2-table-nr"><thead><tr><th>Client</th>'
+      ? '<table class="rec2-table rec2-table-nr"><thead><tr><th>Client</th><th>Commercial</th>'
         + STATUTS_NR.map((s) => '<th class="rec2-ctl">' + s.libelle + '</th>').join('')
         + '<th class="rec2-num">Net ' + esc(m1) + '</th><th class="rec2-num">Net ' + esc(m) + '</th></tr></thead><tbody>' + lignes + '</tbody></table>'
       : '<p class="rec2-info">' + (tous.length ? 'Aucun client dans ce filtre.' : 'Aucun client non reconduit.') + '</p>';

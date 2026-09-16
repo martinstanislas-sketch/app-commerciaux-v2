@@ -22287,3 +22287,18 @@ body:has(#tab-recap2.active) .bottom-nav button:focus-visible {
 .rec2-com-refs:hover, .rec2-com-refs[aria-expanded="true"] { border-color: var(--r2-accent-ligne); }
 .rec2-lien-fiche:focus-visible, .rec2-lien-rech:focus-visible { outline-color: var(--r2-focus); }
 html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même au rebond du défilement */
+
+/* ═══ RECAP 2 — commercial responsable d'un non-reconduit ════════════════════ */
+.rec2-nr-com { white-space: nowrap; }
+.rec2-nr-com-sel {
+  height: 28px; max-width: 170px; padding: 0 6px; box-sizing: border-box; cursor: pointer;
+  font: inherit; font-size: 12px; color: var(--r2-text); color-scheme: dark;
+  background: rgba(255,255,255,.04); border: 1px solid var(--r2-line-2); border-radius: 8px;
+  transition: border-color .15s, background-color .15s;
+}
+.rec2-nr-com-sel:hover:not([disabled]) { border-color: rgba(255,255,255,.3); background: rgba(255,255,255,.07); }
+.rec2-nr-com-sel:focus { outline: none; border-color: var(--r2-accent-ligne); }
+.rec2-nr-com-sel.is-aucun { color: var(--r2-text-3); }
+.rec2-nr-com-sel.is-manuel { border-color: rgba(61,123,219,.55); }
+.rec2-nr-com-sel[disabled] { opacity: .5; cursor: progress; }
+.rec2-nr-com-info { max-width: 170px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; color: var(--r2-text-3); }

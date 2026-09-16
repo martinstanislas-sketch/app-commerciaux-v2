@@ -1,7 +1,8 @@
 'use strict';
 // ============================================================================
 //  COPIER LES REMARQUES D'UN COMMERCIAL (public/recap2-remarques.js).
-//  commercial + mois > studio > type > personne. Non-reconduits JAMAIS inclus.
+//  commercial + mois > studio > type > personne. Un non-reconduit n'y figure
+//  que s'il est ATTRIBUÉ au commercial (voir recap2-nr-commercial.test.js).
 // ============================================================================
 
 const { test } = require('node:test');
@@ -50,7 +51,7 @@ test('Thibault P. : studios puis types, uniquement les personnes à remarque, te
   assert.match(r.html, /<b><u>LEVALLOIS<\/u><\/b>/);
 });
 
-test('non-reconduits jamais inclus, même avec remarque et nom identique à une vente du commercial', () => {
+test('non-reconduit NON ATTRIBUÉ jamais inclus, même avec remarque et nom identique à une vente du commercial', () => {
   const r = RR.remarquesCommercial(rapport(), 'id:' + THIBAULT, 'Thibault P.');
   assert.ok(!/Clients non reconduits|NR : ne doit pas sortir/.test(r.texte + r.html));
 });
