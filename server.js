@@ -4651,6 +4651,8 @@ function ensureRecap2NrStatutsSchema() {
   require('./lib/recap2NrStatuts.js').creerTable(getDb());
 }
 ensureRecap2NrStatutsSchema();
+// Commercial responsable des non-reconduits, choisi à la main (table dédiée, idempotente).
+require('./lib/recap2NrCommerciaux.js').creerTable(getDb());
 
 // ─── LEADS (saisie manuelle par club/mois + comparatif N-1) ──────────────────
 function ensureLeadsSchema() {
@@ -5252,6 +5254,8 @@ const Recap2Notes = require('./lib/recap2Notes.js');
 const Recap2Vni = require('./lib/recap2Vni.js');
 // Le suivi des non-reconduits, même principe : en base, posé à la lecture.
 const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
+const Recap2NrCommerciaux = require('./lib/recap2NrCommerciaux.js');
+const Recap2Metrics = require('./public/recap2-metrics.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
 // Chemin historique : le JSON produit localement par la collecte. Sur le Mac,
 // l'écran marche donc sans dépôt ; sur Railway ce dossier n'existe pas (il est
@@ -5466,6 +5470,58 @@ app.post('/api/recap2/nr-statut', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ─── COMMERCIAL RESPONSABLE D'UN NON-RECONDUIT (RÉATTRIBUTION MANUELLE) ─────
+//  Admin connecté uniquement. { mois, studio, client, idClient (facultatif),
+//  commercial } où commercial vaut :
+//    · « id:<Vendor> » / « nom:<exact> » : un commercial PROPOSABLE pour ce mois
+//      (Recap2Metrics.commerciauxAttribuables — jamais une clé inventée) ;
+//    · ''     : « Non attribué », choisi explicitement ;
+//    · 'auto' : on efface le choix manuel, l'attribution automatique revient.
+//  Le client doit figurer dans les non-reconduits du rapport ; on enregistre la
+//  graphie et l'Id membre DU RAPPORT. Aucun KPI, aucun statut, aucune remarque,
+//  aucune vente historique n'en dépend.
+//  Déclarée AVANT `POST /api/recap2/:mois`, sinon « nr-commercial » serait lu comme un mois.
+app.post('/api/recap2/nr-commercial', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim();
+  const studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim();
+  const idClient = String(b.idClient || '').trim();
+  const commercial = String(b.commercial == null ? '' : b.commercial).trim();
+
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
+
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const ligne = Recap2NrStatuts.ligneDe(lu.rapport, { studio, client, idClient });
+  if (!ligne) return res.status(404).json({ error: 'Client introuvable dans les non-reconduits de ' + studio + ' (' + mois + ').' });
+
+  const qui = String((req.session && (req.session.name || req.session.role)) || '').slice(0, 80);
+  const personne = { mois, studio, client: ligne.client, idClient: ligne.idClient || '' };
+  try {
+    if (commercial === 'auto') {
+      Recap2NrCommerciaux.supprimer(getDb(), personne);
+      console.log('recap2 commercial non-reconduit : retour à l\'automatique ' + mois + ' ' + studio);
+      return res.json({ ok: true, attribution: null });
+    }
+    let nom = '';
+    if (commercial) {
+      const choix = Recap2Metrics.commerciauxAttribuables(lu.rapport).find((c) => c.cle === commercial);
+      if (!choix) return res.status(400).json({ error: 'commercial inconnu pour ce mois' });
+      nom = choix.nom;
+    }
+    const attribution = Recap2NrCommerciaux.enregistrer(getDb(), Object.assign({ commercialCle: commercial, commercialNom: nom, par: qui }, personne));
+    console.log('recap2 commercial non-reconduit ' + (commercial ? 'réattribué' : 'non attribué') + ' : ' + mois + ' ' + studio);
+    res.json({ ok: true, attribution });
+  } catch (e) {
+    console.error('recap2 commercial non-reconduit :', e && e.message);
+    res.status(400).json({ error: e && e.message ? e.message : 'attribution refusée' });
+  }
+});
+
 // ─── REMARQUE MANUELLE SUR UNE PERSONNE ─────────────────────────────────────
 //  Admin connecté uniquement. { mois, studio, type: 'vente'|'non_reconduit',
 //  client, idClient (facultatif), remarque }. Remarque vide = suppression.
@@ -5579,6 +5635,12 @@ function recap2AvecDecisions(rapport) {
     if (r && r.mois) r = Recap2NrStatuts.appliquer(r, Recap2NrStatuts.statutsDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 suivi non-reconduits :', e && e.message);
+  }
+  // Le commercial choisi à la main pour un non-reconduit : une information par ligne.
+  try {
+    if (r && r.mois) r = Recap2NrCommerciaux.appliquer(r, Recap2NrCommerciaux.attributionsDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 commerciaux non-reconduits :', e && e.message);
   }
   // Les VNI : la liste historique moins les transformations connues AUJOURD'HUI
   // (tous rapports). Aucun autre champ que `vni` n'est touché.

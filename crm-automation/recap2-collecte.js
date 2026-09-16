@@ -48,6 +48,8 @@ const PAI = require('./lib/paiement.js');
 const MEMBRES = require('./lib/deciplusMembres.js');
 const REESSAI = require('./lib/reessai.js');
 const FICHIER = require('./lib/rapportFichier.js');
+const HISTO = require('./lib/historiqueVentes.js');
+const ORIGINE = require('./lib/vendeurOrigine.js');
 
 const CDP = process.env.CRM_DEBUG_URL || 'http://127.0.0.1:9222';
 const TENTATIVES = REESSAI.tentatives();
@@ -146,6 +148,12 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       } catch (e) {
         dire('ℹ️ encaissements ' + ym + ' indisponibles (' + e.message + ') — les paiements concernés resteront non vérifiables');
       }
+    }
+    // HISTORIQUE DES VENTES (24 mois glissants) — uniquement pour retrouver le
+    //  vendeur d'origine des non-reconduits. Les mois déjà sur disque sont
+    //  réutilisés ; un mois raté n'arrête rien et n'attribue personne à tort.
+    if (!sansDeciplus) {
+      await HISTO.exporterManquants({ page, mois, dossier: DOSSIER_EXPORTS, dire, DEC, REESSAI, tentatives: TENTATIVES });
     }
     await DEC.reinitialiserFiltres(page);
   } catch (e) {
@@ -542,6 +550,18 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
 
 
   if (rechercheFiches) await rechercheFiches.fermer();
+
+  // ── 4 bis) Vendeur d'origine des non-reconduits ─────────────────────────
+  //  Par Id_client uniquement, sur l'historique des ventes lu sur disque.
+  //  AUCUN KPI : un champ d'information par ligne (lib/vendeurOrigine.js).
+  try {
+    const h = HISTO.lire({ mois, dossier: DOSSIER_EXPORTS });
+    ORIGINE.poser(rapport, ORIGINE.indexer(h.lignes), h.historique);
+    dire('historique des ventes : ' + h.historique.moisLus + '/' + HISTO.PROFONDEUR + ' mois lus'
+      + (h.historique.manquants.length ? ' — manquants : ' + h.historique.manquants.join(', ') : ''));
+  } catch (e) {
+    dire('ℹ️ vendeurs d\'origine des non-reconduits non posés : ' + e.message);
+  }
 
   // ── 5) Sortie ────────────────────────────────────────────────────────────
   rapport.erreurs = erreurs;

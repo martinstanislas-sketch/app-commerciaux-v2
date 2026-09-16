@@ -319,10 +319,78 @@
     return { presents, liste, indisponibles };
   }
 
+  // ── COMMERCIAL RESPONSABLE D'UN CLIENT NON RECONDUIT ───────────────────────
+  //  Une donnée de SUIVI, jamais de calcul : aucun KPI ne la lit.
+  //  Ordre de priorité, sans exception :
+  //    1) le choix MANUEL posé dans RECAP 2 (`attribution`, lib/recap2NrCommerciaux.js),
+  //       y compris « Non attribué » ;
+  //    2) le vendeur de la PREMIÈRE vente connue de ce client (`vendeurOrigine`,
+  //       lu par Id_client dans l'historique des ventes Deciplus), s'il figure
+  //       dans la table ci-dessous ;
+  //    3) sinon « Non attribué », avec le motif.
+  //  ⚠️ TABLE EXPLICITE, correspondance EXACTE (espaces et casse seulement
+  //  neutralisés). Jamais de ressemblance : « magali » n'est pas « Magali GUYOT »
+  //  tant qu'on ne l'a pas ajouté ici. Les comptes génériques (STAN MULTI-SITES,
+  //  Ginkgo, Admin…) n'y figurent pas et n'y figureront jamais.
+  //  Clé = identifiant Vendor du commercial : la même que la vue commerciale.
+  const VENDEURS_DECIPLUS = Object.freeze({
+    'MARVIN BOULLIGNY': Object.freeze({ id: '1676534557603x269706782936696800', nom: 'Marvin B.' }),
+    'FABIAN FERNEZ': Object.freeze({ id: '1638283322062x610405598290114400', nom: 'Fabian F.' }),
+    'MAGALI GUYOT': Object.freeze({ id: '1669303222657x648298562822821900', nom: 'Magali G.' }),
+    'BENJAMIN CONSTANTY': Object.freeze({ id: '1719949036540x783196276006537000', nom: 'Benjamin C.' }),
+    'LUCA ROELOFFZEN': Object.freeze({ id: '1674481440746x588221726139669400', nom: 'Luca R.' }),
+    'THIBAULT PREGUICA': Object.freeze({ id: '1782814078367x500550143389292000', nom: 'Thibault P.' }),
+    'CÉDRIC HADDOU': Object.freeze({ id: '1639731900216x114031637613311040', nom: 'Cédric H.' }),
+  });
+  const cleVendeurDeciplus = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().toUpperCase();
+  function commercialDuVendeurDeciplus(vendeur) {
+    const e = VENDEURS_DECIPLUS[cleVendeurDeciplus(vendeur)];
+    return e ? { cle: 'id:' + e.id, nom: e.nom, commercialId: e.id } : null;
+  }
+  // L'attribution AUTOMATIQUE seule (sans le choix manuel).
+  function attributionAutomatique(ligne) {
+    const o = ligne && ligne.vendeurOrigine;
+    const aucun = (motif) => ({ mode: 'aucun', cle: '', nom: '', commercialId: '', motif, vendeurOrigine: o || null });
+    // Deux causes bien distinctes à l'absence de vendeur d'origine.
+    if (!o) {
+      return aucun(/^[0-9]{1,20}$/.test(String((ligne && ligne.idClient) || ''))
+        ? 'historique des ventes Deciplus non collecté pour ce rapport'
+        : 'ce rapport ne porte pas l\'Id membre Deciplus de ce client');
+    }
+    if (o.introuvable) return aucun('aucune vente avec vendeur pour ce client dans l\'historique des ventes Deciplus');
+    if (o.ambigu) return aucun('plusieurs vendeurs Deciplus le ' + o.date + ' : ' + (o.vendeurs || []).join(', '));
+    const c = commercialDuVendeurDeciplus(o.vendeur);
+    const vente = 'première vente connue' + (o.numVente ? ' n°' + o.numVente : '') + ' du ' + o.date
+      + (o.prestation ? ' « ' + o.prestation + ' »' : '') + ' — vendeur Deciplus « ' + o.vendeur + ' »';
+    if (!c) return aucun(vente + ', absent de la table des commerciaux RECAP 2');
+    return { mode: 'auto', cle: c.cle, nom: c.nom, commercialId: c.commercialId, motif: vente, vendeurOrigine: o };
+  }
+  // L'attribution EFFECTIVE : { mode: 'manuel'|'auto'|'aucun', cle, nom, motif, auto, … }.
+  // `cle` vide = Non attribué.
+  function attributionNonReconduit(ligne) {
+    const auto = attributionAutomatique(ligne);
+    const m = ligne && ligne.attribution;
+    if (!m || !m.manuel) return Object.assign({ auto }, auto);
+    const cle = String(m.cle || '');
+    return {
+      mode: 'manuel', cle, nom: cle ? String(m.nom || '') : '', commercialId: cle.indexOf('id:') === 0 ? cle.slice(3) : '',
+      motif: 'choix manuel' + (m.modifiePar ? ' de ' + m.modifiePar : ''), modifieLe: m.modifieLe || '', modifiePar: m.modifiePar || '',
+      vendeurOrigine: auto.vendeurOrigine, auto,
+    };
+  }
+  function nonReconduitsDuRapport(rapport) {
+    const liste = [];
+    LABELS.forEach((s) => {
+      const nr = rapport && rapport.studios && rapport.studios[s] && rapport.studios[s].nonReconduction;
+      ((nr && nr.liste) || []).forEach((l) => liste.push(Object.assign({ studio: s }, l)));
+    });
+    return liste;
+  }
+
   function commerciauxDuRapport(rapport) {
     const par = new Map();
     const entree = (cle, nom, id) => {
-      if (!par.has(cle)) par.set(cle, { cle, commercial: nom, commercialId: id || '', ventes: 0, annulees: 0, retrouves: 0, references: 0, vni: 0, studios: [] });
+      if (!par.has(cle)) par.set(cle, { cle, commercial: nom, commercialId: id || '', ventes: 0, annulees: 0, retrouves: 0, references: 0, vni: 0, nonReconduits: 0, studios: [] });
       return par.get(cle);
     };
     ventesDuRapport(rapport).forEach((v) => {
@@ -347,8 +415,34 @@
       e.vni += 1;
       if (e.studios.indexOf(l.studio) < 0) e.studios.push(l.studio);
     });
-    return [...par.values()].sort((a, b) => b.ventes - a.ventes || b.references - a.references || b.vni - a.vni
+    // … et un commercial qui n'est responsable QUE de non-reconduits aussi.
+    nonReconduitsDuRapport(rapport).forEach((l) => {
+      const a = attributionNonReconduit(l);
+      if (!a.cle) return;
+      const e = entree(a.cle, a.nom, a.commercialId);
+      if (!e.commercial) e.commercial = a.nom;
+      e.nonReconduits += 1;
+      if (e.studios.indexOf(l.studio) < 0) e.studios.push(l.studio);
+    });
+    return [...par.values()].sort((a, b) => b.ventes - a.ventes || b.references - a.references || b.vni - a.vni || b.nonReconduits - a.nonReconduits
       || a.commercial.localeCompare(b.commercial, 'fr'));
+  }
+
+  // Les commerciaux proposables pour un non-reconduit : ceux du mois + ceux de la
+  // table (un commercial sans activité ce mois-ci reste choisissable). Jamais
+  // « Pas de commercial » ni un nom vide.
+  function commerciauxAttribuables(rapport) {
+    const par = new Map();
+    commerciauxDuRapport(rapport).forEach((c) => {
+      const nom = libelleCommercial(c.commercial);
+      if (!nom || /^pas de commercial$/i.test(nom)) return;
+      par.set(c.cle, { cle: c.cle, nom });
+    });
+    Object.keys(VENDEURS_DECIPLUS).forEach((k) => {
+      const e = VENDEURS_DECIPLUS[k];
+      if (!par.has('id:' + e.id)) par.set('id:' + e.id, { cle: 'id:' + e.id, nom: e.nom });
+    });
+    return [...par.values()].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   }
 
   // Le bilan consolidé d'UN commercial, tous studios confondus.
@@ -545,5 +639,7 @@
     nonReconduction, completion, clientsRetrouves, analyserStudio,
     ventesDuRapport, commerciauxDuRapport, vniDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
     siteDivergent, caNetStudio, eurosArrondis, contratsValides, motifValidation, venteValidee,
+    VENDEURS_DECIPLUS, commercialDuVendeurDeciplus, attributionAutomatique, attributionNonReconduit, nonReconduitsDuRapport,
+    commerciauxAttribuables,
   };
 }));
