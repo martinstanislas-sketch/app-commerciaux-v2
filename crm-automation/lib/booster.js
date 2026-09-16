@@ -75,10 +75,14 @@ async function lirePage(page, fn, arg, defaut) {
 async function menuOuvert(page) {
   return lirePage(page, () => {
     const n = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    return [...document.querySelectorAll('div')].some((e) => {
-      const r = e.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && n(e.innerText) === 'Tous vos clubs Multi-sites';
-    });
+    const visible = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    // L'en-tête de la liste, quand Vendor l'affiche…
+    if ([...document.querySelectorAll('div')].some((e) => visible(e) && n(e.innerText) === 'Tous vos clubs Multi-sites')) return true;
+    // …sinon la liste elle-même : au moins deux clubs « My Coach … » en entrées
+    // de liste. Vendor n'affiche pas toujours l'en-tête (fenêtre, version).
+    const entrees = [...document.querySelectorAll('.group-item div')]
+      .filter((e) => visible(e) && /^My Coach .{2,}/.test(n(e.innerText)) && n(e.innerText).length < 45);
+    return new Set(entrees.map((e) => n(e.innerText))).size >= 2;
   }, null, false);
 }
 
@@ -177,9 +181,16 @@ function opsPage(page) {
     clubAffiche: () => clubAffiche(page),
     async ouvrirMenu() {
       await fermerPanneau(page); // sinon le panneau intercepte le clic
+      // ⚠️ PLUS DE COORDONNÉES FIXES. Le bloc « My Coach … » en haut à gauche
+      // est repéré par son texte et cliqué en son centre RÉEL : les anciennes
+      // coordonnées (120, 39) supposaient une fenêtre maximisée et rataient
+      // toute fenêtre plus petite (constaté en 800 × 600 : aucune ouverture).
+      const bloc = page.locator('div.bubble-element.Group', { hasText: /^My Coach/ }).first();
       for (let i = 0; i < 4; i++) {
         if (await menuOuvert(page)) return;
-        await page.mouse.click(120, 39); // le bloc « My Coach … » en haut à gauche
+        const boite = await bloc.boundingBox().catch(() => null);
+        if (boite) await page.mouse.click(Math.round(boite.x + boite.width / 2), Math.round(boite.y + boite.height / 2));
+        else await bloc.click({ timeout: 5000, force: true }).catch(() => {});
         await page.waitForTimeout(2500);
       }
       if (!(await menuOuvert(page))) throw new Error('Sélecteur de club impossible à ouvrir');
