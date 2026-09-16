@@ -478,8 +478,69 @@ function lierCommerciaux(lignes, liaisons) {
   return { ids, manquants, sansCommercial, sansContact: ids.filter((x) => x.venteId && !x.contactId).length };
 }
 
+// ── ID DECIPLUS DU CONTACT DE CHAQUE VENTE (chaînage déterministe) ─────────
+//  Le détail des ventes affiche le nom du contact de chaque ligne : pour cela
+//  Vendor charge l'objet `custom.sportif` lié à la vente, qui porte le champ
+//  `member_id_deciplus_number` (l'« Id Deciplus » de la fiche Vendor). On le
+//  capte dans les réponses de la MÊME visite (aucune navigation de plus) et on
+//  le rattache à la vente par l'identifiant du contact (`contactId`) — JAMAIS
+//  par le nom. Constaté le 2026-09-16 sur Lille : 5 ventes / 5 Id Deciplus,
+//  identiques aux Id_client connus.
+//  `contacts` : Map contactId -> Id Deciplus ('' = fiche reçue sans Id).
+function contactsDeciplusDepuis(json, contacts) {
+  const vus = new Set();
+  const w = (o) => {
+    if (!o || typeof o !== 'object' || vus.has(o)) return;
+    vus.add(o);
+    const src = o._source || o;
+    if (o._type === 'custom.sportif' && idBubble(o._id)) {
+      const brut = src.member_id_deciplus_number == null ? '' : String(src.member_id_deciplus_number).trim();
+      const id = /^[0-9]{1,20}$/.test(brut) ? brut : '';
+      // Une fiche déjà vue AVEC un Id ne le perd jamais sur une réponse partielle.
+      if (id || !contacts.has(o._id)) contacts.set(o._id, id);
+    }
+    Object.values(o).forEach(w);
+  };
+  w(json);
+  return contacts;
+}
+// Pose `idDeciplusVendor` sur chaque contrat dont le contact est connu. Rend le
+// nombre de contrats reliés. Un contrat sans contact lu, ou dont la fiche n'a
+// pas d'Id Deciplus, reste sans identifiant — aucun repli.
+function poserIdsDeciplus(contrats, contacts) {
+  let relies = 0;
+  (contrats || []).forEach((c) => {
+    const id = c && c.contactId && contacts && contacts.get(c.contactId);
+    c.idDeciplusVendor = /^[0-9]{1,20}$/.test(String(id || '')) ? String(id) : '';
+    if (c.idDeciplusVendor) relies += 1;
+  });
+  return relies;
+}
+
 // ── Lecture d'un studio pour un mois ───────────────────────────────────────
 async function lireStudio(page, studio, ym, journal = () => {}) {
+  const contacts = new Map();
+  const surReponse = async (r) => {
+    if (!/\/elasticsearch\/|\/api\/1\.1\//.test(r.url())) return;
+    try { contactsDeciplusDepuis(JSON.parse(await r.text()), contacts); } catch (_) { /* réponse non JSON */ }
+  };
+  page.on('response', surReponse);
+  try {
+    const res = await lireStudioContrats(page, studio, ym, journal);
+    await page.waitForTimeout(1500); // dernières réponses en vol
+    if (res.contrats && res.contrats.length) {
+      const relies = poserIdsDeciplus(res.contrats, contacts);
+      res.contratsAvecIdDeciplus = relies;
+      journal(studio + ' : Id Deciplus lu sur la fiche Vendor pour ' + relies + '/' + res.contrats.length + ' contrat(s)'
+        + (relies < res.contrats.length ? ' — les autres restent sans identifiant Vendor (aucun rapprochement par nom)' : ''));
+    }
+    return res;
+  } finally {
+    page.off('response', surReponse);
+  }
+}
+
+async function lireStudioContrats(page, studio, ym, journal = () => {}) {
   await choisirClub(page, studio, journal);
   await page.goto(urlStats(ym), { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(9000);
@@ -635,6 +696,7 @@ async function lireStudio(page, studio, ym, journal = () => {}) {
 
 module.exports = {
   lireStudio, analyserLigne, lierCommerciaux, idBubble, fermerPanneau, choisirClub, basculerClub, verifierClub, clubAttendu,
+  contactsDeciplusDepuis, poserIdsDeciplus,
   CLUBS_FB, CLUBS_HORS_RECAP, TENTATIVES_BASCULE, decalageMois, urlStats, MOIS_FR2, norm,
   // Sélecteur de club, lecture pure (tests) et lecture du club actif (vérification).
   lignesClub, entreeCorrespond, menuEstOuvert, blocClubActif, villeClubActif, choisirEntree, clubAffiche, libelleClub,
