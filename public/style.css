@@ -22302,3 +22302,13 @@ html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même 
 .rec2-nr-com-sel.is-manuel { border-color: rgba(61,123,219,.55); }
 .rec2-nr-com-sel[disabled] { opacity: .5; cursor: progress; }
 .rec2-nr-com-info { max-width: 170px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; color: var(--r2-text-3); }
+
+/* RECAP 2 — contrôle opérationnel automatique (sous les cases manuelles) */
+.rec2-auto { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; font-size: 11px; line-height: 1.2; white-space: nowrap; color: var(--r2-text-2); }
+.rec2-auto-val { font-size: 10.5px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--r2-line-2); color: var(--r2-text-2); }
+.rec2-auto-val.is-manuel { border-color: var(--r2-accent); color: var(--r2-text); font-weight: 600; }
+.rec2-auto-val.is-a_verifier { color: #b7791f; border-color: #b7791f; }
+.rec2-force { font: inherit; font-size: 10.5px; padding: 1px 2px; border-radius: 6px; background: transparent; color: var(--r2-text-2); border: 1px solid var(--r2-line-2); max-width: 92px; }
+.rec2-auto-bloc { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-top: 4px; }
+.rec2-auto-alerte { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: rgba(220, 38, 38, .12); color: #f87171; border: 1px solid rgba(220, 38, 38, .35); }
+.rec2-auto-attrib { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--r2-line-2); color: var(--r2-text-2); }
