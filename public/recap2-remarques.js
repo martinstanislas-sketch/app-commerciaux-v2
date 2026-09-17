@@ -20,6 +20,11 @@
 //      Amiel Anais
 //      Cliente contactée, situation sous contrôle.
 //
+//  Les remarques AUTOMATIQUES (public/recap2-conseils.js) sont reprises ici,
+//  sur les ventes signées uniquement, AVANT la remarque manuelle et sans marque
+//  distinctive : le conseiller lit une suite de phrases. Elles ne sont pas
+//  stockées — recalculées à chaque copie, donc jamais en double et à jour.
+//
 //  Plus une version HTML (titres et noms en gras) pour un collage propre dans
 //  Gmail. UNIQUEMENT les personnes qui ont une remarque ; une section sans
 //  remarque n'apparaît pas. Une personne présente sur plusieurs lignes d'une
@@ -29,13 +34,14 @@
 // ============================================================================
 
 (function (racine, fabrique) {
-  // Dépend de Recap2Metrics (attribution d'un non-reconduit) : même règle que l'écran.
-  if (typeof module === 'object' && module.exports) module.exports = fabrique(require('./recap2-metrics.js'));
-  else racine.Recap2Remarques = fabrique(racine.Recap2Metrics);
-}(typeof self !== 'undefined' ? self : this, function (Metrics) {
+  // Dépend de Recap2Metrics (attribution d'un non-reconduit) : même règle que l'écran,
+  // et de Recap2Conseils (les remarques automatiques adressées au conseiller).
+  if (typeof module === 'object' && module.exports) module.exports = fabrique(require('./recap2-metrics.js'), require('./recap2-conseils.js'));
+  else racine.Recap2Remarques = fabrique(racine.Recap2Metrics, racine.Recap2Conseils);
+}(typeof self !== 'undefined' ? self : this, function (Metrics, Conseils) {
   const MOIS = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
   const SECTIONS = [
-    { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves' },
+    { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: true },
     { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction' },
     // VNI : la liste ACTIVE posée par le serveur (transformés déjà retirés).
     { type: 'vni', titre: 'VNI', bloc: 'vni' },
@@ -91,14 +97,25 @@
     return cleIdentite(a.client) === cleIdentite(b.client);
   }
 
+  // Les remarques d'une ligne : les automatiques (ventes signées d'un mois
+  // contrôlé) puis la manuelle. La manuelle n'est jamais remplacée.
+  function remarquesLigne(l, { auto, controle }) {
+    const autos = auto && Conseils ? Conseils.conseilsVente(l, { controle }) : [];
+    const manuelle = texteNote(l);
+    return manuelle ? autos.concat([manuelle]) : autos;
+  }
+
   // Les personnes à remarque d'une liste, dans l'ordre de l'écran, sans doublon.
-  function personnesAvecRemarque(liste) {
+  //  `auto` : la liste porte-t-elle des remarques automatiques (ventes signées) ;
+  //  `controle` : le mois a-t-il été contrôlé (cf. Recap2Conseils.moisControle).
+  function personnesAvecRemarque(liste, options) {
+    const o = options || {};
     const out = [];
     (liste || []).forEach((l) => {
-      const remarque = texteNote(l);
-      if (!remarque) return;
+      const remarques = remarquesLigne(l, o);
+      if (!remarques.length) return;
       if (out.some((p) => memePersonne(p, l))) return;
-      out.push({ client: prenomNom(l.client), idClient: idDe(l.idClient), remarque });
+      out.push({ client: prenomNom(l.client), idClient: idDe(l.idClient), remarque: remarques.join('\n'), remarques });
     });
     return out;
   }
@@ -110,9 +127,10 @@
   // { nb, texte, html } — nb = 0 : rien à copier (texte et html vides).
   function remarquesClub(rapport, studio) {
     const b = rapport && rapport.studios && rapport.studios[studio];
+    const controle = !!(Conseils && Conseils.moisControle(rapport));
     const sections = SECTIONS.map((s) => ({
       titre: s.titre,
-      personnes: personnesAvecRemarque(b && b[s.bloc] && b[s.bloc].liste),
+      personnes: personnesAvecRemarque(b && b[s.bloc] && b[s.bloc].liste, { auto: s.auto, controle }),
     })).filter((s) => s.personnes.length);
     const nb = sections.reduce((n, s) => n + s.personnes.length, 0);
     if (!nb) return { nb: 0, texte: '', html: '' };
@@ -139,7 +157,7 @@
   //     explicite), sinon personne. « Non attribué » ne sort chez aucun commercial ;
   //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé).
   const SECTIONS_COMMERCIAL = [
-    { titre: 'Ventes signées', bloc: 'clientsRetrouves', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
+    { titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: true, cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
     { titre: 'Clients non reconduits', bloc: 'nonReconduction', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
     { titre: 'VNI', bloc: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
   ];
@@ -147,12 +165,13 @@
   // { nb, texte, html, studios: [...], categories: [...] } — nb = 0 : rien à copier.
   function remarquesCommercial(rapport, cleCommercial, nomAffiche) {
     const cle = String(cleCommercial || '');
+    const controle = !!(Conseils && Conseils.moisControle(rapport));
     const studios = [];
     Object.keys((rapport && rapport.studios) || {}).forEach((s) => {
       const b = rapport.studios[s];
       const sections = SECTIONS_COMMERCIAL.map((sec) => ({
         titre: sec.titre,
-        personnes: personnesAvecRemarque(((b && b[sec.bloc] && b[sec.bloc].liste) || []).filter((l) => cle && sec.cle(l) === cle)),
+        personnes: personnesAvecRemarque(((b && b[sec.bloc] && b[sec.bloc].liste) || []).filter((l) => cle && sec.cle(l) === cle), { auto: sec.auto, controle }),
       })).filter((sec) => sec.personnes.length);
       if (sections.length) studios.push({ studio: s, sections });
     });
@@ -171,5 +190,5 @@
     return { nb, texte, html, studios: studios.map((st) => st.studio), categories: [...new Set(studios.flatMap((st) => st.sections.map((sec) => sec.titre)))] };
   }
 
-  return { remarquesClub, remarquesCommercial, moisEnClair, cleIdentite, memePersonne, prenomNom };
+  return { remarquesClub, remarquesCommercial, moisEnClair, cleIdentite, memePersonne, prenomNom, remarquesLigne };
 }));

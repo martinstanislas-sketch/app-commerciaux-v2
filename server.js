@@ -4641,6 +4641,11 @@ function ensureRecap2ChecksSchema() {
   require('./lib/recap2Checks.js').creerTable(getDb());
 }
 ensureRecap2ChecksSchema();
+// Et pour la vérification manuelle d'une vente « à vérifier ».
+function ensureRecap2VerifSchema() {
+  require('./lib/recap2Verifications.js').creerTable(getDb());
+}
+ensureRecap2VerifSchema();
 // Et pour le contrôle opérationnel automatique (Prélèvement / Réservation / Résilié).
 function ensureRecap2AutoSchema() {
   require('./lib/recap2Automatique.js').creerTable(getDb());
@@ -5254,6 +5259,7 @@ const Recap2Matches = require('./lib/recap2Matches.js');
 // Les cases de contrôle manuel, même principe : en base, posées à la lecture.
 const Recap2Checks = require('./lib/recap2Checks.js');
 const Recap2Automatique = require('./lib/recap2Automatique.js');
+const Recap2Verifications = require('./lib/recap2Verifications.js');
 // Les remarques par personne, même principe : en base, posées à la lecture.
 const Recap2Notes = require('./lib/recap2Notes.js');
 // Les VNI : liste historique du mois − transformations connues aujourd'hui.
@@ -5555,6 +5561,48 @@ app.post('/api/recap2/automatique/:mois', (req, res) => {
 //  Admin connecté. { mois, studio, client, date, champ: prelevement|reservation|resilie,
 //  valeur: 'ok'|'ko'|'auto' }. Table à part : aucun KPI, aucune case historique touchés.
 //  Déclarée AVANT `POST /api/recap2/:mois`.
+// ─── ACQUITTEMENT MANUEL : VENTE « À VÉRIFIER » OU ÉCART DE SITE ────────────
+//  Admin connecté. { mois, studio, client, date, valeur: 'verifiee'|'a_verifier',
+//  type: 'vente'|'site' }.
+//   · type 'vente' : la vente non retrouvée est vérifiée à la main. `retrouve`
+//     et les KPI du rapport ne bougent pas ; seule la carte « Contrats validés »
+//     (calculée à l'affichage) la compte ;
+//   · type 'site'  : l'alerte « Site Deciplus divergent » est acquittée. Le site
+//     Deciplus trouvé reste inscrit tel quel, et la vente n'est PAS réattribuée.
+//  Rien n'est écrit dans Deciplus. Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/verification', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim(), date = String(b.date || '').trim();
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const affiche = recap2AvecDecisions(lu.rapport);
+  const ligne = Recap2Checks.ligneDe(affiche, { studio, client, date });
+  if (!ligne) return res.status(404).json({ error: 'Vente introuvable dans le rapport de ' + mois + '.' });
+  const type = String(b.type || 'vente');
+  if (Recap2Verifications.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : vente ou site' });
+  if (!Recap2Verifications.verifiable(ligne, type)) {
+    return res.status(409).json({ error: type === 'site'
+      ? 'Seule une vente retrouvée et non annulée peut porter un écart de site.'
+      : 'Seule une vente non annulée et non retrouvée peut être vérifiée à la main.' });
+  }
+  // Un écart de site ne s'acquitte que s'il existe vraiment (même règle que l'écran).
+  if (type === 'site' && String(b.valeur || '') === 'verifiee' && !Recap2Metrics.siteDivergent(ligne, studio)) {
+    return res.status(409).json({ error: 'Cette vente ne présente aucun écart de site Deciplus.' });
+  }
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const verification = Recap2Verifications.verifier(getDb(), { mois, studio, client, date, valeur: String(b.valeur || ''), type, par: qui });
+    const lue = Recap2Checks.ligneDe(recap2AvecDecisions(lu.rapport), { studio, client, date });
+    res.json({ ok: true, verification, ligne: lue
+      ? { verification: lue.verification || null, ecartSite: lue.ecartSite || null, retrouve: lue.retrouve } : null });
+  } catch (e) {
+    res.status(400).json({ error: e && e.message ? e.message : 'vérification refusée' });
+  }
+});
+
 app.post('/api/recap2/forcage', requireAuth, requireAdmin, (req, res) => {
   const b = req.body || {};
   const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim();
@@ -5682,6 +5730,12 @@ function recap2AvecDecisions(rapport) {
     if (r && r.mois) r = Recap2Checks.appliquer(r, Recap2Checks.controlesDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 contrôles manuels :', e && e.message);
+  }
+  // Les acquittements manuels : vente « à vérifier » validée, écart de site vérifié.
+  try {
+    if (r && r.mois) r = Recap2Verifications.appliquer(r, Recap2Verifications.verificationsDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 vérifications manuelles :', e && e.message);
   }
   // Le contrôle automatique, APRÈS les cases manuelles (qui restent prioritaires).
   try {
