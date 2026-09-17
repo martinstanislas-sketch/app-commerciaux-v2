@@ -81,6 +81,8 @@ const Recap2UI = (function () {
       if (box && rapport) { enregistrerControle(box); return; }
       const force = e.target.closest && e.target.closest('select[data-force]');
       if (force && rapport) { enregistrerForcage(force); return; }
+      const verif = e.target.closest && e.target.closest('select[data-verif]');
+      if (verif && rapport) { enregistrerVerification(verif); return; }
       const nrBox = e.target.closest && e.target.closest('input[data-nrstatut]');
       if (nrBox && rapport) { enregistrerStatutNR(nrBox); return; }
       const nrCom = e.target.closest && e.target.closest('select[data-nrcom]');
@@ -550,6 +552,19 @@ const Recap2UI = (function () {
         + '<button type="button" class="rec2-btn-non" data-match="rejected|' + jeton + '">✕ Refuser</button>'
         + '</div></div>';
     }
+    if (!v.retrouve && v.verification && v.verification.verifiee) {
+      // VÉRIFIÉE À LA MAIN : un administrateur a contrôlé lui-même, après coup.
+      //  On ne dit JAMAIS « Retrouvée » : la collecte, elle, n'a rien trouvé, et
+      //  ce résultat automatique reste intact dans les données (`retrouve`).
+      //  Elle compte comme conforme dans « Contrats validés ».
+      const q = v.verification;
+      const qui = (q.modifiePar ? ' par ' + q.modifiePar : '') + (q.modifieLe ? ' le ' + fmtDate(q.modifieLe) : '');
+      return '<span class="rec2-etat is-verif" title="'
+        + esc('Vérifiée à la main' + qui + ' — recherche automatique : aucune vente Deciplus trouvée')
+        + '">Vérifiée manuellement ✅</span>'
+        + ' <span class="rec2-det-date">vérifiée à la main' + esc(qui) + '</span>'
+        + lienFiche(v) + choixVerification(v, studioAttendu);
+    }
     if (!v.retrouve) {
       // « À VÉRIFIER » : aucune vente trouvée. Deux cas, jamais confondus :
       //  · FICHE TROUVÉE — la personne existe dans Deciplus, mais aucune vente
@@ -558,20 +573,10 @@ const Recap2UI = (function () {
       //  · rien de fiable — une vraie action de recherche. Deciplus ne permet
       //    pas de préremplir la recherche par un lien : on ouvre l'écran
       //    Membres et on copie le nom, et le libellé le dit.
-      const R = window.Retention;
       const refus = v.refuse ? ' <span class="rec2-det-date">rapprochement refusé</span>' : '';
-      const hrefFiche = (v.ficheId && R && R.lienDeciplusId) ? R.lienDeciplusId(v.ficheId) : null;
-      if (hrefFiche) {
-        return '<span class="rec2-etat is-non">À vérifier</span>'
-          + ' <span class="rec2-det-date">fiche trouvée, aucune vente saisie</span>' + refus
-          + '<div class="rec2-action"><a class="rec2-lien-fiche" href="' + esc(hrefFiche) + '" target="_blank" rel="noopener noreferrer"'
-          + ' title="Fiche Deciplus ' + esc(v.ficheNom || v.client) + (v.ficheSite ? ' · ' + esc(v.ficheSite) : '') + '">Ouvrir la fiche Deciplus ↗</a></div>';
-      }
-      const rech = (R && R.lienRechercheDeciplus) ? R.lienRechercheDeciplus() : null;
-      return '<span class="rec2-etat is-non">À vérifier</span>' + refus
-        + (rech ? '<div class="rec2-action"><a class="rec2-lien-rech" href="' + esc(rech) + '" target="_blank" rel="noopener noreferrer"'
-          + ' data-copier="' + esc(v.client) + '" title="Ouvre l\'écran Membres de Deciplus — la recherche n\'est pas préremplie, le nom « '
-          + esc(v.client) + ' » est copié dans le presse-papiers">Rechercher dans Deciplus ↗</a></div>' : '');
+      const precision = v.ficheId ? ' <span class="rec2-det-date">fiche trouvée, aucune vente saisie</span>' : '';
+      return '<span class="rec2-etat is-non">À vérifier</span>' + precision + refus
+        + lienFiche(v) + choixVerification(v, studioAttendu);
     }
     const notes = [];
     if (v.dateVente) notes.push('le ' + esc(v.dateVente));
@@ -582,6 +587,62 @@ const Recap2UI = (function () {
       + badgeResiliation(v)
       + pai.alerte
       + anomalieSite(v, studioAttendu);
+  }
+
+  // Le lien Deciplus d'une vente NON retrouvée : sa fiche si on l'a trouvée,
+  // sinon l'écran Membres (Deciplus refuse de préremplir une recherche). Il
+  // reste accessible, vérifiée à la main ou non.
+  function lienFiche(v) {
+    const R = window.Retention;
+    if (!R) return '';
+    const hrefFiche = (v.ficheId && R.lienDeciplusId) ? R.lienDeciplusId(v.ficheId) : null;
+    if (hrefFiche) {
+      return '<div class="rec2-action"><a class="rec2-lien-fiche" href="' + esc(hrefFiche) + '" target="_blank" rel="noopener noreferrer"'
+        + ' title="Fiche Deciplus ' + esc(v.ficheNom || v.client) + (v.ficheSite ? ' · ' + esc(v.ficheSite) : '') + '">Ouvrir la fiche Deciplus ↗</a></div>';
+    }
+    const rech = R.lienRechercheDeciplus ? R.lienRechercheDeciplus() : null;
+    if (!rech) return '';
+    return '<div class="rec2-action"><a class="rec2-lien-rech" href="' + esc(rech) + '" target="_blank" rel="noopener noreferrer"'
+      + ' data-copier="' + esc(v.client) + '" title="Ouvre l\'écran Membres de Deciplus — la recherche n\'est pas préremplie, le nom « '
+      + esc(v.client) + ' » est copié dans le presse-papiers">Rechercher dans Deciplus ↗</a></div>';
+  }
+
+  // ── VÉRIFICATION MANUELLE D'UNE VENTE « À VÉRIFIER » ────────────────────────
+  //  Réservée à l'administrateur (le serveur le vérifie aussi). Deux choix
+  //  seulement : « Validée manuellement » ou « Laisser à vérifier ». Rien n'est
+  //  écrit dans Deciplus ; `retrouve` n'est jamais modifié.
+  function choixVerification(v, studio) {
+    if (!(window.isAdmin && window.isAdmin())) return '';
+    const verifiee = !!(v.verification && v.verification.verifiee);
+    const opt = (val, txt) => '<option value="' + val + '"' + (verifiee === (val === 'verifiee') ? ' selected' : '') + '>' + txt + '</option>';
+    return '<div class="rec2-verif"><select class="rec2-verif-sel" data-verif="vente"'
+      + ' data-studio="' + esc(studio) + '" data-client="' + esc(v.client) + '" data-date="' + esc(v.date || '') + '"'
+      + ' aria-label="' + esc('Vérification manuelle — ' + v.client) + '"'
+      + ' title="Après contrôle humain : valider cette vente, ou la laisser à vérifier.">'
+      + opt('a_verifier', 'Laisser à vérifier') + opt('verifiee', 'Validée manuellement') + '</select></div>';
+  }
+  async function enregistrerVerification(sel) {
+    const d = sel.dataset;
+    sel.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/verification', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, date: d.date, valeur: sel.value, type: d.verif }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const cr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].clientsRetrouves;
+      const ligne = cr && (cr.liste || []).find((l) => l.client === d.client && (l.date || '') === d.date);
+      if (ligne) {
+        if (j.ligne && j.ligne.verification) ligne.verification = j.ligne.verification; else delete ligne.verification;
+        if (j.ligne && j.ligne.ecartSite) ligne.ecartSite = j.ligne.ecartSite; else delete ligne.ecartSite;
+      }
+      render();
+    } catch (err) {
+      sel.disabled = false;
+      alert('Vérification non enregistrée : ' + (err && err.message ? err.message : 'erreur'));
+      render();
+    }
   }
 
   // ── PAIEMENT SUR 31 JOURS ───────────────────────────────────────────────────
@@ -615,17 +676,47 @@ const Recap2UI = (function () {
   //  reste « Retrouvée » et compte dans le taux, mais on doit la voir d'un coup
   //  d'œil. La règle vit dans Recap2Metrics.siteDivergent — une seule définition
   //  pour le détail studio, la vue commercial, la carte et le filtre.
-  function divergence(v, studioAttendu) {
+  //  Un écart ACQUITTÉ à la main (« Écart de site vérifié ») ne compte plus
+  //  nulle part : ni compteur, ni filtre, ni liseré. L'écart brut, lui, reste
+  //  lisible dans les données (`site`) et s'affiche encore sur la ligne.
+  function divergenceBrute(v, studioAttendu) {
     const MM = window.Recap2Metrics;
     return (MM && MM.siteDivergent) ? MM.siteDivergent(v, studioAttendu) : null;
   }
+  const ecartSiteVerifie = (v) => !!(v && v.ecartSite && v.ecartSite.verifiee);
+  function divergence(v, studioAttendu) {
+    return ecartSiteVerifie(v) ? null : divergenceBrute(v, studioAttendu);
+  }
   function anomalieSite(v, studioAttendu) {
-    const d = divergence(v, studioAttendu);
+    const d = divergenceBrute(v, studioAttendu);
     if (!d) return '';
+    const ou = '<span class="rec2-div-qui">Studio attendu : <b>' + esc(d.attendu) + '</b>'
+      + ' · Site Deciplus trouvé : <b>' + esc(d.site) + '</b></span>';
+    if (ecartSiteVerifie(v)) {
+      // ACQUITTÉ : l'écart automatique reste affiché et enregistré tel quel ;
+      // seule l'alerte à traiter disparaît. La vente n'a pas changé de studio.
+      const q = v.ecartSite;
+      const qui = (q.modifiePar ? ' par ' + q.modifiePar : '') + (q.modifieLe ? ' le ' + fmtDate(q.modifieLe) : '');
+      return '<div class="rec2-div">'
+        + '<span class="rec2-etat is-verif" title="' + esc('Écart de site vérifié à la main' + qui
+          + ' — le site Deciplus trouvé reste inchangé, et la vente reste comptée sur ' + d.attendu) + '">Écart de site vérifié ✅</span>'
+        + ou + '<span class="rec2-det-date">vérifié à la main' + esc(qui) + '</span>'
+        + choixEcartSite(v, studioAttendu) + '</div>';
+    }
     return '<div class="rec2-div">'
       + '<span class="rec2-etat is-div">⚠ Site Deciplus divergent</span>'
-      + '<span class="rec2-div-qui">Studio attendu : <b>' + esc(d.attendu) + '</b>'
-      + ' · Site Deciplus trouvé : <b>' + esc(d.site) + '</b></span></div>';
+      + ou + choixEcartSite(v, studioAttendu) + '</div>';
+  }
+  // Acquitter l'écart, ou le remettre à traiter. Administrateur seulement.
+  function choixEcartSite(v, studio) {
+    if (!(window.isAdmin && window.isAdmin())) return '';
+    const fait = ecartSiteVerifie(v);
+    const opt = (val, txt) => '<option value="' + val + '"' + (fait === (val === 'verifiee') ? ' selected' : '') + '>' + txt + '</option>';
+    return '<div class="rec2-verif"><select class="rec2-verif-sel" data-verif="site"'
+      + ' data-studio="' + esc(studio) + '" data-client="' + esc(v.client) + '" data-date="' + esc(v.date || '') + '"'
+      + ' aria-label="' + esc('Écart de site — ' + v.client) + '"'
+      + ' title="Après contrôle humain : marquer cet écart comme vérifié, ou le laisser à traiter. Rien n\'est modifié dans Deciplus, et la vente reste comptée sur son studio.">'
+      + opt('a_verifier', 'Écart à traiter') + opt('verifiee', 'Marquer comme vérifié') + '</select></div>';
   }
 
   // Le filtre d'une ligne : 'tous' | 'retrouves' | 'proposes' | 'verifier' |
@@ -643,7 +734,9 @@ const Recap2UI = (function () {
     const prel = window.Recap2Metrics.motifValidation(v) === 'prelevement';
     if (f === 'prelevements') return prel;
     if (f === 'proposes') return !v.annulee && !v.retrouve && !!v.candidat && !prel;
-    if (f === 'verifier') return !v.annulee && !v.retrouve && !v.candidat && !prel;
+    const verifiee = window.Recap2Metrics.motifValidation(v) === 'verification';
+    if (f === 'verifiees') return verifiee;
+    if (f === 'verifier') return !v.annulee && !v.retrouve && !v.candidat && !prel && !verifiee;
     return true;
   }
   // Les cinq populations d'une liste, comptées une fois pour toutes.
@@ -656,13 +749,16 @@ const Recap2UI = (function () {
     const valides = l.filter((v) => !v.annulee && v.retrouve && v.valideManuellement).length;
     // Validées par la seule case Prélèvement : ni « proposées » ni « à vérifier ».
     const prelevements = l.filter((v) => window.Recap2Metrics.motifValidation(v) === 'prelevement').length;
-    const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat && window.Recap2Metrics.motifValidation(v) !== 'prelevement').length;
+    // Vérifiées à la main : ni « proposées », ni « à vérifier », ni « retrouvées ».
+    const verifiees = l.filter((v) => window.Recap2Metrics.motifValidation(v) === 'verification').length;
+    const proposes = l.filter((v) => !v.annulee && !v.retrouve && v.candidat
+      && ['prelevement', 'verification'].indexOf(window.Recap2Metrics.motifValidation(v)) < 0).length;
     const divergents = l.filter((v) => divergence(v, studio)).length;
     // Résiliés : un repérage, compté à part — ils restent dans `retrouves` et `actives`.
     // Une annulée FB marquée résiliée compte ici — et reste comptée dans `annulees`.
     const resilies = l.filter((v) => v.resiliation && v.resiliation.resilie).length;
-    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents, resilies, prelevements,
-      aVerifier: l.length - annulees - retrouves - proposes - prelevements };
+    return { total: l.length, annulees, actives: l.length - annulees, retrouves, valides, proposes, divergents, resilies, prelevements, verifiees,
+      aVerifier: l.length - annulees - retrouves - proposes - prelevements - verifiees };
   }
 
   // Le bandeau chiffré, identique partout : signées, annulées, actives,
@@ -740,6 +836,20 @@ const Recap2UI = (function () {
     if (!v.operationnel) return html;
     let i = 0;
     return html.replace(/<\/td>/g, (m) => pastilleAuto(v, champs[i++], studio) + m);
+  }
+  // ── REMARQUES AUTOMATIQUES ADRESSÉES AU CONSEILLER ────────────────────────
+  //  Calculées (public/recap2-conseils.js) à partir de l'état AFFICHÉ, forçage
+  //  compris : rien en base, aucun doublon, et elles s'effacent d'elles-mêmes
+  //  quand le problème est réglé. Elles ne remplacent JAMAIS la remarque
+  //  manuelle, qui garde sa ligne et son bouton juste en dessous.
+  function blocConseils(v) {
+    const C = window.Recap2Conseils;
+    if (!C) return '';
+    const textes = C.conseilsVente(v, { controle: C.moisControle(rapport) });
+    if (!textes.length) return '';
+    return '<div class="rec2-conseils">' + textes.map((t) => '<span class="rec2-conseil" title="'
+      + esc('Remarque automatique, d\'après le contrôle Deciplus — elle disparaîtra une fois le point réglé.')
+      + '">' + esc(t) + '</span>').join('') + '</div>';
   }
   function blocAuto(v) {
     const a = v.automatique;
@@ -1262,13 +1372,14 @@ const Recap2UI = (function () {
       + chip('retrouves', 'Retrouvés', c.retrouves)
       + (c.proposes ? chip('proposes', 'Rapprochements proposés', c.proposes) : '')
       + (c.prelevements ? chip('prelevements', 'Validés par prélèvement', c.prelevements) : '')
+      + (c.verifiees ? chip('verifiees', 'Vérifiées à la main', c.verifiees) : '')
       + chip('verifier', 'À vérifier', c.aVerifier)
       + (c.divergents ? chipDiv(chip, c.divergents) : '')
       + (c.resilies ? chip('resilies', 'Résiliés', c.resilies) : '')
       + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
-      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocAuto(v) + blocNote('vente', label, v) + '</td>'
+      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocAuto(v) + blocConseils(v) + blocNote('vente', label, v) + '</td>'
       + casesControle(v, label)
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(v.commercial || '—') + '</td>'
@@ -1317,7 +1428,7 @@ const Recap2UI = (function () {
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, v.studio) + '>'
       + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
-      + '<td>' + nomClient(v) + blocNote('vente', v.studio, v) + '</td>'
+      + '<td>' + nomClient(v) + blocConseils(v) + blocNote('vente', v.studio, v) + '</td>'
       + casesControle(v, v.studio)
       + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
       + '<td>' + esc(v.prestation || '—') + '</td>'
@@ -1361,6 +1472,7 @@ const Recap2UI = (function () {
       + chip('retrouves', 'Retrouvés', rep0.retrouves)
       + (rep0.proposes ? chip('proposes', 'Rapprochements proposés', rep0.proposes) : '')
       + (rep0.prelevements ? chip('prelevements', 'Validés par prélèvement', rep0.prelevements) : '')
+      + (rep0.verifiees ? chip('verifiees', 'Vérifiées à la main', rep0.verifiees) : '')
       + chip('verifier', 'À vérifier', rep0.aVerifier)
       + (rep0.divergents ? chipDiv(chip, rep0.divergents) : '')
       + (rep0.resilies ? chip('resilies', 'Résiliés', rep0.resilies) : '')

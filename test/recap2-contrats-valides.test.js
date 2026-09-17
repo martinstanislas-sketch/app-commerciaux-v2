@@ -82,7 +82,7 @@ test('RECOLLECTE : la recherche automatique continue ; retrouvée plus tard, ell
 
 test('annulée + Prélèvement coché -> reste exclue ; rapprochement confirmé -> motif « rapprochement »', () => {
   const liste = [vente('A', { annulee: true, retrouve: false, controle: { prelevement: true } }), vente('B', { valideManuellement: true })];
-  assert.deepEqual(M.contratsValides(liste), { actives: 1, valides: 1, parPrelevement: 0, taux: 1 });
+  assert.deepEqual(M.contratsValides(liste), { actives: 1, valides: 1, parPrelevement: 0, parVerification: 0, taux: 1 });
   assert.equal(M.motifValidation(liste[1]), 'rapprochement');
 });
 
@@ -104,4 +104,32 @@ test('écran : carte « CONTRATS VALIDÉS », « x / y contrats validés », sta
   assert.match(carte, /pct\(cv\.taux\)/);
   assert.match(src, /Validée manuellement — prélèvement vérifié/);
   assert.doesNotMatch(carte, /signataire/);
+});
+
+// ── VÉRIFICATION MANUELLE D'UNE VENTE « À VÉRIFIER » ────────────────────────
+//  Une vente non retrouvée, contrôlée à la main par un administrateur, compte
+//  comme conforme SANS devenir « retrouvée » : la recherche automatique garde
+//  son résultat, et le statut affiché reste honnête.
+test('vérifiée à la main : comptée dans le pourcentage, sans toucher « retrouvée »', () => {
+  const liste = [
+    vente('A', { retrouve: true }),
+    vente('B', { retrouve: false, verification: { verifiee: true, modifiePar: 'Stan', modifieLe: '2026-09-17T16:20:00.000Z' } }),
+  ];
+  const cv = M.contratsValides(liste);
+  assert.deepEqual({ actives: cv.actives, valides: cv.valides, taux: cv.taux }, { actives: 2, valides: 2, taux: 1 }, '2/2 = 100 %');
+  assert.equal(cv.parVerification, 1);
+  assert.equal(M.motifValidation(liste[1]), 'verification');
+  assert.equal(liste[1].retrouve, false, 'la recherche automatique reste intacte');
+});
+
+test('vérification annulée : la vente redevient non conforme', () => {
+  const liste = [vente('A', { retrouve: true }), vente('B', { retrouve: false })];
+  assert.equal(M.contratsValides(liste).valides, 1);
+  assert.equal(M.motifValidation(liste[1]), '');
+});
+
+test('une vente annulée ne devient pas conforme par une vérification', () => {
+  const liste = [vente('A', { annulee: true, retrouve: false, verification: { verifiee: true } })];
+  assert.equal(M.motifValidation(liste[0]), '');
+  assert.equal(M.contratsValides(liste).actives, 0);
 });

@@ -22303,6 +22303,19 @@ html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même 
 .rec2-nr-com-sel[disabled] { opacity: .5; cursor: progress; }
 .rec2-nr-com-info { max-width: 170px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; color: var(--r2-text-3); }
 
+/* RECAP 2 — vente « à vérifier » validée à la main par un administrateur */
+.rec2-etat.is-verif { background: rgba(16, 122, 87, .18); border-color: rgba(16, 185, 129, .5); color: #6ee7b7; }
+.rec2-verif { margin-top: 5px; }
+.rec2-verif-sel { font: inherit; font-size: 11px; padding: 2px 4px; border-radius: 6px; max-width: 180px;
+  background: transparent; color: var(--r2-text-2); border: 1px solid var(--r2-line-2); }
+.rec2-verif-sel[disabled] { opacity: .5; cursor: progress; }
+
+/* RECAP 2 — remarques automatiques adressées au conseiller (sous le client) */
+.rec2-conseils { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; max-width: 320px; }
+.rec2-conseil { padding: 3px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.35;
+  background: rgba(15, 82, 186, .14); border: 1px solid rgba(61, 123, 219, .45); color: var(--r2-text); }
+.rec2-conseil::before { content: "À faire : "; color: var(--r2-text-3); font-weight: 600; }
+
 /* RECAP 2 — contrôle opérationnel automatique (sous les cases manuelles) */
 .rec2-auto { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; font-size: 11px; line-height: 1.2; white-space: nowrap; color: var(--r2-text-2); }
 .rec2-auto-val { font-size: 10.5px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--r2-line-2); color: var(--r2-text-2); }

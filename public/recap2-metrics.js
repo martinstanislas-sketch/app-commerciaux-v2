@@ -528,7 +528,11 @@
   //  Une vente ACTIVE (non annulée) est VALIDÉE si au moins une condition est vraie :
   //   · « automatique »   : retrouvée dans Deciplus par la collecte ;
   //   · « rapprochement » : rapprochement Deciplus confirmé à la main ;
-  //   · « prelevement »   : case Prélèvement cochée à la main.
+  //   · « prelevement »   : case Prélèvement cochée à la main ;
+  //   · « verification »  : vente « à vérifier » VÉRIFIÉE à la main par un
+  //                         administrateur (lib/recap2Verifications.js), après
+  //                         contrôle humain. `retrouve` reste faux : le statut
+  //                         affiché dit « Vérifiée », jamais « Retrouvée ».
   //  Une seule condition suffit, et une vente ne compte qu'UNE fois.
   //
   //  ⚠️ LA VALIDATION MANUELLE COMPLÈTE L'AUTOMATISATION, ELLE NE LA REMPLACE
@@ -541,6 +545,7 @@
   function motifValidation(v) {
     if (!v || v.annulee) return '';
     if (v.retrouve === true) return v.valideManuellement ? 'rapprochement' : 'automatique';
+    if (v.verification && v.verification.verifiee === true) return 'verification';
     return prelevementCoche(v) ? 'prelevement' : '';
   }
   const venteValidee = (v) => motifValidation(v) !== '';
@@ -552,6 +557,7 @@
       actives: actives.length,
       valides,
       parPrelevement: actives.filter((v) => motifValidation(v) === 'prelevement').length,
+      parVerification: actives.filter((v) => motifValidation(v) === 'verification').length,
       // Aucune vente active -> pas de dénominateur -> null, jamais 0 %.
       taux: actives.length ? valides / actives.length : null,
     };
