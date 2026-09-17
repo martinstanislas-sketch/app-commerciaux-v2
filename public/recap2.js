@@ -79,6 +79,8 @@ const Recap2UI = (function () {
     $('#rec2-body').addEventListener('change', (e) => {
       const box = e.target.closest && e.target.closest('input[data-ctl]');
       if (box && rapport) { enregistrerControle(box); return; }
+      const force = e.target.closest && e.target.closest('select[data-force]');
+      if (force && rapport) { enregistrerForcage(force); return; }
       const nrBox = e.target.closest && e.target.closest('input[data-nrstatut]');
       if (nrBox && rapport) { enregistrerStatutNR(nrBox); return; }
       const nrCom = e.target.closest && e.target.closest('select[data-nrcom]');
@@ -683,7 +685,73 @@ const Recap2UI = (function () {
     { champ: 'reservation', libelle: 'Réservation', aide: 'Réservation / prise de rendez-vous faite' },
   ];
   function casesControle(v, studio) {
-    return casesPrelevementReservation(v, studio) + celluleResiliation(v, studio);
+    return avecAuto(casesPrelevementReservation(v, studio), v, ['prelevement', 'reservation'], studio)
+      + avecAuto(celluleResiliation(v, studio), v, ['resilie'], studio);
+  }
+  // ── CONTRÔLE AUTOMATIQUE (Deciplus, lib/recap2Automatique.js) ──────────────
+  //  Affiché SOUS la case manuelle, jamais à sa place : la case reste l'outil
+  //  de correction et, cochée, elle l'emporte (« manuel »). Aucun compteur n'en dépend.
+  const AUTO_TXT = { ok: '✅', ko: '❌', a_verifier: 'À vérifier' };
+  // Source affichée : « auto » (moteur) ou « manuel » (forçage 3 états, ou case
+  // historique cochée). Le sélecteur pose / retire le forçage — jamais la case.
+  function pastilleAuto(v, champ, studio) {
+    const o = v.operationnel;
+    if (!o) return '';
+    const val = o[champ];
+    const src = o.sources && o.sources[champ];
+    const manuel = src === 'force' || src === 'manuel';
+    const auto = v.automatique && v.automatique[champ];
+    const fo = o.forcages && o.forcages[champ];
+    const titre = manuel
+      ? (src === 'force' ? 'Forcé à la main' + (fo && fo.modifieLe ? ' le ' + fmtDate(fo.modifieLe) + (fo.modifiePar ? ' par ' + fo.modifiePar : '') : '') : 'Case cochée à la main')
+        + (auto ? ' — automatique : ' + AUTO_TXT[auto] : '')
+      : 'Contrôle automatique Deciplus' + (v.automatique && v.automatique.raison ? ' — ' + v.automatique.raison : '');
+    const pastille = val
+      ? '<span class="rec2-auto-val is-' + val + (manuel ? ' is-manuel' : '') + '">' + (manuel ? 'manuel ' : 'auto ') + AUTO_TXT[val] + '</span>'
+      : '';
+    const choix = [['auto', 'Automatique'], ['ok', 'Forcé ✅'], ['ko', 'Forcé ❌']]
+      .map(([x, t]) => '<option value="' + x + '"' + ((fo ? fo.valeur : 'auto') === x ? ' selected' : '') + '>' + t + '</option>').join('');
+    return '<div class="rec2-auto" title="' + esc(titre) + '">' + pastille
+      + '<select class="rec2-force" data-force="' + champ + '" data-studio="' + esc(studio) + '" data-client="' + esc(v.client)
+      + '" data-date="' + esc(v.date || '') + '" aria-label="' + esc('Forçage ' + champ + ' — ' + v.client) + '">' + choix + '</select></div>';
+  }
+  async function enregistrerForcage(sel) {
+    const d = sel.dataset;
+    sel.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/forcage', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, date: d.date, champ: d.force, valeur: sel.value }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const cr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].clientsRetrouves;
+      const ligne = cr && (cr.liste || []).find((l) => l.client === d.client && (l.date || '') === d.date);
+      if (ligne) ligne.operationnel = j.operationnel;
+      render();
+    } catch (err) {
+      sel.disabled = false;
+      alert('Forçage non enregistré : ' + (err && err.message ? err.message : 'erreur'));
+      render();
+    }
+  }
+  // Insère la pastille dans chaque <td> produit par les cellules existantes.
+  function avecAuto(html, v, champs, studio) {
+    if (!v.operationnel) return html;
+    let i = 0;
+    return html.replace(/<\/td>/g, (m) => pastilleAuto(v, champs[i++], studio) + m);
+  }
+  function blocAuto(v) {
+    const a = v.automatique;
+    if (!a) return '';
+    const heure = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(a.controleLe || '');
+    const quand = heure ? 'Contrôlé le ' + heure[3] + '/' + heure[2] + '/' + heure[1] + ' à ' + heure[4] + ':' + heure[5] : '';
+    const alertes = (a.alertes || []).map((x) => '<span class="rec2-auto-alerte">' + esc(x) + '</span>').join('');
+    const at = a.attribution;
+    const attribution = at ? '<span class="rec2-auto-attrib">' + esc(at.compte
+      ? 'Vente comptée ici' + (at.commercial ? ' · ' + at.commercial : '')
+      : 'Non comptée — ' + at.motif) + '</span>' : '';
+    return '<div class="rec2-auto-bloc">' + alertes + attribution + (quand ? '<span class="rec2-det-date">' + quand + '</span>' : '') + '</div>';
   }
   function casesPrelevementReservation(v, studio) {
     return CONTROLES.map((c) => {
@@ -1200,7 +1268,7 @@ const Recap2UI = (function () {
       + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
-      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocNote('vente', label, v) + '</td>'
+      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocAuto(v) + blocNote('vente', label, v) + '</td>'
       + casesControle(v, label)
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(v.commercial || '—') + '</td>'

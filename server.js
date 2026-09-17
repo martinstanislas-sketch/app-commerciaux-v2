@@ -4641,6 +4641,11 @@ function ensureRecap2ChecksSchema() {
   require('./lib/recap2Checks.js').creerTable(getDb());
 }
 ensureRecap2ChecksSchema();
+// Et pour le contrôle opérationnel automatique (Prélèvement / Réservation / Résilié).
+function ensureRecap2AutoSchema() {
+  require('./lib/recap2Automatique.js').creerTable(getDb());
+}
+ensureRecap2AutoSchema();
 // Et pour les remarques manuelles par personne (ventes signées / non reconduits).
 function ensureRecap2NotesSchema() {
   require('./lib/recap2Notes.js').creerTable(getDb());
@@ -5248,6 +5253,7 @@ const Recap2Store = require('./lib/recap2Store.js');
 const Recap2Matches = require('./lib/recap2Matches.js');
 // Les cases de contrôle manuel, même principe : en base, posées à la lecture.
 const Recap2Checks = require('./lib/recap2Checks.js');
+const Recap2Automatique = require('./lib/recap2Automatique.js');
 // Les remarques par personne, même principe : en base, posées à la lecture.
 const Recap2Notes = require('./lib/recap2Notes.js');
 // Les VNI : liste historique du mois − transformations connues aujourd'hui.
@@ -5522,6 +5528,53 @@ app.post('/api/recap2/nr-commercial', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// ─── CONTRÔLE OPÉRATIONNEL AUTOMATIQUE : DÉPÔT DEPUIS LE MAC ────────────────
+//  Clé RECAP2_INGEST_KEY (comme le dépôt du rapport). Le moteur tourne sur le
+//  Mac (lecture Deciplus) ; ici on valide et on stocke. Aucun KPI touché : le
+//  résultat est appliqué à la lecture, dans des champs séparés.
+//  Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/automatique/:mois', (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!recap2CleAttendue() || !recap2CleValide(req.get('X-Recap2-Key'))) return res.status(401).json({ error: 'Clé de dépôt invalide.' });
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const pb = Recap2Automatique.valider(req.body, lu.rapport, Recap2Checks.venteExiste);
+  if (pb.length) return res.status(422).json({ error: 'Dépôt refusé.', problemes: pb.slice(0, 20) });
+  try {
+    const n = Recap2Automatique.enregistrer(getDb(), mois, req.body);
+    console.log('recap2 contrôle automatique ' + mois + ' : ' + n + ' vente(s)');
+    res.json({ ok: true, mois, ventes: n, controleLe: req.body.controleLe });
+  } catch (e) {
+    console.error('recap2 contrôle automatique :', e && e.message);
+    res.status(400).json({ error: 'dépôt refusé' });
+  }
+});
+
+// ─── FORÇAGE MANUEL À 3 ÉTATS (Automatique / Forcé ✅ / Forcé ❌) ────────────
+//  Admin connecté. { mois, studio, client, date, champ: prelevement|reservation|resilie,
+//  valeur: 'ok'|'ko'|'auto' }. Table à part : aucun KPI, aucune case historique touchés.
+//  Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/forcage', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim(), date = String(b.date || '').trim();
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  if (!Recap2Checks.venteExiste(lu.rapport, { studio, client, date })) return res.status(404).json({ error: 'Vente introuvable dans le rapport de ' + mois + '.' });
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const forcage = Recap2Automatique.forcer(getDb(), { mois, studio, client, date, champ: String(b.champ || ''), valeur: String(b.valeur || ''), par: qui });
+    // La ligne telle que l'écran la lira : même chemin que GET /api/recap2/:mois.
+    const lue = Recap2Checks.ligneDe(recap2AvecDecisions(lu.rapport), { studio, client, date });
+    res.json({ ok: true, forcage, operationnel: lue ? lue.operationnel || null : null });
+  } catch (e) {
+    res.status(400).json({ error: e && e.message ? e.message : 'forçage refusé' });
+  }
+});
+
 // ─── REMARQUE MANUELLE SUR UNE PERSONNE ─────────────────────────────────────
 //  Admin connecté uniquement. { mois, studio, type: 'vente'|'non_reconduit',
 //  client, idClient (facultatif), remarque }. Remarque vide = suppression.
@@ -5629,6 +5682,12 @@ function recap2AvecDecisions(rapport) {
     if (r && r.mois) r = Recap2Checks.appliquer(r, Recap2Checks.controlesDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 contrôles manuels :', e && e.message);
+  }
+  // Le contrôle automatique, APRÈS les cases manuelles (qui restent prioritaires).
+  try {
+    if (r && r.mois) r = Recap2Automatique.appliquer(r, Recap2Automatique.resultatsDuMois(getDb(), r.mois), Recap2Automatique.forcagesDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 contrôle automatique :', e && e.message);
   }
   // Le suivi des non-reconduits : une information par ligne, aucun compteur touché.
   try {
