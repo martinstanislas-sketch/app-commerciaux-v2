@@ -21,9 +21,12 @@
 //      Cliente contactée, situation sous contrôle.
 //
 //  Les remarques AUTOMATIQUES (public/recap2-conseils.js) sont reprises ici,
-//  sur les ventes signées uniquement, AVANT la remarque manuelle et sans marque
+//  sur les ventes signées ET les VNI (Challenge Flex), AVANT la remarque
+//  manuelle et sans marque
 //  distinctive : le conseiller lit une suite de phrases. Elles ne sont pas
-//  stockées — recalculées à chaque copie, donc jamais en double et à jour.
+//  stockées — recalculées à chaque copie, donc jamais en double et à jour —
+//  sauf leur VERSION MODIFIÉE à la main (lib/recap2RemarquesAuto.js), reprise
+//  telle qu'elle s'affiche.
 //
 //  Plus une version HTML (titres et noms en gras) pour un collage propre dans
 //  Gmail. UNIQUEMENT les personnes qui ont une remarque ; une section sans
@@ -41,10 +44,10 @@
 }(typeof self !== 'undefined' ? self : this, function (Metrics, Conseils) {
   const MOIS = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
   const SECTIONS = [
-    { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: true },
+    { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: 'vente' },
     { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction' },
     // VNI : la liste ACTIVE posée par le serveur (transformés déjà retirés).
-    { type: 'vni', titre: 'VNI', bloc: 'vni' },
+    { type: 'vni', titre: 'VNI', bloc: 'vni', auto: 'vni' },
   ];
 
   function moisEnClair(ym) {
@@ -97,10 +100,15 @@
     return cleIdentite(a.client) === cleIdentite(b.client);
   }
 
-  // Les remarques d'une ligne : les automatiques (ventes signées d'un mois
-  // contrôlé) puis la manuelle. La manuelle n'est jamais remplacée.
+  // Les remarques d'une ligne : les automatiques puis la manuelle, jamais
+  // remplacée. `auto` dit de quelle famille de règles relève la ligne :
+  // 'vente' (contrôle Deciplus) ou 'vni' (Challenge Flex).
   function remarquesLigne(l, { auto, controle }) {
-    const autos = auto && Conseils ? Conseils.conseilsVente(l, { controle }) : [];
+    const origines = (auto && Conseils)
+      ? (auto === 'vni' ? Conseils.conseilsVni(l) : Conseils.conseilsVente(l, { controle }))
+      : [];
+    // La version affichée : modifiée à la main si elle existe.
+    const autos = Conseils && Conseils.versions ? Conseils.versions(origines, l).map((v) => v.texte) : origines;
     const manuelle = texteNote(l);
     return manuelle ? autos.concat([manuelle]) : autos;
   }
@@ -157,9 +165,9 @@
   //     explicite), sinon personne. « Non attribué » ne sort chez aucun commercial ;
   //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé).
   const SECTIONS_COMMERCIAL = [
-    { titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: true, cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
+    { titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: 'vente', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
     { titre: 'Clients non reconduits', bloc: 'nonReconduction', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
-    { titre: 'VNI', bloc: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
+    { titre: 'VNI', bloc: 'vni', auto: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
   ];
 
   // { nb, texte, html, studios: [...], categories: [...] } — nb = 0 : rien à copier.
