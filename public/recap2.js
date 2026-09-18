@@ -83,6 +83,8 @@ const Recap2UI = (function () {
       if (force && rapport) { enregistrerForcage(force); return; }
       const verif = e.target.closest && e.target.closest('select[data-verif]');
       if (verif && rapport) { enregistrerVerification(verif); return; }
+      const reint = e.target.closest && e.target.closest('select[data-reintegration]');
+      if (reint && rapport) { enregistrerReintegration(reint); return; }
       const flex = e.target.closest && e.target.closest('select[data-flex]');
       if (flex && rapport) { enregistrerFlex(flex); return; }
       const nrSel = e.target.closest && e.target.closest('select[data-nrstatut]');
@@ -509,8 +511,52 @@ const Recap2UI = (function () {
   // Le statut d'une vente validée SEULEMENT par la case Prélèvement : la
   // validation manuelle d'abord, puis ce que la recherche automatique en dit
   // toujours (elle continue à chaque collecte).
+  // ── RÉINTÉGRATION MANUELLE D'UNE VENTE ANNULÉE ─────────────────────────────
+  //  Trois informations toujours distinctes : statut automatique (Annulée),
+  //  décision manuelle (Réintégrée dans les chiffres), statut final dans les
+  //  KPI (Vente comptabilisée). Administrateur seulement, réversible.
+  function blocReintegration(v, studio) {
+    const r = v.reintegration;
+    const admin = !!(window.isAdmin && window.isAdmin());
+    const d = ' data-studio="' + esc(studio || '') + '" data-client="' + esc(v.client) + '" data-date="' + esc(v.date || '') + '"';
+    const choix = (sel) => admin ? '<div class="rec2-verif"><select class="rec2-verif-sel" data-reintegration="1"' + d
+      + ' aria-label="' + esc('Vente annulée — ' + v.client) + '">'
+      + '<option value="maintenir"' + (sel === 'maintenir' ? ' selected' : '') + '>' + (sel === 'reintegrer' ? 'Remettre en annulée' : 'Maintenir annulée') + '</option>'
+      + '<option value="reintegrer"' + (sel === 'reintegrer' ? ' selected' : '') + '>Réintégrer dans les chiffres</option></select></div>' : '';
+    if (r && r.decision === 'reintegree' && !r.plusNecessaire) {
+      return '<div class="rec2-reint">'
+        + '<span class="rec2-etat is-valide">Réintégrée manuellement ✅' + (r.modifiePar ? ' par ' + esc(r.modifiePar) : '') + (r.modifieLe ? ' le ' + esc(fmtDate(r.modifieLe)) : '') + '</span>'
+        + '<div class="rec2-reint-lignes"><div>Statut automatique : <b>Annulée</b>'
+        + (v.annulationAuto && v.annulationAuto.dateAnnulation ? ' — détectée automatiquement comme annulée le ' + esc(v.annulationAuto.dateAnnulation) : '') + '</div>'
+        + '<div>Décision manuelle : <b>Réintégrée dans les chiffres</b></div>'
+        + '<div>Statut final dans les KPI : <b>Vente comptabilisée</b></div></div>' + choix('reintegrer') + '</div>';
+    }
+    if (r && r.plusNecessaire) {
+      return '<div class="rec2-reint"><span class="rec2-auto-alerte">Réintégration manuelle plus nécessaire : la vente n’est plus annulée à la dernière collecte'
+        + ' (décision du ' + esc(fmtDate(r.modifieLe)) + (r.modifiePar ? ' par ' + esc(r.modifiePar) : '') + ' conservée dans l’historique).</span></div>';
+    }
+    if (v.annulee) return choix('maintenir');
+    return '';
+  }
+  async function enregistrerReintegration(sel) {
+    const d = sel.dataset;
+    sel.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/reintegration', { method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, client: d.client, date: d.date, decision: sel.value }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      charger(); // tout se recalcule côté serveur (compteurs, contrôles, remarques)
+    } catch (err) {
+      sel.disabled = false;
+      alert('Décision non enregistrée : ' + (err && err.message ? err.message : 'erreur'));
+      render();
+    }
+  }
+
   function statutVente(v, studioAttendu) {
-    const auto = statutVenteAuto(v, studioAttendu);
+    const auto = v.reintegration ? blocReintegration(v, studioAttendu) + (v.annulee ? '' : statutVenteAuto(v, studioAttendu))
+      : statutVenteAuto(v, studioAttendu) + (v.annulee ? blocReintegration(v, studioAttendu) : '');
     if (window.Recap2Metrics.motifValidation(v) !== 'prelevement') return auto;
     return '<span class="rec2-etat is-valide">Validée manuellement — prélèvement vérifié</span>'
       + '<div class="rec2-valid-auto">Recherche Deciplus automatique : ' + auto + '</div>';
