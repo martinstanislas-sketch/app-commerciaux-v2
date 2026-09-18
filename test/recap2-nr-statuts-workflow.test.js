@@ -117,7 +117,7 @@ test('REDÉMARRAGE du serveur (redéploiement) : toujours là', async () => {
 
 test('COHABITATION avec les remarques : statut et remarque du même client sont indépendants', async () => {
   const noter = (remarque) => fetch(BASE + '/api/recap2/note', { method: 'POST', headers: auth(),
-    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'BERNARDIN Lucie', idClient: '41002', remarque }) });
+    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'BERNARDIN Lucie', idClient: '41002', remarque, supprimer: remarque === '' }) });
   assert.equal((await noter('Relancé par le coach.')).status, 200);
   assert.equal((await marquer({ client: 'BERNARDIN Lucie', idClient: '41002', statut: 'a_creuser' })).status, 200);
   let l = ligne(await lire(), 'BERNARDIN Lucie');

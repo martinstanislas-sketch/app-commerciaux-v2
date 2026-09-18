@@ -89,7 +89,7 @@ test('REMARQUE VNI : ajout, modification, suppression', async () => {
   assert.equal((await noter({ remarque: 'Hésite sur le tarif.' })).status, 200);
   assert.equal((await noter({ remarque: 'Hésite sur le tarif, à rappeler.' })).status, 200);
   assert.equal((await noter({ client: 'Paul Durand', idClient: '50001', idVendor: PAUL, remarque: 'À supprimer' })).status, 200);
-  assert.equal((await noter({ client: 'Paul Durand', idClient: '50001', idVendor: PAUL, remarque: '' })).status, 200);
+  assert.equal((await noter({ client: 'Paul Durand', idClient: '50001', idVendor: PAUL, remarque: '', supprimer: true })).status, 200);
   const l = vniLille(await lire()).liste;
   assert.deepEqual(l.map((x) => x.note.remarque), ['Hésite sur le tarif, à rappeler.', '']);
   assert.equal((await noter({ client: 'Personne Inventée', idVendor: '1785603935735x999999999999999999' })).status, 404);

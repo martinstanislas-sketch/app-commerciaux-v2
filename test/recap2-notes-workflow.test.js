@@ -164,7 +164,7 @@ test('COPIE DU CLUB : deux sections, uniquement les personnes à remarque', asyn
 });
 
 test('SUPPRESSION : la remarque disparaît de l\'écran et de la copie', async () => {
-  const rep = await noter({ type: 'non_reconduit', client: 'BASSIN Robin', idClient: '42002', remarque: '' });
+  const rep = await noter({ type: 'non_reconduit', client: 'BASSIN Robin', idClient: '42002', remarque: '', supprimer: true });
   assert.equal(rep.status, 200);
   assert.equal((await rep.json()).note.remarque, '');
   const r = await lire();

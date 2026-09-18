@@ -905,6 +905,23 @@ const Recap2UI = (function () {
   //  version automatique » la retire. Si la règle cesse de produire la
   //  remarque (point réglé), la version modifiée disparaît avec elle.
   let editionAuto = null;   // { cle, texte, erreur, enCours }
+  // Modifier une remarque : un administrateur, ou l'auteur de la remarque.
+  const utilisateur = () => { try { return JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch (_) { return {}; } };
+  const estAdminR2 = () => !!(window.isAdmin && window.isAdmin());
+  const peutModifier = (auteur) => estAdminR2() || (!!auteur && String(utilisateur().name || '') === String(auteur));
+  // L'historique (admin) d'une remarque, affiché À LA DEMANDE dans le panneau d'édition.
+  let historiqueOuvert = null; // { cle, lignes: [...] }
+  async function afficherHistorique(cle, filtre) {
+    try {
+      const j = await (await fetch('/api/recap2/historique/' + rapport.mois, { headers: H() })).json();
+      historiqueOuvert = { cle, lignes: filtre(j) };
+    } catch (_) { historiqueOuvert = { cle, lignes: [] }; }
+    render();
+  }
+  const blocHistorique = (cle) => (historiqueOuvert && historiqueOuvert.cle === cle)
+    ? '<ul class="rec2-histo">' + (historiqueOuvert.lignes.length ? historiqueOuvert.lignes.map((h) => '<li><span class="rec2-det-date">' + esc(fmtDate(h.le)) + (h.par ? ' · ' + esc(h.par) : '') + '</span> '
+      + (h.avant ? '<s>' + esc(h.avant) + '</s> → ' : '') + (h.apres ? esc(h.apres) : '<i>' + esc(h.vide || 'supprimée') + '</i>') + '</li>').join('') : '<li>Aucune version antérieure.</li>') + '</ul>'
+    : '';
   const cleAuto = (type, studio, l, origine) => [type, studio, l.client || '', l.idClient || '', type === 'vni' ? (l.contactId || '') : '', origine].join('|');
   function blocRemarquesAuto(type, studio, l, origines, titreAuto) {
     const C = window.Recap2Conseils;
@@ -924,15 +941,17 @@ const Recap2UI = (function () {
           + '<div class="rec2-det-date">Version automatique : « ' + esc(v.origine) + ' »</div>'
           + '<div class="rec2-prop-actions">' + btn('enregistrer', 'Enregistrer', 'rec2-btn-ok')
           + (v.modifiee ? btn('revenir', 'Revenir à la version automatique', 'rec2-btn-non') : '')
-          + btn('annuler', 'Annuler', 'rec2-btn-non') + '</div>'
-          + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + '</div>';
+          + btn('annuler', 'Annuler', 'rec2-btn-non') + (admin ? btn('historique', 'Historique', 'rec2-note-ajout') : '') + '</div>'
+          + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + blocHistorique('auto|' + cle) + '</div>';
       }
+      const perso = ((l.remarquesAuto || {})[v.origine]) || {};
       const titre = v.modifiee
-        ? 'Modifiée à la main' + (v.modifiePar ? ' par ' + v.modifiePar : '') + (v.modifieLe ? ' le ' + fmtDate(v.modifieLe) : '') + '\nVersion automatique : ' + v.origine
+        ? 'Personnalisée' + (v.modifiePar ? ' par ' + v.modifiePar : '') + (v.modifieLe ? ' le ' + fmtDate(v.modifieLe) : '') + '\nVersion automatique : « À faire : ' + v.origine + ' »'
         : titreAuto;
-      return '<div class="rec2-conseil-ligne"><span class="rec2-conseil' + (v.modifiee ? ' is-modifiee' : '') + '" title="' + esc(titre) + '">' + esc(v.texte)
-        + (v.modifiee ? ' <em class="rec2-conseil-marque">modifiée</em>' : '') + '</span>'
-        + (admin ? '<span class="rec2-conseil-actions">' + btn('ouvrir', 'Modifier', 'rec2-note-ajout')
+      const edit = v.modifiee ? peutModifier(perso.auteur || v.modifiePar) : admin;
+      return '<div class="rec2-conseil-ligne"><span class="rec2-conseil' + (v.modifiee ? ' is-modifiee' : '') + '" title="' + esc(titre) + '">' + esc(v.texte) + '</span>'
+        + (v.modifiee ? '<span class="rec2-conseil-marque">Remarque automatique personnalisée' + (v.modifiePar ? ' — par ' + esc(v.modifiePar) : '') + (v.modifieLe ? ' le ' + esc(fmtDate(v.modifieLe)) : '') + '</span>' : '')
+        + (edit ? '<span class="rec2-conseil-actions">' + btn('ouvrir', '✏️ Modifier', 'rec2-note-ajout')
           + (v.modifiee ? btn('revenir', 'Revenir à la version automatique', 'rec2-note-ajout') : '') + '</span>' : '')
         + '</div>';
     }).join('') + '</div>';
@@ -954,7 +973,14 @@ const Recap2UI = (function () {
       if (zone) { zone.focus(); zone.setSelectionRange(zone.value.length, zone.value.length); }
       return;
     }
-    if (action === 'annuler') { editionAuto = null; render(); return; }
+    if (action === 'annuler') { editionAuto = null; historiqueOuvert = null; render(); return; }
+    if (action === 'historique') {
+      return afficherHistorique('auto|' + cle, (j) => (j.remarquesAuto || []).filter((h) => h.studio === d.studio && h.type === d.type && h.texte_auto === d.origine
+        && (h.client === ligne0.client)).map((h) => Object.assign({}, h, { vide: 'retour à la version automatique' })));
+    }
+    if (action === 'enregistrer' && editionAuto && editionAuto.cle === cle && !String(editionAuto.texte || '').trim()) {
+      editionAuto.erreur = 'La remarque ne peut pas être vide. Utilise « Revenir à la version automatique ».'; render(); return;
+    }
     // Enregistrer, ou revenir à la version automatique (texte vide) : le serveur fait foi.
     const texte = action === 'revenir' ? '' : String((editionAuto && editionAuto.cle === cle) ? editionAuto.texte : '');
     if (action === 'enregistrer' && (!editionAuto || editionAuto.cle !== cle)) return;
@@ -1173,16 +1199,21 @@ const Recap2UI = (function () {
         + (e.enCours ? ' disabled' : '') + '>' + esc(e.texte) + '</textarea>'
         + '<div class="rec2-prop-actions">' + (e.confirmer
           ? '<span class="rec2-note-confirm">Supprimer définitivement cette remarque ?</span>' + btn('supprimer', 'Confirmer la suppression', 'rec2-btn-non') + btn('garder', 'Garder', 'rec2-btn-ok')
-          : btn('enregistrer', 'Enregistrer', 'rec2-btn-ok') + (existante ? btn('demander-suppression', 'Supprimer', 'rec2-btn-non') : '') + btn('annuler', 'Annuler', 'rec2-btn-non'))
-        + '</div>'
+          : btn('enregistrer', 'Enregistrer', 'rec2-btn-ok') + (existante ? btn('demander-suppression', 'Supprimer', 'rec2-btn-non') : '') + btn('annuler', 'Annuler', 'rec2-btn-non')
+            + (existante && estAdminR2() ? btn('historique', 'Historique', 'rec2-note-ajout') : ''))
+        + '</div>' + blocHistorique('note|' + cle)
         + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + '</div>';
     }
     if (existante) {
       const n = l.note;
       const qui = (n.modifiePar ? ' par ' + n.modifiePar : '') + (n.modifieLe ? ' le ' + fmtDate(n.modifieLe) : '');
       const extrait = existante.length > EXTRAIT_NOTE ? existante.slice(0, EXTRAIT_NOTE).trim() + '…' : existante;
-      return '<div class="rec2-note"><button type="button" class="rec2-note-voir" data-note-action="ouvrir"' + data
-        + ' title="' + esc(existante + '\n\nRemarque enregistrée' + qui + ' — cliquer pour modifier') + '">📝 <span>' + esc(extrait) + '</span></button></div>';
+      const edit = peutModifier(n.auteur || n.modifiePar);
+      return '<div class="rec2-note"><button type="button" class="rec2-note-voir" data-note-action="' + (edit ? 'ouvrir' : 'voir') + '"' + data
+        + ' title="' + esc(existante + '\n\nRemarque enregistrée' + qui) + '">📝 <span>' + esc(extrait) + '</span></button>'
+        + (edit ? ' <button type="button" class="rec2-note-ajout rec2-note-modif" data-note-action="ouvrir"' + data + '>✏️ Modifier</button>' : '')
+        + (n.modifiee && n.modifiePar ? '<div class="rec2-det-date">Modifiée par ' + esc(n.modifiePar) + (n.modifieLe ? ' le ' + esc(fmtDate(n.modifieLe)) : '') + '</div>' : '')
+        + '</div>';
     }
     return '<div class="rec2-note">' + btn('ouvrir', '+ Ajouter une remarque', 'rec2-note-ajout') + '</div>';
   }
@@ -1209,8 +1240,16 @@ const Recap2UI = (function () {
       if (zone) { zone.focus(); zone.setSelectionRange(zone.value.length, zone.value.length); }
       return;
     }
+    if (action === 'voir') return;
     if (!editionNote || editionNote.cle !== cle) return;
-    if (action === 'annuler') { editionNote = null; render(); return; }
+    if (action === 'annuler') { editionNote = null; historiqueOuvert = null; render(); return; }
+    if (action === 'historique') {
+      return afficherHistorique('note|' + cle, (j) => (j.remarques || []).filter((h) => h.studio === d.studio && h.type === d.type && h.client === d.client));
+    }
+    // Une remarque vide ne s'enregistre pas : pour l'effacer, « Supprimer ».
+    if (action === 'enregistrer' && !String(editionNote.texte || '').trim()) {
+      editionNote.erreur = 'La remarque ne peut pas être vide. Pour l’effacer, utilise « Supprimer ».'; render(); return;
+    }
     // La suppression demande une confirmation explicite, dans la ligne.
     if (action === 'demander-suppression') { editionNote.confirmer = true; render(); return; }
     if (action === 'garder') { editionNote.confirmer = false; render(); return; }
@@ -1221,7 +1260,7 @@ const Recap2UI = (function () {
     try {
       const r = await fetch('/api/recap2/note', {
         method: 'POST', headers: H(),
-        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, idVendor: d.idvendor || '', remarque }),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, idVendor: d.idvendor || '', remarque, supprimer: action === 'supprimer' }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || !j.note) throw new Error((j && j.error) || ('HTTP ' + r.status));

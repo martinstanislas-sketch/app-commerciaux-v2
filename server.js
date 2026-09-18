@@ -5738,7 +5738,7 @@ app.post('/api/recap2/forcage', requireAuth, requireAdmin, (req, res) => {
 //  pour cette ligne par les règles de l'écran (public/recap2-conseils.js).
 //  Texte vide ou identique à l'origine = « Revenir à la version automatique ».
 //  Historisé (lib/recap2RemarquesAuto.js). Déclarée AVANT `POST /api/recap2/:mois`.
-app.post('/api/recap2/remarque-auto', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/recap2/remarque-auto', requireAuth, (req, res) => {
   const b = req.body || {};
   const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim(), type = String(b.type || '').trim();
   const client = String(b.client || '').trim(), idClient = String(b.idClient || '').trim(), idVendor = String(b.idVendor || '').trim();
@@ -5766,6 +5766,10 @@ app.post('/api/recap2/remarque-auto', requireAuth, requireAdmin, (req, res) => {
       : type === 'suspension' ? Recap2Conseils.conseilsSuspension(ligne)
         : Recap2Conseils.conseilsVente(ligne, { controle: Recap2Conseils.moisControle(affiche) });
   if (produites.indexOf(texteAuto) < 0) return res.status(409).json({ error: 'Cette remarque automatique n\'est plus produite pour cette personne.' });
+  const perso = (ligne.remarquesAuto || {})[texteAuto];
+  if (!recap2PeutModifierRemarque(req.session, perso ? perso.auteur : '')) {
+    return res.status(403).json({ error: 'Seul l’auteur de la personnalisation ou un administrateur peut la modifier.' });
+  }
   try {
     const qui = (req.session && (req.session.name || req.session.role)) || '';
     const version = Recap2RemarquesAuto.enregistrer(getDb(), { mois, studio, type, ligne, texteAuto, texte, par: qui });
@@ -5784,6 +5788,15 @@ app.get('/api/recap2/historique/:mois', requireAuth, requireAdmin, (req, res) =>
     statutsNonReconduits: Recap2NrStatuts.historique(getDb(), mois), remarques: Recap2Notes.historique(getDb(), mois),
     reintegrations: Recap2Reintegrations.historique(getDb(), mois) });
 });
+
+// ─── DROIT DE MODIFIER UNE REMARQUE (manuelle ou automatique personnalisée) ───
+//  Un administrateur modifie tout ; l'AUTEUR d'une remarque existante peut la
+//  modifier ; tout autre utilisateur ne fait que consulter. Seul un
+//  administrateur crée une remarque ou une personnalisation.
+function recap2PeutModifierRemarque(session, auteur) {
+  if (session && session.role === 'admin') return true;
+  return !!(session && auteur && String(session.name || '') === String(auteur));
+}
 
 // ─── RÉINTÉGRER / MAINTENIR ANNULÉE UNE VENTE DÉTECTÉE « ANNULÉE » ──────────
 //  Admin connecté. { mois, studio, client, date, decision: reintegrer | maintenir }.
@@ -5817,7 +5830,7 @@ app.post('/api/recap2/reintegration', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
-app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/recap2/note', requireAuth, (req, res) => {
   const b = req.body || {};
   const mois = String(b.mois || '').trim();
   const studio = String(b.studio || '').trim();
@@ -5834,6 +5847,8 @@ app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
   if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
   if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
   if (remarque === null) return res.status(400).json({ error: 'remarque : texte attendu (vide pour supprimer)' });
+  // Une remarque vide ne s'enregistre pas : vider = SUPPRIMER, demandé explicitement.
+  if (!remarque.trim() && b.supprimer !== true) return res.status(400).json({ error: 'La remarque ne peut pas être vide.' });
   if (remarque.trim().length > Recap2Notes.LONGUEUR_MAX) {
     return res.status(400).json({ error: 'remarque trop longue (' + Recap2Notes.LONGUEUR_MAX + ' caractères maximum)' });
   }
@@ -5842,6 +5857,10 @@ app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
   if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
   const ligne = Recap2Notes.ligneDe(recap2AvecDecisions(lu.rapport), { studio, type, client, idClient, idVendor });
   if (!ligne) return res.status(404).json({ error: 'Personne introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
+  const actuelle = Recap2Notes.noteActuelle(getDb(), { mois, studio, type, client: ligne.client, idClient: ligne.idClient || '', idVendor: type === 'vni' ? (ligne.contactId || '') : '' });
+  if (!recap2PeutModifierRemarque(req.session, actuelle && actuelle.remarque ? actuelle.auteur : '')) {
+    return res.status(403).json({ error: 'Seul l’auteur de la remarque ou un administrateur peut la modifier.' });
+  }
   try {
     const qui = (req.session && (req.session.name || req.session.role)) || '';
     const note = Recap2Notes.enregistrer(getDb(), {
