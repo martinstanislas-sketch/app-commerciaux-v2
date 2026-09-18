@@ -146,7 +146,7 @@ test('remarque manuelle : modification puis suppression historisées', async () 
   const n = { mois: '2026-08', studio: 'Lille', type: 'non_reconduit', client: 'DUPONT Marie', idClient: '90001' };
   assert.equal((await post('/api/recap2/note', Object.assign({}, n, { remarque: 'Appelée le 20/09.' }))).status, 200);
   assert.equal((await post('/api/recap2/note', Object.assign({}, n, { remarque: 'Appelée le 20/09, rappel le 25.' }))).status, 200);
-  assert.equal((await post('/api/recap2/note', Object.assign({}, n, { remarque: '' }))).status, 200);
+  assert.equal((await post('/api/recap2/note', Object.assign({}, n, { remarque: '', supprimer: true }))).status, 200);
   const h = await (await fetch(BASE + '/api/recap2/historique/2026-08', { headers: auth() })).json();
   assert.deepEqual(h.remarques.map((x) => [x.avant, x.apres]), [['', 'Appelée le 20/09.'], ['Appelée le 20/09.', 'Appelée le 20/09, rappel le 25.'], ['Appelée le 20/09, rappel le 25.', '']]);
 });
