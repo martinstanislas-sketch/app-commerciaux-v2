@@ -41,7 +41,7 @@ const Recap2UI = (function () {
   let ouvert = '';          // détail ouvert : '<studio>|nr' ou '<studio>|crm'
   let filtreComp = {};      // studio -> 'tous' | 'payes' | 'nonpayes'   (règle v1)
   let filtreCrm = {};       // studio -> 'tous' | 'retrouves' | 'verifier' (règle v2)
-  let filtreNR = {};        // studio -> 'tous' | 'sous_controle' | 'resilie' | 'a_creuser' | 'aucun'
+  let filtreNR = {};        // studio -> 'tous' | un statut effectif | 'non_controle'
 
   // La RÈGLE MÉTIER qui a produit le rapport affiché.
   //  v1 (clé absente) : 2e KPI = « complétion » (contrats de M-1 ayant payé en M)
@@ -85,8 +85,8 @@ const Recap2UI = (function () {
       if (verif && rapport) { enregistrerVerification(verif); return; }
       const flex = e.target.closest && e.target.closest('select[data-flex]');
       if (flex && rapport) { enregistrerFlex(flex); return; }
-      const nrBox = e.target.closest && e.target.closest('input[data-nrstatut]');
-      if (nrBox && rapport) { enregistrerStatutNR(nrBox); return; }
+      const nrSel = e.target.closest && e.target.closest('select[data-nrstatut]');
+      if (nrSel && rapport) { enregistrerStatutNR(nrSel); return; }
       const nrCom = e.target.closest && e.target.closest('select[data-nrcom]');
       if (nrCom && rapport) { enregistrerCommercialNR(nrCom); return; }
       const resil = e.target.closest && e.target.closest('input[data-resil]');
@@ -1125,9 +1125,10 @@ const Recap2UI = (function () {
       return '<div class="rec2-note-edit">'
         + '<textarea class="rec2-note-zone" rows="2" maxlength="2000" data-note-texte="1" placeholder="Remarque sur ' + esc(l.client) + ' — ' + esc(moisLabel(rapport.mois)) + '"'
         + (e.enCours ? ' disabled' : '') + '>' + esc(e.texte) + '</textarea>'
-        + '<div class="rec2-prop-actions">' + btn('enregistrer', 'Enregistrer', 'rec2-btn-ok')
-        + (existante ? btn('supprimer', 'Supprimer', 'rec2-btn-non') : '')
-        + btn('annuler', 'Annuler', 'rec2-btn-non') + '</div>'
+        + '<div class="rec2-prop-actions">' + (e.confirmer
+          ? '<span class="rec2-note-confirm">Supprimer définitivement cette remarque ?</span>' + btn('supprimer', 'Confirmer la suppression', 'rec2-btn-non') + btn('garder', 'Garder', 'rec2-btn-ok')
+          : btn('enregistrer', 'Enregistrer', 'rec2-btn-ok') + (existante ? btn('demander-suppression', 'Supprimer', 'rec2-btn-non') : '') + btn('annuler', 'Annuler', 'rec2-btn-non'))
+        + '</div>'
         + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + '</div>';
     }
     if (existante) {
@@ -1144,7 +1145,7 @@ const Recap2UI = (function () {
   // même personne partagent leur remarque) — même règle que le serveur.
   function lignesPersonne(type, studio, client, idClient, idVendor) {
     const b = rapport && rapport.studios && rapport.studios[studio];
-    const bloc = b && (type === 'vente' ? b.clientsRetrouves : type === 'vni' ? b.vni : b.nonReconduction);
+    const bloc = b && (type === 'vente' ? b.clientsRetrouves : type === 'vni' ? b.vni : type === 'suspension' ? b.suspensionsControle : b.nonReconduction);
     const RR = window.Recap2Remarques;
     const ref = { client, idClient, contactId: idVendor || '' };
     return ((bloc && bloc.liste) || []).filter((l) => (RR ? RR.memePersonne(l, ref) : (l.client === client && String(l.idClient || '') === idClient)));
@@ -1164,6 +1165,10 @@ const Recap2UI = (function () {
     }
     if (!editionNote || editionNote.cle !== cle) return;
     if (action === 'annuler') { editionNote = null; render(); return; }
+    // La suppression demande une confirmation explicite, dans la ligne.
+    if (action === 'demander-suppression') { editionNote.confirmer = true; render(); return; }
+    if (action === 'garder') { editionNote.confirmer = false; render(); return; }
+    if (action === 'supprimer' && !editionNote.confirmer) return;
     // Enregistrer (texte vide = supprimer) ou supprimer : le serveur fait foi.
     const remarque = action === 'supprimer' ? '' : String(editionNote.texte || '');
     editionNote.enCours = true; editionNote.erreur = ''; render();
@@ -1280,39 +1285,73 @@ const Recap2UI = (function () {
       + ' title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + esc(c.client) + '</a>';
   }
 
-  // ── SUIVI DES NON-RECONDUITS : SOUS CONTRÔLE / RÉSILIÉ / À CREUSER ─────────
-  //  Trois cases EXCLUSIVES : en cocher une remplace l'autre, décocher la
-  //  seule cochée revient à « aucun statut ». L'état vient du SERVEUR
-  //  (`c.suivi`, posé à la lecture) : il survit au rechargement, à la
-  //  reconnexion, au redéploiement et à une nouvelle collecte.
-  //  ⚠️ AUCUN EFFET SUR LA NON-RECONDUCTION : ni la carte, ni le taux, ni le
-  //  nombre de lignes ne dépendent de ces cases.
+  // ── SUIVI DES NON-RECONDUITS : UN STATUT PAR DOSSIER ─────────────────────────
+  //  Statut EFFECTIF = décision manuelle (lib/recap2NrStatuts.js), sinon statut
+  //  AUTOMATIQUE du contrôle Deciplus (lib/recap2NrAnalyse.js). L'état vient du
+  //  SERVEUR : il survit au rechargement, au redéploiement et à une nouvelle
+  //  collecte. « Automatique » = aucune décision manuelle.
+  //  ⚠️ AUCUN EFFET SUR LE TAUX DE NON-RECONDUCTION.
   const STATUTS_NR = [
-    { val: 'sous_controle', libelle: 'Sous contrôle', filtre: 'Sous contrôle' },
-    { val: 'resilie', libelle: 'Résilié', filtre: 'Résiliés' },
-    { val: 'a_creuser', libelle: 'À creuser', filtre: 'À creuser' },
+    { val: 'a_traiter', libelle: 'À traiter', classe: 'is-faire' },
+    { val: 'sous_controle', libelle: 'Sous contrôle', classe: 'is-ok' },
+    { val: 'resilie', libelle: 'Résilié', classe: 'is-non' },
+    { val: 'reconduit_autrement', libelle: 'Reconduit autrement', classe: 'is-oui' },
+    { val: 'toujours_actif', libelle: 'Toujours actif', classe: 'is-oui' },
+    { val: 'suspendu', libelle: 'Suspendu temporairement', classe: 'is-susp' },
+    { val: 'recupere', libelle: 'Récupéré', classe: 'is-oui' },
+    { val: 'depart_confirme', libelle: 'Départ confirmé', classe: 'is-non' },
+    { val: 'a_creuser', libelle: 'À creuser', classe: 'is-non' },
   ];
-  const statutNR = (c) => (c && c.suivi && c.suivi.statut) || '';
-  function casesSuiviNR(c, studio) {
+  const LIB_NR = Object.fromEntries(STATUTS_NR.map((s) => [s.val, s.libelle]));
+  const statutNR = (c) => (c && c.suivi && c.suivi.statut) || '';               // manuel
+  const statutAutoNR = (c) => (c && c.analyse && c.analyse.statut) || '';        // contrôle
+  const statutEffNR = (c) => statutNR(c) || statutAutoNR(c) || 'non_controle';
+  function selectStatutNR(c, studio) {
+    if (!(window.isAdmin && window.isAdmin())) return '';
     const actuel = statutNR(c);
-    const qui = (actuel && c.suivi.modifieLe)
-      ? ' — le ' + fmtDate(c.suivi.modifieLe) + (c.suivi.modifiePar ? ' par ' + c.suivi.modifiePar : '') : '';
-    return STATUTS_NR.map((s) => '<td class="rec2-ctl"><input type="checkbox" class="rec2-ctl-box rec2-nr-box is-' + s.val + '"'
-      + (actuel === s.val ? ' checked' : '')
-      + ' data-nrstatut="' + s.val + '" data-studio="' + esc(studio) + '" data-client="' + esc(c.client)
-      + '" data-idclient="' + esc(c.idClient || '') + '"'
-      + ' title="' + esc(s.libelle + (actuel === s.val ? qui + ' — décocher pour retirer' : '')) + '"'
-      + ' aria-label="' + esc(s.libelle + ' — ' + c.client) + '"></td>').join('');
+    const auto = statutAutoNR(c);
+    const opt = (v, t) => '<option value="' + v + '"' + (actuel === v ? ' selected' : '') + '>' + esc(t) + '</option>';
+    const qui = (actuel && c.suivi.modifieLe) ? 'Décidé le ' + fmtDate(c.suivi.modifieLe) + (c.suivi.modifiePar ? ' par ' + c.suivi.modifiePar : '') : 'Aucune décision manuelle';
+    return '<select class="rec2-verif-sel rec2-nr-statut-sel" data-nrstatut="1" data-studio="' + esc(studio) + '" data-client="' + esc(c.client)
+      + '" data-idclient="' + esc(c.idClient || '') + '" title="' + esc(qui) + '" aria-label="' + esc('Statut — ' + c.client) + '">'
+      + opt('', 'Automatique' + (auto ? ' : ' + LIB_NR[auto] : ' (non contrôlé)'))
+      + STATUTS_NR.map((s) => opt(s.val, s.libelle)).join('') + '</select>';
   }
+  // Le bloc d'analyse sous le nom : statut, indication, cause, finance, remarques.
+  function blocAnalyseNR(c, studio) {
+    const a = c.analyse;
+    const eff = statutEffNR(c);
+    const def = STATUTS_NR.find((s) => s.val === eff);
+    const manuel = statutNR(c);
+    const titre = a ? 'Contrôle Deciplus du ' + fmtDate(a.controleLe) + (manuel && a.statut ? ' — statut automatique : ' + LIB_NR[a.statut] : '') : 'Mois non contrôlé';
+    let h = '<div class="rec2-flex">';
+    if (def) h += '<span class="rec2-etat ' + def.classe + '" title="' + esc(titre) + '">' + esc(def.libelle) + '</span>'
+      + (manuel ? ' <span class="rec2-det-date">décision manuelle</span>' : '');
+    if (c.suggestion === 'recupere' && manuel !== 'recupere') h += '<span class="rec2-nr-suggest" title="Nouvelle prestation détectée après une première analyse « À traiter ». Seul un administrateur peut poser le statut.">Suggestion : Récupéré ?</span>';
+    if (a && a.indication) h += '<span class="rec2-nr-indic">' + esc(a.indication) + '</span>';
+    if (a && a.finance && (a.finance.ecart != null || a.finance.anomalie)) {
+      const f = a.finance;
+      const lim = (f.limites || []).join(' · ');
+      const parts = [];
+      if (f.contratVendor != null) parts.push('Vendor ' + eurosFr(f.contratVendor));
+      if (f.contratDeciplus != null) parts.push('Deciplus ' + eurosFr(f.contratDeciplus));
+      if (f.facture != null) parts.push('facturé ' + eurosFr(f.facture));
+      if (f.encaisse != null) parts.push('encaissé ' + eurosFr(f.encaisse));
+      if (f.remboursements) parts.push('remboursé ' + eurosFr(f.remboursements));
+      h += '<span class="rec2-nr-fin" title="' + esc('Calcul non définitif — ' + lim) + '">' + esc(parts.join(' · ')) + '</span>';
+    }
+    const C = window.Recap2Conseils;
+    const conseils = (C && C.conseilsNonReconduit) ? C.conseilsNonReconduit(c) : [];
+    h += blocRemarquesAuto('non_reconduit', studio, c, conseils, 'Remarque automatique, d\'après le contrôle Deciplus des non-reconduits.');
+    return h + selectStatutNR(c, studio) + '</div>';
+  }
+  const eurosFr = (x) => (x == null ? '—' : (Math.round(Number(x) * 100) / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' €');
 
-  // Enregistre le statut. Pas d'optimisme : les cases de la ligne sont bloquées
-  // pendant l'appel, et c'est la réponse du serveur qui fait foi.
-  async function enregistrerStatutNR(box) {
-    const d = box.dataset;
-    const statut = box.checked ? d.nrstatut : '';
-    const cases = $$('#rec2-body input[data-nrstatut]').filter((b) => b.dataset.studio === d.studio
-      && b.dataset.client === d.client && b.dataset.idclient === d.idclient);
-    cases.forEach((b) => { b.disabled = true; });
+  // Enregistre le statut. Pas d'optimisme : c'est la réponse du serveur qui fait foi.
+  async function enregistrerStatutNR(sel) {
+    const d = sel.dataset;
+    const statut = sel.value;
+    sel.disabled = true;
     try {
       const r = await fetch('/api/recap2/nr-statut', {
         method: 'POST', headers: H(),
@@ -1322,12 +1361,51 @@ const Recap2UI = (function () {
       if (!r.ok || !j || !j.suivi) throw new Error((j && j.error) || ('HTTP ' + r.status));
       const nr = rapport.studios && rapport.studios[d.studio] && rapport.studios[d.studio].nonReconduction;
       const ligne = nr && (nr.liste || []).find((l) => l.client === d.client && String(l.idClient || '') === d.idclient);
-      if (ligne) ligne.suivi = j.suivi;
+      if (ligne) { ligne.suivi = j.suivi; if (j.suivi.statut === 'recupere') delete ligne.suggestion; }
       render();
     } catch (err) {
       render(); // l'écran revient à l'état connu du serveur
       alert('Statut non enregistré : ' + (err && err.message ? err.message : 'erreur'));
     }
+  }
+
+  // Le bloc DISTINCT des indicateurs de suivi (le taux historique n'y figure pas).
+  function blocIndicateursNR(d) {
+    const MM = window.Recap2Metrics;
+    const tous = (d && d.liste) || [];
+    if (!MM || !MM.indicateursNR || !tous.some((c) => c.analyse)) return '';
+    const k = MM.indicateursNR(tous);
+    const pct = (x) => (x == null ? '—' : Math.round(x * 100) + ' %');
+    const tuile = (t, v, info) => '<div class="rec2-nr-kpi" title="' + esc(info) + '"><span>' + esc(t) + '</span><b>' + v + '</b></div>';
+    const exclus = Object.entries(k.cohorte.exclus).map(([m, n]) => m + ' ' + n).join(', ');
+    return '<div class="rec2-nr-kpis"><div class="rec2-nr-kpis-titre">Suivi des non-reconductions'
+      + (d.controleAnalyse ? ' <span class="rec2-det-date">contrôle Deciplus du ' + esc(fmtDate(d.controleAnalyse.controleLe)) + '</span>' : '') + '</div><div class="rec2-nr-kpis-grille">'
+      + tuile('Détectées', k.detectees, 'Non-reconductions du taux historique (encaissements), inchangé.')
+      + tuile('Véritables', k.veritables, 'Détectées moins Toujours actif, Reconduit autrement et Suspendu.')
+      + tuile('Résiliations', k.resiliations, 'Résilié + Départ confirmé, dont ' + k.contentieux + ' contentieux.')
+      + tuile('dont contentieux', k.contentieux, 'Catégorie Deciplus « Contentieux » ou transfert confirmé par une note.')
+      + tuile('Toujours actifs', k.toujoursActifs, 'Contrat de référence toujours actif, échéances à venir.')
+      + tuile('Reconduits autrement', k.reconductions, 'Nouveau contrat, nouvelle formule, renouvellement, transfert, prestation utilisable.')
+      + tuile('Suspendus', k.suspensions, 'Suspension temporaire.')
+      + tuile('À récupérer', k.aRecuperer, 'À traiter + Sous contrôle.')
+      + tuile('Récupérés', k.recuperes, 'Statut manuel « Récupéré ».')
+      + tuile('Taux de récupération', pct(k.cohorte.taux), 'Récupérés parmi les ' + k.cohorte.eligibles + ' dossiers éligibles (« À traiter » au premier contrôle). Exclus : ' + (exclus || 'aucun') + '. En attente : ' + k.cohorte.enAttente + '.')
+      + tuile('Chiffre mensuel récupéré', eurosFr(k.chiffreMensuelRecupere), 'Valeur des nouveaux contrats ÷ durée en mois' + (k.chiffreInconnu ? ' (' + k.chiffreInconnu + ' montant(s) inconnu(s))' : '') + '.')
+      + tuile('Montant à vérifier', eurosFr(k.montantAVerifier), k.nbEcarts + ' écart(s) contractuel(s) non justifié(s), ' + k.divergences + ' anomalie(s) de montant. Avoirs non lisibles : calcul à confirmer.')
+      + '</div>' + (k.causes.length ? '<p class="rec2-det-note">Principales causes : ' + esc(k.causes.slice(0, 5).map(([c, n]) => c + ' ' + n).join(' · ')) + '.</p>' : '')
+      + '</div>';
+  }
+  // Les membres suspendus HORS non-reconduits (lecture sûre uniquement).
+  function blocSuspensions(label) {
+    const b = rapport.studios && rapport.studios[label];
+    const l = (b && b.suspensionsControle && b.suspensionsControle.liste) || [];
+    if (!l.length) return '';
+    const C = window.Recap2Conseils;
+    const lignes = l.map((x) => '<tr><td>' + nomNonReconduit(x) + '<div class="rec2-flex"><span class="rec2-etat is-susp">Suspendu temporairement</span>'
+      + (x.analyse.indication ? '<span class="rec2-nr-indic">' + esc(x.analyse.indication) + '</span>' : '')
+      + blocRemarquesAuto('suspension', label, x, C ? C.conseilsSuspension(x) : [], 'Remarque automatique, d\'après le contrôle Deciplus des suspensions.') + '</div></td></tr>').join('');
+    return '<div class="rec2-nr-susp"><div class="rec2-nr-kpis-titre">Suspensions à contrôler (hors non-reconduits) — ' + l.length + '</div>'
+      + '<table class="rec2-table"><tbody>' + lignes + '</tbody></table></div>';
   }
 
   // ── COMMERCIAL RESPONSABLE D'UN NON-RECONDUIT ───────────────────────────────
@@ -1385,37 +1463,31 @@ const Recap2UI = (function () {
 
   function detailNR(label, d) {
     const tous = (d && d.liste) || [];
-    const nb = { tous: tous.length, aucun: tous.filter((c) => !statutNR(c)).length };
-    STATUTS_NR.forEach((s) => { nb[s.val] = tous.filter((c) => statutNR(c) === s.val).length; });
-    // Un filtre dont le compteur est retombé à 0 (statut modifié) ne laisse pas
-    // une vue vide derrière une puce devenue inactive : retour à « Tous ».
+    const nb = { tous: tous.length, non_controle: 0 };
+    STATUTS_NR.forEach((s) => { nb[s.val] = 0; });
+    tous.forEach((c) => { nb[statutEffNR(c)] = (nb[statutEffNR(c)] || 0) + 1; });
     if (filtreNR[label] && !nb[filtreNR[label]]) filtreNR[label] = 'tous';
     const f = filtreNR[label] || 'tous';
-    const passe = (c) => f === 'tous' || (f === 'aucun' ? !statutNR(c) : statutNR(c) === f);
-    const liste = tous.filter(passe);
+    const liste = tous.filter((c) => f === 'tous' || statutEffNR(c) === f);
     const m1 = cap(moisLabel(rapport.m1)), m = cap(moisLabel(rapport.mois));
-    // Une puce à 0 reste visible (elle rappelle le statut possible) mais n'est
-    // ni cliquable ni mise en avant.
     const chip = (val, txt, n) => '<button type="button" class="rec2-chip' + (f === val ? ' is-on' : '')
       + '" data-filtrenr="' + esc(label) + '|' + val + '"' + (n ? '' : ' disabled aria-disabled="true"') + '>' + txt + ' <b>' + n + '</b></button>';
     const chips = tous.length
       ? '<div class="rec2-chips">' + chip('tous', 'Tous', nb.tous)
-        + STATUTS_NR.map((s) => chip(s.val, s.filtre, nb[s.val])).join('')
-        + chip('aucun', 'Non traités', nb.aucun) + '</div>'
+        + STATUTS_NR.map((s) => chip(s.val, s.libelle, nb[s.val])).join('')
+        + (nb.non_controle ? chip('non_controle', 'Non contrôlés', nb.non_controle) : '') + '</div>'
       : '';
-    const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocNote('non_reconduit', label, c) + '</td>'
+    const lignes = liste.map((c) => '<tr><td>' + nomNonReconduit(c) + blocAnalyseNR(c, label) + blocNote('non_reconduit', label, c) + '</td>'
       + celluleCommercialNR(c, label)
-      + casesSuiviNR(c, label)
       + celluleMontant(c.netM1)
       + celluleMontant(c.netM) + '</tr>').join('');
     const corps = liste.length
       ? '<table class="rec2-table rec2-table-nr"><thead><tr><th>Client</th><th>Commercial</th>'
-        + STATUTS_NR.map((s) => '<th class="rec2-ctl">' + s.libelle + '</th>').join('')
         + '<th class="rec2-num">Net ' + esc(m1) + '</th><th class="rec2-num">Net ' + esc(m) + '</th></tr></thead><tbody>' + lignes + '</tbody></table>'
       : '<p class="rec2-info">' + (tous.length ? 'Aucun client dans ce filtre.' : 'Aucun client non reconduit.') + '</p>';
     const pied = tous.length
-      ? '<p class="rec2-det-note">Statuts de suivi : sans effet sur le taux de non-reconduction.</p>' : '';
-    return '<div class="rec2-detail">' + detailHead(esc(label) + ' · clients non reconduits — ' + tous.length) + chips + corps + pied + '</div>';
+      ? '<p class="rec2-det-note">Statuts de suivi et indicateurs : sans effet sur le taux de non-reconduction (encaissements).</p>' : '';
+    return '<div class="rec2-detail">' + detailHead(esc(label) + ' · clients non reconduits — ' + tous.length) + blocIndicateursNR(d) + chips + corps + pied + blocSuspensions(label) + '</div>';
   }
 
   function detailComp(label, d) {

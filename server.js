@@ -4671,6 +4671,11 @@ function ensureRecap2NrStatutsSchema() {
   require('./lib/recap2NrStatuts.js').creerTable(getDb());
 }
 ensureRecap2NrStatutsSchema();
+// Et pour le contrôle complet des non-reconduits (analyse Deciplus + cohorte).
+function ensureRecap2NrControlesSchema() {
+  require('./lib/recap2NrControles.js').creerTable(getDb());
+}
+ensureRecap2NrControlesSchema();
 // Commercial responsable des non-reconduits, choisi à la main (table dédiée, idempotente).
 require('./lib/recap2NrCommerciaux.js').creerTable(getDb());
 
@@ -5281,6 +5286,7 @@ const Recap2Notes = require('./lib/recap2Notes.js');
 const Recap2Vni = require('./lib/recap2Vni.js');
 // Le suivi des non-reconduits, même principe : en base, posé à la lecture.
 const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
+const Recap2NrControles = require('./lib/recap2NrControles.js');
 const Recap2NrCommerciaux = require('./lib/recap2NrCommerciaux.js');
 const Recap2Metrics = require('./public/recap2-metrics.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
@@ -5477,7 +5483,7 @@ app.post('/api/recap2/nr-statut', requireAuth, requireAdmin, (req, res) => {
   if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
   if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
   if (statut !== '' && Recap2NrStatuts.STATUTS.indexOf(statut) < 0) {
-    return res.status(400).json({ error: 'statut : sous_controle, resilie, a_creuser ou vide' });
+    return res.status(400).json({ error: 'statut : ' + Recap2NrStatuts.STATUTS.join(', ') + ' ou vide (automatique)' });
   }
 
   const lu = recap2LireRapport(mois);
@@ -5568,6 +5574,29 @@ app.post('/api/recap2/automatique/:mois', (req, res) => {
     res.json({ ok: true, mois, ventes: n, controleLe: req.body.controleLe });
   } catch (e) {
     console.error('recap2 contrôle automatique :', e && e.message);
+    res.status(400).json({ error: 'dépôt refusé' });
+  }
+});
+
+// ─── NON-RECONDUITS : DÉPÔT DU CONTRÔLE DECIPLUS (analyse sur le Mac) ─────────
+//  Clé RECAP2_INGEST_KEY. Chaque ligne « nr » doit exister dans le rapport du
+//  mois ; les remarques doivent venir des gabarits connus ; tout est borné et
+//  masqué (lib/recap2NrControles.js). Aucun KPI n'en dépend.
+//  Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/nr-controle/:mois', (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!recap2CleAttendue() || !recap2CleValide(req.get('X-Recap2-Key'))) return res.status(401).json({ error: 'Clé de dépôt invalide.' });
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const pb = Recap2NrControles.valider(req.body, lu.rapport, Recap2Store.LABELS);
+  if (pb.length) return res.status(422).json({ error: 'Dépôt refusé.', problemes: pb.slice(0, 20) });
+  try {
+    const r = Recap2NrControles.enregistrer(getDb(), mois, req.body);
+    console.log('recap2 contrôle non-reconduits ' + mois + ' : ' + r.n + ' dossiers');
+    res.json({ ok: true, mois, dossiers: r.n, resume: r.resume, controleLe: req.body.controleLe });
+  } catch (e) {
+    console.error('recap2 contrôle non-reconduits :', e && e.message);
     res.status(400).json({ error: 'dépôt refusé' });
   }
 });
@@ -5711,7 +5740,7 @@ app.post('/api/recap2/remarque-auto', requireAuth, requireAdmin, (req, res) => {
   const texte = typeof b.texte === 'string' ? b.texte : null;
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
   if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
-  if (Recap2RemarquesAuto.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : vente ou vni' });
+  if (Recap2RemarquesAuto.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : ' + Recap2RemarquesAuto.TYPES.join(', ') });
   if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
   if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
   if (idVendor && !Recap2Vni.ID_VENDOR_RE.test(idVendor)) return res.status(400).json({ error: 'idVendor : identifiant Vendor attendu' });
@@ -5721,10 +5750,15 @@ app.post('/api/recap2/remarque-auto', requireAuth, requireAdmin, (req, res) => {
   const lu = recap2LireRapport(mois);
   if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
   const affiche = recap2AvecDecisions(lu.rapport);
-  const ligne = Recap2Notes.ligneDe(affiche, { studio, type, client, idClient, idVendor });
+  const blocSusp = ((affiche.studios[studio] || {}).suspensionsControle || {}).liste || [];
+  const ligne = type === 'non_reconduit' ? Recap2NrStatuts.ligneDe(affiche, { studio, client, idClient })
+    : type === 'suspension' ? (idClient ? blocSusp.find((x) => String(x.idClient) === idClient) : null)
+      : Recap2Notes.ligneDe(affiche, { studio, type, client, idClient, idVendor });
   if (!ligne) return res.status(404).json({ error: 'Personne introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
   const produites = type === 'vni' ? Recap2Conseils.conseilsVni(ligne)
-    : Recap2Conseils.conseilsVente(ligne, { controle: Recap2Conseils.moisControle(affiche) });
+    : type === 'non_reconduit' ? Recap2Conseils.conseilsNonReconduit(ligne)
+      : type === 'suspension' ? Recap2Conseils.conseilsSuspension(ligne)
+        : Recap2Conseils.conseilsVente(ligne, { controle: Recap2Conseils.moisControle(affiche) });
   if (produites.indexOf(texteAuto) < 0) return res.status(409).json({ error: 'Cette remarque automatique n\'est plus produite pour cette personne.' });
   try {
     const qui = (req.session && (req.session.name || req.session.role)) || '';
@@ -5740,7 +5774,8 @@ app.post('/api/recap2/remarque-auto', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/recap2/historique/:mois', requireAuth, requireAdmin, (req, res) => {
   const mois = String(req.params.mois || '');
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
-  res.json({ mois, flex: Recap2Flex.historique(getDb(), mois), remarquesAuto: Recap2RemarquesAuto.historique(getDb(), mois) });
+  res.json({ mois, flex: Recap2Flex.historique(getDb(), mois), remarquesAuto: Recap2RemarquesAuto.historique(getDb(), mois),
+    statutsNonReconduits: Recap2NrStatuts.historique(getDb(), mois), remarques: Recap2Notes.historique(getDb(), mois) });
 });
 
 app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
@@ -5883,6 +5918,13 @@ function recap2AvecDecisions(rapport) {
     if (r && r.mois) r = Recap2Flex.appliquer(r, Recap2Flex.controlesDuMois(getDb(), r.mois), Recap2Flex.decisionsDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 Flex :', e && e.message);
+  }
+  // Le contrôle complet des non-reconduits (analyse, cohorte, suspensions), APRÈS
+  // les statuts manuels : la décision manuelle reste prioritaire à l'affichage.
+  try {
+    if (r && r.mois) r = Recap2NrControles.appliquer(r, Recap2NrControles.controlesDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 contrôle non-reconduits :', e && e.message);
   }
   // Les versions modifiées des remarques automatiques (texte d'origine gardé).
   try {

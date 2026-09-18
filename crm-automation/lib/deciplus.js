@@ -20,12 +20,53 @@ const path = require('path');
 const fs = require('fs');
 
 const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-const INTERDIT = /(prelevements\.php|presta_echeance\.php|delete|supprim|valider|enregistr|traiter|cloture|clôture|impaye|resili)/i;
+// ⚠️ Une page Deciplus peut PRÉPARER ou DÉCLENCHER une action sur simple GET :
+// l'écran d'anonymisation (`anonymize.php`), le déplacement de membre
+// (`moveMember.php`), la liste noire, l'envoi de SMS / mailing, le wallet, la
+// génération de factures… Elles sont interdites MÊME en lecture. Incident du
+// 2026-09-18 : une sonde a ouvert `anonymize.php` et `moveMember.php` en GET
+// (simples écrans de confirmation, fiche vérifiée intacte) — plus jamais.
+const INTERDIT = new RegExp([
+  'prelevements\\.php', 'presta_echeance\\.php', 'delete', 'supprim', 'valider', 'enregistr', 'traiter',
+  'cloture', 'clôture', 'impaye', 'resili',
+  'anonymi', 'move_?member', 'black_?list', 'photo_upload', 'webcom', 'gift_card', 'imprime_',
+  'wallet', 'mailing', 'ajax_membrehandler', 'pointage', 'rib\\.php', 'sms', 'envoi', 'send',
+  'merge', 'fusion', 'transf', 'suspendre', 'reactiv', 'annuler', 'refund', 'rembours', 'payout',
+  'generer', 'generat', 'rebilling', 'simulate',
+].join('|'), 'i');
 
 function garde(url) {
   if (INTERDIT.test(url)) throw new Error('URL refusée par le garde-fou Deciplus : ' + url);
   if (!/^https:\/\/[a-z0-9.-]+\.deciplus\.pro\//i.test(url)) throw new Error('URL hors Deciplus : ' + url);
   return url;
+}
+
+// ── LISTE BLANCHE des lectures explicitement demandées par nos scripts ──────
+//  Le contrôle RECAP 2 n'appelle QUE ces pages et ces API, en GET. Toute autre
+//  adresse est refusée, même si elle ne contient aucun mot interdit.
+const LECTURES_AUTORISEES = [
+  /^https:\/\/[a-z0-9-]+\.deciplus\.pro\/check\.php\?idj=\d{1,20}$/i,
+  /^https:\/\/[a-z0-9-]+\.deciplus\.pro\/reservations\.php\?idj=\d{1,20}&inner=1&datec1=[\d/-]+$/i,
+  /^https:\/\/[a-z0-9-]+\.deciplus\.pro\/presta_ventes\.php\?idj=\d{1,20}&inner=1&datec1=[\d/-]+$/i,
+  /^https:\/\/[a-z0-9-]+\.deciplus\.pro\/nextgen\/home$/i,
+  /^https:\/\/api\.deciplus\.pro\/staff\/v1\/contracts\/\d{1,20}(\/(history|paymentScheduler|visits))?$/i,
+  /^https:\/\/api\.deciplus\.pro\/staff\/v1\/member\/bank\/\d{1,20}$/i,
+];
+function gardeLecture(url) {
+  garde(url);
+  if (!LECTURES_AUTORISEES.some((re) => re.test(url))) throw new Error('Lecture Deciplus hors liste blanche : ' + url.split('?')[0]);
+  return url;
+}
+
+// Décision pour une requête émise par une page ouverte par nos scripts :
+// tout verbe autre que GET vers Deciplus est bloqué ; un document, un XHR ou un
+// fetch GET vers une adresse interdite l'est aussi (la page pourrait appeler
+// d'elle-même un écran d'action). Les ressources statiques passent.
+function decisionRequete(methode, url, typeRessource = 'document') {
+  if (!/deciplus\.pro/i.test(String(url))) return { bloquer: false };
+  if (String(methode).toUpperCase() !== 'GET') return { bloquer: true, motif: 'verbe ' + methode };
+  if (/^(document|xhr|fetch)$/.test(typeRessource) && INTERDIT.test(url)) return { bloquer: true, motif: 'adresse interdite' };
+  return { bloquer: false };
 }
 
 const BASE = 'https://ginkgo-sport.deciplus.pro/nextgen/';
@@ -222,4 +263,4 @@ async function reinitialiserFiltres(page) {
 const exporterMois = (page, ym, dossier, journal) => exporterOnglet(page, 'boxing', ym, dossier, journal);
 const exporterVentesMois = (page, ym, dossier, journal) => exporterOnglet(page, 'sales', ym, dossier, journal);
 
-module.exports = { exporterMois, exporterVentesMois, exporterOnglet, reinitialiserFiltres, garde, MOIS_FR, finDeMois, ONGLETS };
+module.exports = { exporterMois, exporterVentesMois, exporterOnglet, reinitialiserFiltres, garde, gardeLecture, decisionRequete, INTERDIT, MOIS_FR, finDeMois, ONGLETS };

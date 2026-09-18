@@ -28,8 +28,8 @@ let serveur, jeton;
 const studio = (nom) => ({
   studio: nom,
   nonReconduction: { base: 10, nonReconduits: 3, taux: 0.3, tauxPct: 30, liste: [
-    { client: 'CAMACHO Samuel', idClient: '41001', netM1: 45, netM: 0 },
-    { client: 'DERAED Maxence', idClient: '41002', netM1: 69, netM: 0 },
+    { client: 'MARTINEAU Paulin', idClient: '41001', netM1: 45, netM: 0 },
+    { client: 'BERNARDIN Lucie', idClient: '41002', netM1: 69, netM: 0 },
     { client: 'SANS Identifiant', netM1: 20, netM: 0 },
   ] },
   clientsRetrouves: { ventesSignees: 0, annulees: 0, ventesActives: 0, ventesValides: 0, signataires: 0, retrouves: 0, taux: null, tauxPct: null, liste: [] },
@@ -51,7 +51,7 @@ const deposer = (corps) => fetch(BASE + '/api/recap2/2026-08', { method: 'POST',
 const auth = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton });
 const lire = async () => { const r = await fetch(BASE + '/api/recap2/2026-08', { headers: auth() }); assert.equal(r.status, 200); return r.json(); };
 const marquer = (o, h = auth()) => fetch(BASE + '/api/recap2/nr-statut', { method: 'POST', headers: h,
-  body: JSON.stringify(Object.assign({ mois: '2026-08', studio: 'Levallois', client: 'CAMACHO Samuel', idClient: '41001', statut: 'sous_controle' }, o)) });
+  body: JSON.stringify(Object.assign({ mois: '2026-08', studio: 'Levallois', client: 'MARTINEAU Paulin', idClient: '41001', statut: 'sous_controle' }, o)) });
 const ligne = (r, client, s = 'Levallois') => r.studios[s].nonReconduction.liste.find((l) => l.client === client);
 const kpi = (r) => S.LABELS.map((s) => { const n = r.studios[s].nonReconduction; return [n.base, n.nonReconduits, n.taux, n.tauxPct, n.liste.length].join('/'); }).join(' ');
 const fichier = () => fs.readFileSync(path.join(BAC, 'recap2', 'recap2-2026-08.json'), 'utf8');
@@ -63,22 +63,22 @@ before(async () => {
   const r = await lire();
   KPI0 = kpi(r);
   FICHIER0 = fichier();
-  assert.deepEqual(ligne(r, 'CAMACHO Samuel').suivi, { statut: '', modifieLe: '', modifiePar: '' }, 'non traité par défaut');
+  assert.deepEqual(ligne(r, 'MARTINEAU Paulin').suivi, { statut: '', modifieLe: '', modifiePar: '' }, 'non traité par défaut');
 });
 after(async () => { await arreter(); try { fs.rmSync(BAC, { recursive: true, force: true }); } catch (_) {} });
 
 test('cocher « Sous contrôle », puis « Résilié » : le second REMPLACE le premier', async () => {
   assert.equal((await marquer({})).status, 200);
-  assert.equal(ligne(await lire(), 'CAMACHO Samuel').suivi.statut, 'sous_controle');
+  assert.equal(ligne(await lire(), 'MARTINEAU Paulin').suivi.statut, 'sous_controle');
   const rep = await marquer({ statut: 'resilie' });
   assert.equal(rep.status, 200);
   const j = await rep.json();
   assert.equal(j.suivi.statut, 'resilie');
   assert.ok(j.suivi.modifiePar && j.suivi.modifieLe);
   const r = await lire();
-  assert.equal(ligne(r, 'CAMACHO Samuel').suivi.statut, 'resilie');
-  assert.equal(ligne(r, 'CAMACHO Samuel', 'Lille').suivi.statut, '', 'autre studio intact');
-  assert.equal(ligne(r, 'DERAED Maxence').suivi.statut, '', 'autre client intact');
+  assert.equal(ligne(r, 'MARTINEAU Paulin').suivi.statut, 'resilie');
+  assert.equal(ligne(r, 'MARTINEAU Paulin', 'Lille').suivi.statut, '', 'autre studio intact');
+  assert.equal(ligne(r, 'BERNARDIN Lucie').suivi.statut, '', 'autre client intact');
 });
 
 test('client sans Id membre : rattaché par son nom', async () => {
@@ -91,7 +91,7 @@ test('garde-fous : client absent, statut inconnu, studio inconnu, sans session',
   assert.equal((await marquer({ statut: 'annule' })).status, 400);
   assert.equal((await marquer({ studio: 'Paris' })).status, 400);
   assert.equal((await marquer({}, { 'Content-Type': 'application/json' })).status, 401);
-  assert.equal(ligne(await lire(), 'CAMACHO Samuel').suivi.statut, 'resilie', 'rien n\'a été écrit');
+  assert.equal(ligne(await lire(), 'MARTINEAU Paulin').suivi.statut, 'resilie', 'rien n\'a été écrit');
 });
 
 test('le JSON déposé n\'est jamais réécrit, et AUCUN KPI ne bouge', async () => {
@@ -102,7 +102,7 @@ test('le JSON déposé n\'est jamais réécrit, et AUCUN KPI ne bouge', async ()
 test('NOUVELLE COLLECTE (JSON vierge redéposé) : les statuts restent', async () => {
   assert.equal((await deposer(rapport())).status, 200);
   const r = await lire();
-  assert.equal(ligne(r, 'CAMACHO Samuel').suivi.statut, 'resilie');
+  assert.equal(ligne(r, 'MARTINEAU Paulin').suivi.statut, 'resilie');
   assert.equal(ligne(r, 'SANS Identifiant').suivi.statut, 'a_creuser');
 });
 
@@ -110,30 +110,30 @@ test('REDÉMARRAGE du serveur (redéploiement) : toujours là', async () => {
   await arreter();
   await demarrer(); // nouvelle session : équivaut aussi à une reconnexion
   const r = await lire();
-  assert.equal(ligne(r, 'CAMACHO Samuel').suivi.statut, 'resilie');
+  assert.equal(ligne(r, 'MARTINEAU Paulin').suivi.statut, 'resilie');
   assert.equal(ligne(r, 'SANS Identifiant').suivi.statut, 'a_creuser');
   assert.equal(kpi(r), KPI0);
 });
 
 test('COHABITATION avec les remarques : statut et remarque du même client sont indépendants', async () => {
   const noter = (remarque) => fetch(BASE + '/api/recap2/note', { method: 'POST', headers: auth(),
-    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'DERAED Maxence', idClient: '41002', remarque }) });
+    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'BERNARDIN Lucie', idClient: '41002', remarque }) });
   assert.equal((await noter('Relancé par le coach.')).status, 200);
-  assert.equal((await marquer({ client: 'DERAED Maxence', idClient: '41002', statut: 'a_creuser' })).status, 200);
-  let l = ligne(await lire(), 'DERAED Maxence');
+  assert.equal((await marquer({ client: 'BERNARDIN Lucie', idClient: '41002', statut: 'a_creuser' })).status, 200);
+  let l = ligne(await lire(), 'BERNARDIN Lucie');
   assert.deepEqual([l.suivi.statut, l.note.remarque], ['a_creuser', 'Relancé par le coach.']);
-  assert.equal((await marquer({ client: 'DERAED Maxence', idClient: '41002', statut: 'sous_controle' })).status, 200);
-  assert.equal(ligne(await lire(), 'DERAED Maxence').note.remarque, 'Relancé par le coach.', 'changer le statut ne touche pas la remarque');
+  assert.equal((await marquer({ client: 'BERNARDIN Lucie', idClient: '41002', statut: 'sous_controle' })).status, 200);
+  assert.equal(ligne(await lire(), 'BERNARDIN Lucie').note.remarque, 'Relancé par le coach.', 'changer le statut ne touche pas la remarque');
   assert.equal((await noter('')).status, 200);
-  l = ligne(await lire(), 'DERAED Maxence');
+  l = ligne(await lire(), 'BERNARDIN Lucie');
   assert.deepEqual([l.suivi.statut, l.note.remarque], ['sous_controle', ''], 'supprimer la remarque ne touche pas le statut');
-  assert.equal((await marquer({ client: 'DERAED Maxence', idClient: '41002', statut: '' })).status, 200);
+  assert.equal((await marquer({ client: 'BERNARDIN Lucie', idClient: '41002', statut: '' })).status, 200);
   assert.equal(kpi(await lire()), KPI0);
 });
 
 test('DÉCOCHER : retour à aucun statut', async () => {
   assert.equal((await marquer({ statut: '' })).status, 200);
   const r = await lire();
-  assert.equal(ligne(r, 'CAMACHO Samuel').suivi.statut, '');
+  assert.equal(ligne(r, 'MARTINEAU Paulin').suivi.statut, '');
   assert.equal(kpi(r), KPI0);
 });

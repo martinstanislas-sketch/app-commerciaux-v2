@@ -130,5 +130,46 @@
     });
   }
 
-  return { TEXTES, VNI, moisControle, conseilsVente, conseilsVni, versions };
+  // ── NON-RECONDUITS ─────────────────────────────────────────────────────────
+  //  Les phrases, au mot près (cahier des charges du 18/09/2026). Les remarques
+  //  sont COMPOSÉES par le moteur (lib/recap2NrAnalyse.js, sur le Mac) à partir
+  //  de ces phrases, puis déposées ; l'écran et les copies les relisent ici,
+  //  en tenant compte de la décision manuelle, qui l'emporte toujours.
+  const TEXTES_NR = {
+    IDENTITE: 'Vérifie l’identité du client et son éventuelle reconduction dans Deciplus.',
+    SUSP_RAISON: 'Renseigne dans Deciplus la raison de la suspension du client.',
+    SUSP_REPRISE: 'Complète la suspension dans Deciplus en indiquant la date de reprise prévue.',
+    SUSP_FINIE: 'La suspension du client est terminée. Contacte-le pour organiser sa reprise et réactiver son abonnement.',
+    DEMENAGEMENT: 'Contacte le client et propose-lui un transfert de studio ou un accompagnement en visioconférence.',
+    PRIX: 'Contacte le client et propose-lui l’abonnement Flex.',
+    TEMPS: 'Contacte le client et propose-lui un rythme d’entraînement plus flexible.',
+    MOTIVATION: 'Réalise un nouveau bilan avec le client et propose-lui un challenge adapté, comme le Protocole 42.',
+    RESULTATS: 'Réalise un bilan avec le client, redéfinis ses objectifs et propose-lui un accompagnement adapté.',
+    PLANNING: 'Contacte le client et recherche avec lui des créneaux compatibles avec ses disponibilités.',
+    SANTE: 'Contacte le client et étudie une suspension ou une reprise progressive adaptée.',
+    INSATISFACTION: 'Appelle le client pour comprendre son insatisfaction et trouve une solution avec le responsable du club.',
+    COACH: 'Échange avec le responsable du club pour proposer au client un changement de coach.',
+    IMPAYE: 'Contacte le client pour régulariser sa situation et récupérer son nouveau RIB.',
+    FIN_CHALLENGE: 'Contacte le client et propose-lui une formule pour poursuivre son accompagnement.',
+    INCONNU: 'Contacte le client pour comprendre sa non-reconduction et renseigne le motif dans Deciplus.',
+    A_CONFIRMER: 'Contacte le client pour confirmer le motif de sa non-reconduction et renseigne-le dans Deciplus.',
+  };
+  // Une décision manuelle qui clôt le dossier fait taire les remarques : l'action
+  // est faite ou sans objet. « À traiter » et « À creuser » les laissent.
+  const NR_SILENCIEUX = ['sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme'];
+  function conseilsNonReconduit(ligne) {
+    const l = ligne || {};
+    const a = l.analyse;
+    if (!a || !Array.isArray(a.remarques)) return [];      // mois non contrôlé : rien n'est réclamé
+    const manuel = l.suivi && l.suivi.statut;
+    if (manuel && NR_SILENCIEUX.indexOf(manuel) > -1) return [];
+    return a.remarques.slice();
+  }
+  // Une suspension hors non-reconduits (liste `suspensions` du studio).
+  function conseilsSuspension(ligne) {
+    const a = ligne && ligne.analyse;
+    return (a && Array.isArray(a.remarques)) ? a.remarques.slice() : [];
+  }
+
+  return { TEXTES, TEXTES_NR, NR_SILENCIEUX, VNI, moisControle, conseilsVente, conseilsVni, conseilsNonReconduit, conseilsSuspension, versions };
 }));
