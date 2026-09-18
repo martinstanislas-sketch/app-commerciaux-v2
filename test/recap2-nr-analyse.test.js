@@ -259,3 +259,39 @@ test('« FA offert » ne justifie pas un écart ; un contrat annulé à 0 € n�
   const r2 = an(dossier({ contrats: [contrat({ etat: 'CANCELED', valeurInitiale: 0, valeur: 0, paye: 0 })] }), { vendor: { fiable: true, total: 3120 } });
   assert.equal(r2.finance, null);
 });
+
+// ── DÉMÉNAGEMENT RÉCUPÉRABLE (règle de Stan, 18/09 soir) ─────────────────────
+const M2 = require('../public/recap2-metrics.js');
+const DEM = 'Contacte le client et propose-lui un transfert de studio ou de poursuivre son Challenge en visioconférence.';
+test('déménagement sans refus : À traiter, action transfert/visio, récupération ouverte', () => {
+  const r = an(dossier({ notes: notes('', 'arrêt car déménagement à Bordeaux') }));
+  assert.equal(r.statut, 'a_traiter'); assert.equal(r.recuperationOuverte, true); assert.equal(T.DEMENAGEMENT, DEM);
+  assert.equal(r.remarques[r.remarques.length - 1], DEM);
+});
+test('déménagement + décision manuelle « Résilié » : l’action reste, comptée « À récupérer » ET « Résiliations », jamais deux fois', () => {
+  const a = an(dossier({ notes: notes('', 'arrêt car déménagement à Bordeaux') }), { vendor: { fiable: true, total: 2340 }, journal: { couvert: true, net: 900 } });
+  const l = { analyse: a, suivi: { statut: 'resilie' } };
+  assert.deepEqual(C.conseilsNonReconduit(l), [DEM], 'seule l’action de récupération, pas la finance');
+  assert.equal(C.recuperationOuverte(l), true);
+  const k = M2.indicateursNR([l, { analyse: a, suivi: { statut: '' } }]);
+  assert.deepEqual([k.aRecuperer, k.resiliations, k.dontResilieRecuperable, k.detectees], [2, 1, 1, 2]);
+  assert.equal(Object.values(k.parStatut).reduce((x, y) => x + y, 0), 2, 'chaque dossier une seule fois par statut');
+});
+test('refus définitif explicite, ou refus du transfert ET de la visio : plus d’action', () => {
+  ['déménage à Lyon, refus définitif de toute proposition', 'déménagement : refuse le transfert et la visio', 'déménage, ne veut ni transfert ni visio', 'déménagement, sans possibilité de suivi en visio']
+    .forEach((n) => { const r = an(dossier({ notes: notes('', n) })); assert.deepEqual(r.remarques, [], n); assert.equal(r.recuperationOuverte, false, n); });
+});
+test('refus de la visioconférence UNIQUEMENT : le transfert reste possible, action maintenue', () => {
+  const r = an(dossier({ notes: notes('', 'déménagement, refuse la visio') }));
+  assert.equal(r.statut, 'a_traiter'); assert.equal(r.remarques[r.remarques.length - 1], DEM);
+});
+test('le mot « déménagement », une résiliation ou un contrat arrêté ne valent jamais refus', () => {
+  const r = an(dossier({ notes: notes('', 'résiliation reçue, déménagement, pas de réponse aux appels') }));
+  assert.equal(r.recuperationOuverte, true);
+});
+test('contentieux et reconduction retrouvée restent prioritaires, même avec « Résilié » manuel', () => {
+  const ctx = an(dossier({ categorie: 'Contentieux', notes: notes('', 'arrêt car déménagement') }));
+  assert.deepEqual(C.conseilsNonReconduit({ analyse: ctx, suivi: { statut: 'resilie' } }), []);
+  const rec = an(dossier({ notes: notes('', 'arrêt car déménagement'), contrats: [contrat(), contrat({ id: 2, etat: 'ACTIVE', debut: '2026-09-01', resiliation: '', historique: [], echeances: [ech('2026-09-21', 'T')] })] }));
+  assert.equal(rec.statut, 'reconduit_autrement'); assert.deepEqual(C.conseilsNonReconduit({ analyse: rec, suivi: { statut: 'resilie' } }), []);
+});

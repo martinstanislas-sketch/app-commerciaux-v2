@@ -676,6 +676,12 @@
   //  (lib/recap2NrControles.js) — récupérés parmi les éligibles ; le
   //  dénominateur ne change plus, les exclusions restent comptées par motif.
   const STATUTS_SUIVI_NR = ['a_traiter', 'sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme', 'a_creuser'];
+  // Même règle que Recap2Conseils.recuperationOuverte (déménagement récupérable).
+  const recupOuverte = (l) => {
+    const a = l && l.analyse;
+    if (!a || a.contentieux || a.irrecuperable || a.statut !== 'a_traiter') return false;
+    return a.recuperationOuverte === true || !!(a.cause && a.cause.code === 'demenagement' && (a.remarques || []).some((t) => /transfert de studio/.test(t)));
+  };
   const statutEffectifNR = (l) => (l && l.suivi && l.suivi.statut) || (l && l.analyse && l.analyse.statut) || 'non_controle';
   function indicateursNR(liste) {
     const L = liste || [];
@@ -708,7 +714,14 @@
       resiliations: n.resilie + n.depart_confirme,
       contentieux: L.filter((l) => l.analyse && l.analyse.contentieux && statutEffectifNR(l) === 'resilie').length,
       suspensions: n.suspendu, reconductions: n.reconduit_autrement, toujoursActifs: n.toujours_actif,
-      aRecuperer: n.a_traiter + n.sous_controle, aCreuser: n.a_creuser, recuperes: n.recupere,
+      // « À récupérer » = possibilité commerciale ENCORE OUVERTE : À traiter, Sous
+      // contrôle, et les « Résilié » manuels dont le déménagement reste
+      // récupérable. Ces derniers restent aussi comptés dans « Résiliations »
+      // (décision humaine visible) : deux indicateurs différents, jamais deux
+      // fois dans le même.
+      aRecuperer: n.a_traiter + n.sous_controle + L.filter((l) => statutEffectifNR(l) === 'resilie' && l.suivi && l.suivi.statut === 'resilie' && recupOuverte(l)).length,
+      dontResilieRecuperable: L.filter((l) => statutEffectifNR(l) === 'resilie' && l.suivi && l.suivi.statut === 'resilie' && recupOuverte(l)).length,
+      aCreuser: n.a_creuser, recuperes: n.recupere,
       cohorte: { eligibles: eligibles.length, recuperes: recupEligibles.length, enAttente: cohorte.filter((l) => l.cohorte.eligible === null).length, exclus,
         taux: eligibles.length ? recupEligibles.length / eligibles.length : null },
       chiffreMensuelRecupere: Math.round(chiffre * 100) / 100, chiffreInconnu,

@@ -1412,6 +1412,9 @@ const Recap2UI = (function () {
     let h = '<div class="rec2-flex">';
     if (def) h += '<span class="rec2-etat ' + def.classe + '" title="' + esc(titre) + '">' + esc(def.libelle) + '</span>'
       + (manuel ? ' <span class="rec2-det-date">décision manuelle</span>' : '');
+    if (manuel === 'resilie' && window.Recap2Conseils && window.Recap2Conseils.recuperationOuverte && window.Recap2Conseils.recuperationOuverte(c)) {
+      h += '<span class="rec2-nr-suggest" title="Déménagement confirmé sans refus définitif documenté : un transfert de studio ou un Challenge en visioconférence reste possible. La décision « Résilié » est conservée.">Récupération proposée malgré la décision manuelle « Résilié »</span>';
+    }
     if (c.suggestion === 'recupere' && manuel !== 'recupere') h += '<span class="rec2-nr-suggest" title="Nouvelle prestation détectée après une première analyse « À traiter ». Seul un administrateur peut poser le statut.">Suggestion : Récupéré ?</span>';
     if (a && a.indication) h += '<span class="rec2-nr-indic">' + esc(a.indication) + '</span>';
     if (a && a.finance && (a.finance.ecart != null || a.finance.anomalie)) {
@@ -1472,7 +1475,7 @@ const Recap2UI = (function () {
       + tuile('Toujours actifs', k.toujoursActifs, 'Contrat de référence toujours actif, échéances à venir.')
       + tuile('Reconduits autrement', k.reconductions, 'Nouveau contrat, nouvelle formule, renouvellement, transfert, prestation utilisable.')
       + tuile('Suspendus', k.suspensions, 'Suspension temporaire.')
-      + tuile('À récupérer', k.aRecuperer, 'À traiter + Sous contrôle.')
+      + tuile('À récupérer', k.aRecuperer, 'À traiter + Sous contrôle' + (k.dontResilieRecuperable ? ' + ' + k.dontResilieRecuperable + ' « Résilié » manuel(s) dont le déménagement reste récupérable (aussi comptés dans « Résiliations »)' : '') + '.')
       + tuile('Récupérés', k.recuperes, 'Statut manuel « Récupéré ».')
       + tuile('Taux de récupération', pct(k.cohorte.taux), 'Récupérés parmi les ' + k.cohorte.eligibles + ' dossiers éligibles (« À traiter » au premier contrôle). Exclus : ' + (exclus || 'aucun') + '. En attente : ' + k.cohorte.enAttente + '.')
       + tuile('Chiffre mensuel récupéré', eurosFr(k.chiffreMensuelRecupere), 'Valeur des nouveaux contrats ÷ durée en mois' + (k.chiffreInconnu ? ' (' + k.chiffreInconnu + ' montant(s) inconnu(s))' : '') + '.')

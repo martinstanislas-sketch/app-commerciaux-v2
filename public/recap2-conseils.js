@@ -140,7 +140,7 @@
     SUSP_RAISON: 'Renseigne dans Deciplus la raison de la suspension du client.',
     SUSP_REPRISE: 'Complète la suspension dans Deciplus en indiquant la date de reprise prévue.',
     SUSP_FINIE: 'La suspension du client est terminée. Contacte-le pour organiser sa reprise et réactiver son abonnement.',
-    DEMENAGEMENT: 'Contacte le client et propose-lui un transfert de studio ou un accompagnement en visioconférence.',
+    DEMENAGEMENT: 'Contacte le client et propose-lui un transfert de studio ou de poursuivre son Challenge en visioconférence.',
     PRIX: 'Contacte le client et propose-lui l’abonnement Flex.',
     TEMPS: 'Contacte le client et propose-lui un rythme d’entraînement plus flexible.',
     MOTIVATION: 'Réalise un nouveau bilan avec le client et propose-lui un challenge adapté, comme le Protocole 42.',
@@ -157,11 +157,24 @@
   // Une décision manuelle qui clôt le dossier fait taire les remarques : l'action
   // est faite ou sans objet. « À traiter » et « À creuser » les laissent.
   const NR_SILENCIEUX = ['sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme'];
+  // DÉMÉNAGEMENT (règle de Stan, 18/09) : un déménagement seul reste
+  // RÉCUPÉRABLE (transfert de studio ou Challenge en visioconférence). Une
+  // décision manuelle « Résilié » reste visible mais ne masque PAS cette
+  // possibilité : l'action de récupération s'affiche quand même. Seul un motif
+  // irrécupérable documenté (le moteur ne pose alors plus l'action), un
+  // contentieux ou une reconduction retrouvée la font disparaître.
+  function recuperationOuverte(ligne) {
+    const a = ligne && ligne.analyse;
+    if (!a || a.contentieux || a.irrecuperable || a.statut !== 'a_traiter') return false;
+    if (a.recuperationOuverte === true) return true;
+    return !!(a.cause && a.cause.code === 'demenagement' && (a.remarques || []).some((t) => /transfert de studio/.test(t)));
+  }
   function conseilsNonReconduit(ligne) {
     const l = ligne || {};
     const a = l.analyse;
     if (!a || !Array.isArray(a.remarques)) return [];      // mois non contrôlé : rien n'est réclamé
     const manuel = l.suivi && l.suivi.statut;
+    if (manuel === 'resilie' && recuperationOuverte(l)) return a.remarques.filter((t) => /transfert de studio/.test(t));
     if (manuel && NR_SILENCIEUX.indexOf(manuel) > -1) return [];
     return a.remarques.slice();
   }
@@ -171,5 +184,5 @@
     return (a && Array.isArray(a.remarques)) ? a.remarques.slice() : [];
   }
 
-  return { TEXTES, TEXTES_NR, NR_SILENCIEUX, VNI, moisControle, conseilsVente, conseilsVni, conseilsNonReconduit, conseilsSuspension, versions };
+  return { TEXTES, TEXTES_NR, NR_SILENCIEUX, VNI, moisControle, conseilsVente, conseilsVni, conseilsNonReconduit, conseilsSuspension, recuperationOuverte, versions };
 }));
