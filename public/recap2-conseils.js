@@ -30,6 +30,21 @@
   if (typeof module === 'object' && module.exports) module.exports = fabrique();
   else racine.Recap2Conseils = fabrique();
 }(typeof self !== 'undefined' ? self : this, function () {
+  // ── VNI : LE CHALLENGE FLEX ────────────────────────────────────────────────
+  //  Statuts d'un VNI (posés par le contrôle Vendor, lib/recap2Flex.js) :
+  //   · « Flex proposé »      — un devis ou une note Vendor le nomme ;
+  //   · « Transformé depuis » — le prospect a souscrit depuis sa venue ;
+  //   · « À vérifier »        — fiche non attribuée avec certitude : AUCUN statut
+  //                             Flex n'est supposé ; la remarque demande de
+  //                             vérifier l'identité du prospect dans Vendor ;
+  //   · « Flex à proposer »   — tout le reste. L'absence de trace ne prouve pas
+  //                             que l'offre n'a jamais été évoquée, mais le
+  //                             conseiller doit la proposer ou la reproposer.
+  //  Un marqueur manuel (Flex proposé / Prospect non intéressé / À reproposer
+  //  plus tard) l'emporte toujours, et fait taire la remarque : l'action a été
+  //  faite, on ne la redemande pas.
+  const VNI = { PROPOSE: 'Flex proposé', TRANSFORME: 'Transformé depuis', A_PROPOSER: 'Flex à proposer', A_VERIFIER: 'À vérifier' };
+
   // Les cinq phrases, au mot près. Elles s'adressent au conseiller responsable.
   const TEXTES = {
     SEANCES: 'Contacte le client pour planifier ses prochaines séances.',
@@ -37,6 +52,8 @@
     REGULARISER: 'Contacte le client pour régulariser son prélèvement.',
     RESILIATION: 'Contacte le client pour comprendre sa résiliation et tenter de le conserver.',
     DECIPLUS: 'Vérifie et complète la vente dans Deciplus.',
+    FLEX: 'Propose au prospect le Challenge Flex à 4 séances par mois.',
+    IDENTITE: 'Vérifie l’identité du prospect dans Vendor.',
   };
 
   // Les alertes du moteur (lib/recap2Operationnel.js ALERTES), reconnues par
@@ -87,5 +104,31 @@
     return out;
   }
 
-  return { TEXTES, moisControle, conseilsVente };
+  // Les remarques d'un VNI : le Flex reste à proposer, ou la fiche Vendor n'a
+  // pas pu être attribuée avec certitude. Une décision du conseiller (Flex
+  // proposé, non intéressé, à reproposer) fait taire les deux.
+  function conseilsVni(ligne) {
+    const l = ligne || {};
+    const f = l.flex;
+    if (!f || !f.statut) return [];                 // mois non contrôlé : on ne réclame rien
+    if (f.statut === VNI.A_PROPOSER) return [TEXTES.FLEX];
+    if (f.statut === VNI.A_VERIFIER) return [TEXTES.IDENTITE];
+    return [];
+  }
+
+  // La version AFFICHÉE de chaque remarque automatique : la version modifiée à
+  // la main si elle existe (posée par le serveur dans `remarquesAuto`, clé =
+  // texte d'origine), sinon le texte d'origine. L'écran ET les copies passent
+  // par ici : ce qui est copié est exactement ce qui est affiché.
+  function versions(textes, ligne) {
+    const m = (ligne && ligne.remarquesAuto) || {};
+    return (textes || []).map((t) => {
+      const v = m[t];
+      return v && v.texte
+        ? { origine: t, texte: v.texte, modifiee: true, modifieLe: v.modifieLe || '', modifiePar: v.modifiePar || '' }
+        : { origine: t, texte: t, modifiee: false };
+    });
+  }
+
+  return { TEXTES, VNI, moisControle, conseilsVente, conseilsVni, versions };
 }));

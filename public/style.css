@@ -22303,6 +22303,13 @@ html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même 
 .rec2-nr-com-sel[disabled] { opacity: .5; cursor: progress; }
 .rec2-nr-com-info { max-width: 170px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; color: var(--r2-text-3); }
 
+/* RECAP 2 — Challenge Flex des VNI */
+.rec2-flex { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-top: 4px; }
+.rec2-flex .rec2-conseils { margin-top: 1px; }
+.rec2-etat.is-faire { background: rgba(15, 82, 186, .16); border-color: rgba(61, 123, 219, .5); color: #93c5fd; }
+tr.rec2-ligne-transforme { opacity: .55; }
+tr.rec2-ligne-transforme td { font-style: italic; }
+
 /* RECAP 2 — vente « à vérifier » validée à la main par un administrateur */
 .rec2-etat.is-verif { background: rgba(16, 122, 87, .18); border-color: rgba(16, 185, 129, .5); color: #6ee7b7; }
 .rec2-verif { margin-top: 5px; }
@@ -22315,6 +22322,11 @@ html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même 
 .rec2-conseil { padding: 3px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.35;
   background: rgba(15, 82, 186, .14); border: 1px solid rgba(61, 123, 219, .45); color: var(--r2-text); }
 .rec2-conseil::before { content: "À faire : "; color: var(--r2-text-3); font-weight: 600; }
+.rec2-conseil-ligne { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.rec2-conseil.is-modifiee { border-style: dashed; }
+.rec2-conseil-marque { font-size: 10px; color: var(--r2-text-3); font-style: italic; margin-left: 4px; }
+.rec2-conseil-actions { display: inline-flex; gap: 10px; padding-left: 9px; }
+.rec2-table tr:hover .rec2-conseil-actions .rec2-note-ajout { opacity: 1; }
 
 /* RECAP 2 — contrôle opérationnel automatique (sous les cases manuelles) */
 .rec2-auto { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; font-size: 11px; line-height: 1.2; white-space: nowrap; color: var(--r2-text-2); }

@@ -4641,6 +4641,16 @@ function ensureRecap2ChecksSchema() {
   require('./lib/recap2Checks.js').creerTable(getDb());
 }
 ensureRecap2ChecksSchema();
+// Et pour le Challenge Flex des VNI (contrôle Vendor + décision du conseiller).
+function ensureRecap2FlexSchema() {
+  require('./lib/recap2Flex.js').creerTable(getDb());
+}
+ensureRecap2FlexSchema();
+// Et pour les versions modifiées à la main des remarques automatiques.
+function ensureRecap2RemarquesAutoSchema() {
+  require('./lib/recap2RemarquesAuto.js').creerTable(getDb());
+}
+ensureRecap2RemarquesAutoSchema();
 // Et pour la vérification manuelle d'une vente « à vérifier ».
 function ensureRecap2VerifSchema() {
   require('./lib/recap2Verifications.js').creerTable(getDb());
@@ -5260,6 +5270,11 @@ const Recap2Matches = require('./lib/recap2Matches.js');
 const Recap2Checks = require('./lib/recap2Checks.js');
 const Recap2Automatique = require('./lib/recap2Automatique.js');
 const Recap2Verifications = require('./lib/recap2Verifications.js');
+const Recap2Flex = require('./lib/recap2Flex.js');
+const Recap2RemarquesAuto = require('./lib/recap2RemarquesAuto.js');
+// Les règles des remarques automatiques : le MÊME fichier que l'écran, pour
+// qu'une version modifiée ne puisse viser qu'une remarque réellement produite.
+const Recap2Conseils = require('./public/recap2-conseils.js');
 // Les remarques par personne, même principe : en base, posées à la lecture.
 const Recap2Notes = require('./lib/recap2Notes.js');
 // Les VNI : liste historique du mois − transformations connues aujourd'hui.
@@ -5557,6 +5572,57 @@ app.post('/api/recap2/automatique/:mois', (req, res) => {
   }
 });
 
+// ─── CHALLENGE FLEX DES VNI : DÉPÔT DU CONTRÔLE VENDOR ──────────────────────
+//  Clé RECAP2_INGEST_KEY, comme le rapport et le contrôle opérationnel. La
+//  lecture Vendor tourne sur le Mac ; ici on valide et on stocke. Aucun compteur
+//  VNI, aucun taux n'en dépend : le résultat est une information par personne.
+//  Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/flex/:mois', (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!recap2CleAttendue() || !recap2CleValide(req.get('X-Recap2-Key'))) return res.status(401).json({ error: 'Clé de dépôt invalide.' });
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const pb = Recap2Flex.valider(req.body, lu.rapport);
+  if (pb.length) return res.status(422).json({ error: 'Dépôt refusé.', problemes: pb.slice(0, 20) });
+  try {
+    const n = Recap2Flex.enregistrer(getDb(), mois, req.body);
+    console.log('recap2 contrôle Flex ' + mois + ' : ' + n + ' VNI');
+    res.json({ ok: true, mois, vni: n, controleLe: req.body.controleLe });
+  } catch (e) {
+    console.error('recap2 contrôle Flex :', e && e.message);
+    res.status(400).json({ error: 'dépôt refusé' });
+  }
+});
+
+// ─── CHALLENGE FLEX : LA DÉCISION DU CONSEILLER ─────────────────────────────
+//  Admin connecté. { mois, studio, contactId, valeur: propose | non_interesse |
+//  reproposer | auto }. Persistante, datée, attribuée, réversible ; elle
+//  l'emporte sur le contrôle automatique et fait taire la remarque.
+//  Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/flex-decision', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim();
+  const contactId = String(b.contactId || '').trim();
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const affiche = recap2AvecDecisions(lu.rapport);
+  const bloc = (affiche.studios[studio] || {}).vni || {};
+  const ligne = (bloc.liste || []).find((l) => String(l.contactId || '') === contactId);
+  if (!ligne) return res.status(404).json({ error: 'VNI introuvable dans le rapport de ' + mois + '.' });
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const decision = Recap2Flex.decider(getDb(), { mois, studio, contactId, valeur: String(b.valeur || ''), client: ligne.client, par: qui });
+    const relu = recap2AvecDecisions(lu.rapport);
+    const apres = (((relu.studios[studio] || {}).vni || {}).liste || []).find((l) => String(l.contactId || '') === contactId);
+    res.json({ ok: true, decision, flex: apres ? apres.flex || null : null });
+  } catch (e) {
+    res.status(400).json({ error: e && e.message ? e.message : 'décision refusée' });
+  }
+});
+
 // ─── FORÇAGE MANUEL À 3 ÉTATS (Automatique / Forcé ✅ / Forcé ❌) ────────────
 //  Admin connecté. { mois, studio, client, date, champ: prelevement|reservation|resilie,
 //  valeur: 'ok'|'ko'|'auto' }. Table à part : aucun KPI, aucune case historique touchés.
@@ -5631,6 +5697,52 @@ app.post('/api/recap2/forcage', requireAuth, requireAdmin, (req, res) => {
 //  et l'Id membre DU RAPPORT, jamais ceux envoyés.
 //  Aucun KPI, aucun statut, aucune donnée du rapport n'en dépend.
 //  Déclarée AVANT `POST /api/recap2/:mois`, sinon « note » serait lu comme un mois.
+// ─── REMARQUE AUTOMATIQUE MODIFIÉE À LA MAIN ────────────────────────────────
+//  Admin connecté. { mois, studio, type: vente|vni, client, idClient, idVendor,
+//  texteAuto, texte }. `texteAuto` doit être une remarque RÉELLEMENT produite
+//  pour cette ligne par les règles de l'écran (public/recap2-conseils.js).
+//  Texte vide ou identique à l'origine = « Revenir à la version automatique ».
+//  Historisé (lib/recap2RemarquesAuto.js). Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/remarque-auto', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim(), type = String(b.type || '').trim();
+  const client = String(b.client || '').trim(), idClient = String(b.idClient || '').trim(), idVendor = String(b.idVendor || '').trim();
+  const texteAuto = typeof b.texteAuto === 'string' ? b.texteAuto.trim() : '';
+  const texte = typeof b.texte === 'string' ? b.texte : null;
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (Recap2RemarquesAuto.TYPES.indexOf(type) < 0) return res.status(400).json({ error: 'type : vente ou vni' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
+  if (idVendor && !Recap2Vni.ID_VENDOR_RE.test(idVendor)) return res.status(400).json({ error: 'idVendor : identifiant Vendor attendu' });
+  if (!texteAuto || texte === null) return res.status(400).json({ error: 'texteAuto et texte requis' });
+  if (texte.trim().length > Recap2RemarquesAuto.LONGUEUR_MAX) return res.status(400).json({ error: 'remarque trop longue (' + Recap2RemarquesAuto.LONGUEUR_MAX + ' caractères maximum)' });
+
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const affiche = recap2AvecDecisions(lu.rapport);
+  const ligne = Recap2Notes.ligneDe(affiche, { studio, type, client, idClient, idVendor });
+  if (!ligne) return res.status(404).json({ error: 'Personne introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
+  const produites = type === 'vni' ? Recap2Conseils.conseilsVni(ligne)
+    : Recap2Conseils.conseilsVente(ligne, { controle: Recap2Conseils.moisControle(affiche) });
+  if (produites.indexOf(texteAuto) < 0) return res.status(409).json({ error: 'Cette remarque automatique n\'est plus produite pour cette personne.' });
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const version = Recap2RemarquesAuto.enregistrer(getDb(), { mois, studio, type, ligne, texteAuto, texte, par: qui });
+    console.log('recap2 remarque auto ' + (version.texte ? 'modifiée' : 'remise en automatique') + ' (' + type + ') : ' + mois + ' ' + studio);
+    res.json({ ok: true, version });
+  } catch (e) {
+    res.status(400).json({ error: e && e.message ? e.message : 'remarque refusée' });
+  }
+});
+
+// ─── HISTORIQUE D'UN MOIS : décisions Flex et remarques automatiques modifiées ─
+app.get('/api/recap2/historique/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  res.json({ mois, flex: Recap2Flex.historique(getDb(), mois), remarquesAuto: Recap2RemarquesAuto.historique(getDb(), mois) });
+});
+
 app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
   const b = req.body || {};
   const mois = String(b.mois || '').trim();
@@ -5764,6 +5876,19 @@ function recap2AvecDecisions(rapport) {
     }
   } catch (e) {
     console.error('recap2 VNI :', e && e.message);
+  }
+  // Le Challenge Flex, APRÈS le retrait des transformés : ce qui reste est un
+  // VNI actif. Décision du conseiller prioritaire sur le contrôle Vendor.
+  try {
+    if (r && r.mois) r = Recap2Flex.appliquer(r, Recap2Flex.controlesDuMois(getDb(), r.mois), Recap2Flex.decisionsDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 Flex :', e && e.message);
+  }
+  // Les versions modifiées des remarques automatiques (texte d'origine gardé).
+  try {
+    if (r && r.mois) r = Recap2RemarquesAuto.appliquer(r, Recap2RemarquesAuto.versionsDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 remarques auto :', e && e.message);
   }
   // Les remarques par personne : une information par ligne, aucun compteur touché.
   try {

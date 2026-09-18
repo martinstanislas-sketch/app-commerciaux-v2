@@ -83,6 +83,8 @@ const Recap2UI = (function () {
       if (force && rapport) { enregistrerForcage(force); return; }
       const verif = e.target.closest && e.target.closest('select[data-verif]');
       if (verif && rapport) { enregistrerVerification(verif); return; }
+      const flex = e.target.closest && e.target.closest('select[data-flex]');
+      if (flex && rapport) { enregistrerFlex(flex); return; }
       const nrBox = e.target.closest && e.target.closest('input[data-nrstatut]');
       if (nrBox && rapport) { enregistrerStatutNR(nrBox); return; }
       const nrCom = e.target.closest && e.target.closest('select[data-nrcom]');
@@ -95,6 +97,8 @@ const Recap2UI = (function () {
     $('#rec2-body').addEventListener('input', (e) => {
       const zone = e.target.closest && e.target.closest('textarea[data-note-texte]');
       if (zone && editionNote) editionNote.texte = zone.value;
+      const zoneAuto = e.target.closest && e.target.closest('textarea[data-auto-texte]');
+      if (zoneAuto && editionAuto) editionAuto.texte = zoneAuto.value;
     });
     suivreHautDePage();
     const sel = $('#rec2-commercial');
@@ -184,7 +188,7 @@ const Recap2UI = (function () {
 
   // ── CHARGEMENT ──────────────────────────────────────────────────────────────
   async function charger() {
-    etat = 'chargement'; rapport = null; message = ''; editionResil = null; editionNote = null; render();
+    etat = 'chargement'; rapport = null; message = ''; editionResil = null; editionNote = null; editionAuto = null; render();
     try {
       const r = await fetch('/api/recap2/' + mois, { headers: H() });
       const j = await r.json().catch(() => null);
@@ -842,14 +846,92 @@ const Recap2UI = (function () {
   //  compris : rien en base, aucun doublon, et elles s'effacent d'elles-mêmes
   //  quand le problème est réglé. Elles ne remplacent JAMAIS la remarque
   //  manuelle, qui garde sa ligne et son bouton juste en dessous.
-  function blocConseils(v) {
+  function blocConseils(v, studio) {
     const C = window.Recap2Conseils;
     if (!C) return '';
-    const textes = C.conseilsVente(v, { controle: C.moisControle(rapport) });
-    if (!textes.length) return '';
-    return '<div class="rec2-conseils">' + textes.map((t) => '<span class="rec2-conseil" title="'
-      + esc('Remarque automatique, d\'après le contrôle Deciplus — elle disparaîtra une fois le point réglé.')
-      + '">' + esc(t) + '</span>').join('') + '</div>';
+    return blocRemarquesAuto('vente', studio, v, C.conseilsVente(v, { controle: C.moisControle(rapport) }),
+      'Remarque automatique, d\'après le contrôle Deciplus — elle disparaîtra une fois le point réglé.');
+  }
+  // ── REMARQUE AUTOMATIQUE MODIFIABLE ─────────────────────────────────────────
+  //  Chaque remarque automatique peut être réécrite à la main (administrateur).
+  //  Le texte d'origine est gardé en base (lib/recap2RemarquesAuto.js) : la
+  //  version modifiée s'affiche et se copie à sa place, et « Revenir à la
+  //  version automatique » la retire. Si la règle cesse de produire la
+  //  remarque (point réglé), la version modifiée disparaît avec elle.
+  let editionAuto = null;   // { cle, texte, erreur, enCours }
+  const cleAuto = (type, studio, l, origine) => [type, studio, l.client || '', l.idClient || '', type === 'vni' ? (l.contactId || '') : '', origine].join('|');
+  function blocRemarquesAuto(type, studio, l, origines, titreAuto) {
+    const C = window.Recap2Conseils;
+    if (!origines || !origines.length) return '';
+    const admin = !!(window.isAdmin && window.isAdmin());
+    const versions = C && C.versions ? C.versions(origines, l) : origines.map((t) => ({ origine: t, texte: t, modifiee: false }));
+    const data = ' data-type="' + type + '" data-studio="' + esc(studio || '') + '" data-client="' + esc(l.client || '')
+      + '" data-idclient="' + esc(l.idClient || '') + '" data-idvendor="' + esc(type === 'vni' ? (l.contactId || '') : '') + '"';
+    return '<div class="rec2-conseils">' + versions.map((v) => {
+      const cle = cleAuto(type, studio, l, v.origine);
+      const d = data + ' data-origine="' + esc(v.origine) + '"';
+      const btn = (action, texte, cls) => '<button type="button" class="' + cls + '" data-auto-action="' + action + '"' + d + '>' + texte + '</button>';
+      if (editionAuto && editionAuto.cle === cle) {
+        const e = editionAuto;
+        return '<div class="rec2-note-edit rec2-auto-edit">'
+          + '<textarea class="rec2-note-zone" rows="2" maxlength="1000" data-auto-texte="1"' + (e.enCours ? ' disabled' : '') + '>' + esc(e.texte) + '</textarea>'
+          + '<div class="rec2-det-date">Version automatique : « ' + esc(v.origine) + ' »</div>'
+          + '<div class="rec2-prop-actions">' + btn('enregistrer', 'Enregistrer', 'rec2-btn-ok')
+          + (v.modifiee ? btn('revenir', 'Revenir à la version automatique', 'rec2-btn-non') : '')
+          + btn('annuler', 'Annuler', 'rec2-btn-non') + '</div>'
+          + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + '</div>';
+      }
+      const titre = v.modifiee
+        ? 'Modifiée à la main' + (v.modifiePar ? ' par ' + v.modifiePar : '') + (v.modifieLe ? ' le ' + fmtDate(v.modifieLe) : '') + '\nVersion automatique : ' + v.origine
+        : titreAuto;
+      return '<div class="rec2-conseil-ligne"><span class="rec2-conseil' + (v.modifiee ? ' is-modifiee' : '') + '" title="' + esc(titre) + '">' + esc(v.texte)
+        + (v.modifiee ? ' <em class="rec2-conseil-marque">modifiée</em>' : '') + '</span>'
+        + (admin ? '<span class="rec2-conseil-actions">' + btn('ouvrir', 'Modifier', 'rec2-note-ajout')
+          + (v.modifiee ? btn('revenir', 'Revenir à la version automatique', 'rec2-note-ajout') : '') + '</span>' : '')
+        + '</div>';
+    }).join('') + '</div>';
+  }
+  function lignesPersonneAuto(d) {
+    return lignesPersonne(d.type, d.studio, d.client, d.idclient, d.idvendor);
+  }
+  async function actionRemarqueAuto(bouton) {
+    const d = bouton.dataset;
+    const action = d.autoAction;
+    const ligne0 = lignesPersonneAuto(d)[0];
+    if (!ligne0) return;
+    const cle = cleAuto(d.type, d.studio, ligne0, d.origine);
+    if (action === 'ouvrir') {
+      const m = (ligne0.remarquesAuto || {})[d.origine];
+      editionAuto = { cle, texte: (m && m.texte) || d.origine, erreur: '', enCours: false };
+      render();
+      const zone = $('#rec2-body textarea[data-auto-texte]');
+      if (zone) { zone.focus(); zone.setSelectionRange(zone.value.length, zone.value.length); }
+      return;
+    }
+    if (action === 'annuler') { editionAuto = null; render(); return; }
+    // Enregistrer, ou revenir à la version automatique (texte vide) : le serveur fait foi.
+    const texte = action === 'revenir' ? '' : String((editionAuto && editionAuto.cle === cle) ? editionAuto.texte : '');
+    if (action === 'enregistrer' && (!editionAuto || editionAuto.cle !== cle)) return;
+    if (editionAuto && editionAuto.cle === cle) { editionAuto.enCours = true; editionAuto.erreur = ''; render(); }
+    try {
+      const r = await fetch('/api/recap2/remarque-auto', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, idVendor: d.idvendor || '', texteAuto: d.origine, texte }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.version) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      lignesPersonneAuto(d).forEach((l) => {
+        const m = Object.assign({}, l.remarquesAuto || {});
+        if (j.version.texte) m[d.origine] = { texte: j.version.texte, modifieLe: j.version.modifieLe, modifiePar: j.version.modifiePar };
+        else delete m[d.origine];
+        l.remarquesAuto = m;
+      });
+      editionAuto = null;
+    } catch (err) {
+      if (editionAuto && editionAuto.cle === cle) { editionAuto.enCours = false; editionAuto.erreur = 'Non enregistré : ' + (err && err.message ? err.message : 'erreur'); }
+      else alert('Non enregistré : ' + (err && err.message ? err.message : 'erreur'));
+    }
+    render();
   }
   function blocAuto(v) {
     const a = v.automatique;
@@ -1379,7 +1461,7 @@ const Recap2UI = (function () {
       + (c.annulees ? chip('annules', 'Annulés', c.annulees) : '') + '</div>';
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, label) + '><td>' + nomClient(v)
-      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocAuto(v) + blocConseils(v) + blocNote('vente', label, v) + '</td>'
+      + (v.date ? ' <span class="rec2-det-date">signé le ' + esc(v.date) + '</span>' : '') + blocAuto(v) + blocConseils(v, label) + blocNote('vente', label, v) + '</td>'
       + casesControle(v, label)
       + '<td>' + esc(v.prestation || '—') + '</td>'
       + '<td>' + esc(v.commercial || '—') + '</td>'
@@ -1428,7 +1510,7 @@ const Recap2UI = (function () {
 
     const lignes = liste.map((v) => '<tr' + classeLigne(v, v.studio) + '>'
       + '<td class="rec2-com-studio">' + esc(v.studio) + '</td>'
-      + '<td>' + nomClient(v) + blocConseils(v) + blocNote('vente', v.studio, v) + '</td>'
+      + '<td>' + nomClient(v) + blocConseils(v, v.studio) + blocNote('vente', v.studio, v) + '</td>'
       + casesControle(v, v.studio)
       + '<td class="rec2-num">' + esc(v.date || '—') + '</td>'
       + '<td>' + esc(v.prestation || '—') + '</td>'
@@ -1510,6 +1592,62 @@ const Recap2UI = (function () {
     if (!href) return esc(l.client);
     return '<a class="rec2-lien-fiche" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer" title="Ouvrir la fiche Deciplus dans un nouvel onglet">' + esc(l.client) + '</a>';
   }
+  // ── CHALLENGE FLEX D'UN VNI ────────────────────────────────────────────────
+  //  Statut posé par le contrôle Vendor (lib/recap2Flex.js) ou par la décision
+  //  du conseiller, qui l'emporte toujours. La remarque « À faire : … » n'existe
+  //  que pour « Flex à proposer » : ailleurs, l'action est faite ou sans objet.
+  const FLEX_CLASSE = { 'Flex proposé': 'is-ok', 'Flex à proposer': 'is-faire', 'À vérifier': 'is-non',
+    'Prospect non intéressé': 'is-ok', 'À reproposer plus tard': 'is-faire', 'Transformé depuis': 'is-oui' };
+  function blocFlex(l) {
+    const f = l.flex;
+    if (!f || !f.statut) return '';
+    const d = f.decision;
+    const preuve = (f.preuves || [])[0];
+    const titre = d
+      ? 'Décidé à la main' + (d.modifiePar ? ' par ' + d.modifiePar : '') + (d.modifieLe ? ' le ' + fmtDate(d.modifieLe) : '')
+        + (f.statutAuto ? ' — contrôle Vendor : ' + f.statutAuto : '')
+      : 'Contrôle Vendor' + (f.controleLe ? ' du ' + fmtDate(f.controleLe) : '')
+        + (preuve ? ' — ' + preuve.type + ' ' + preuve.quand + ' : ' + preuve.texte : '');
+    const C = window.Recap2Conseils;
+    const conseils = (C && C.conseilsVni) ? C.conseilsVni(l) : [];
+    return '<div class="rec2-flex">'
+      + '<span class="rec2-etat ' + (FLEX_CLASSE[f.statut] || 'is-non') + '" title="' + esc(titre) + '">' + esc(f.statut) + '</span>'
+      + (d ? ' <span class="rec2-det-date">décision du conseiller</span>' : '')
+      + blocRemarquesAuto('vni', l.studio, l, conseils, 'Remarque automatique, d\'après le contrôle Vendor du Challenge Flex.')
+      + choixFlex(l) + '</div>';
+  }
+  // Après son action, le conseiller dit ce qu'il en est. Réversible.
+  function choixFlex(l) {
+    if (!(window.isAdmin && window.isAdmin())) return '';
+    const v = (l.flex && l.flex.decision) ? l.flex.decision.valeur : 'auto';
+    const opt = (x, t) => '<option value="' + x + '"' + (v === x ? ' selected' : '') + '>' + t + '</option>';
+    return '<div class="rec2-verif"><select class="rec2-verif-sel" data-flex="1" data-studio="' + esc(l.studio || '')
+      + '" data-contact="' + esc(l.contactId || '') + '" aria-label="' + esc('Challenge Flex — ' + l.client) + '"'
+      + ' title="Après ton action : dis où en est le Challenge Flex pour ce prospect.">'
+      + opt('auto', 'Contrôle automatique') + opt('propose', 'Flex proposé')
+      + opt('non_interesse', 'Prospect non intéressé') + opt('reproposer', 'À reproposer plus tard') + '</select></div>';
+  }
+  async function enregistrerFlex(sel) {
+    const d = sel.dataset;
+    sel.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/flex-decision', {
+        method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, contactId: d.contact, valeur: sel.value }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const b = rapport.studios && rapport.studios[d.studio];
+      const ligne = ((b && b.vni && b.vni.liste) || []).find((x) => String(x.contactId || '') === d.contact);
+      if (ligne) { if (j.flex) ligne.flex = j.flex; else delete ligne.flex; }
+      render();
+    } catch (err) {
+      sel.disabled = false;
+      alert('Décision non enregistrée : ' + (err && err.message ? err.message : 'erreur'));
+      render();
+    }
+  }
+
   function piedVni(v) {
     const morceaux = [];
     if (v.retires) morceaux.push(nbTexte(v.retires, 'personne transformée depuis la collecte, retirée', 'personnes transformées depuis la collecte, retirées') + ' de la liste');
@@ -1517,16 +1655,43 @@ const Recap2UI = (function () {
     morceaux.push('sans effet sur les KPI');
     return '<p class="rec2-det-note">' + esc(morceaux.join(' · ')) + '.</p>';
   }
-  function tableVni(liste, avecStudio) {
-    if (!liste.length) return '<p class="rec2-info">Aucun VNI.</p>';
+  //  `transformes` : les personnes RETIRÉES de la liste parce qu'elles ont
+  //  souscrit depuis leur venue. Affichées grisées, en fin de tableau, sans
+  //  aucune action. Deux sources : une signature RECAP 2 (datée, prioritaire),
+  //  ou le statut « Client - Avec Abonnement » lu sur la fiche Vendor — on
+  //  affiche alors la date de la COLLECTE, jamais une date de signature inventée.
+  function libelleTransforme(t) {
+    if (t.source === 'vendor-abonnement') {
+      const quand = t.detecteLe ? fmtDate(t.detecteLe) : '';
+      return { texte: 'Transformé — abonnement détecté dans Vendor' + (quand ? ' (collecte du ' + quand + ')' : ''),
+        titre: 'Retiré des VNI : la fiche Vendor de ce contact (identifiant exact) porte le statut « Client - Avec Abonnement »'
+          + (quand ? ' lors de la collecte du ' + quand : '') + '. Date de signature inconnue.' };
+    }
+    return { texte: 'Transformé depuis' + (t.transformeLe ? ' le ' + t.transformeLe : ''),
+      titre: 'Retiré des VNI : signature connue le ' + (t.transformeLe || '?') + (t.source ? ' (source : ' + t.source + ')' : '') };
+  }
+  function lignesTransformes(transformes, avecStudio) {
+    return (transformes || []).map((t) => {
+      const lib = libelleTransforme(t);
+      return '<tr class="rec2-ligne-transforme">'
+        + (avecStudio ? '<td class="rec2-com-studio">' + esc(t.studio || '') + '</td>' : '')
+        + '<td>' + esc(t.client || '—') + '<div class="rec2-flex"><span class="rec2-etat is-oui" title="' + esc(lib.titre) + '">'
+        + esc(lib.texte) + '</span></div></td>'
+        + '<td class="rec2-num">' + esc(t.dateVenue || '—') + '</td>'
+        + '<td>' + esc(window.Recap2Metrics.libelleCommercial(t.commercial) || t.commercial || '—') + '</td>'
+        + '<td>—</td></tr>';
+    }).join('');
+  }
+  function tableVni(liste, avecStudio, transformes) {
+    if (!liste.length && !(transformes || []).length) return '<p class="rec2-info">Aucun VNI.</p>';
     const lignes = liste.map((l) => '<tr>'
       + (avecStudio ? '<td class="rec2-com-studio">' + esc(l.studio) + '</td>' : '')
-      + '<td>' + nomVni(l) + blocNote('vni', l.studio, l) + '</td>'
+      + '<td>' + nomVni(l) + blocFlex(l) + blocNote('vni', l.studio, l) + '</td>'
       + '<td class="rec2-num">' + esc(l.dateVenue) + (l.venues > 1 ? ' <span class="rec2-det-date">' + l.venues + ' venues</span>' : '') + '</td>'
       + '<td>' + esc(window.Recap2Metrics.libelleCommercial(l.commercial) || l.commercial || '—') + '</td>'
       + '<td>' + esc(l.statutVendor || '—') + '</td></tr>').join('');
     return '<table class="rec2-table"><thead><tr>' + (avecStudio ? '<th>Studio</th>' : '') + '<th>Visiteur</th><th class="rec2-num">Dernier RDV venu</th>'
-      + '<th>Commercial</th><th>Statut Vendor</th></tr></thead><tbody>' + lignes + '</tbody></table>';
+      + '<th>Commercial</th><th>Statut Vendor</th></tr></thead><tbody>' + lignes + lignesTransformes(transformes, avecStudio) + '</tbody></table>';
   }
   function detailVni(label, v) {
     if (!v || v.echec) return '';
@@ -1534,7 +1699,7 @@ const Recap2UI = (function () {
     const liste = (v.liste || []).map((l) => Object.assign(l, { studio: label }));
     return '<div class="rec2-detail">' + detailHead(esc(label) + ' · VNI de ' + esc(moisLabel(rapport.mois)) + ' — ' + liste.length)
       + (liste.length ? '<p class="rec2-com-studios">Par commercial : ' + repartitionVni(liste, 'commercial') + '</p>' : '')
-      + tableVni(liste, false) + piedVni(v) + '</div>';
+      + tableVni(liste, false, (v.transformesDepuis || []).map((t) => Object.assign({}, t, { studio: label }))) + piedVni(v) + '</div>';
   }
   function compteurVniCom(d) {
     if (!d.vniPresents) return '';
@@ -1596,6 +1761,8 @@ const Recap2UI = (function () {
   function onBodyClick(e) {
     const actNote = e.target.closest('[data-note-action]');
     if (actNote) { actionNote(actNote); return; }
+    const actAuto = e.target.closest('[data-auto-action]');
+    if (actAuto) { actionRemarqueAuto(actAuto); return; }
     const copieCom = e.target.closest('[data-copier-com]');
     if (copieCom) { copierRemarquesCommercial(copieCom); return; }
     const copieClub = e.target.closest('[data-copier-club]');
