@@ -80,7 +80,7 @@ test('une remarque que la règle ne produit plus ne s’affiche plus, même modi
 test('entrées refusées', () => {
   const db = base(); const ligne = rapport().studios.Neuilly.vni.liste[0];
   assert.throws(() => A.enregistrer(db, { mois: '2026-13', studio: 'Neuilly', type: 'vni', ligne, texteAuto: FLEX, texte: 'x' }), /mois/);
-  assert.throws(() => A.enregistrer(db, { mois: '2026-08', studio: 'Neuilly', type: 'non_reconduit', ligne, texteAuto: FLEX, texte: 'x' }), /type/);
+  assert.throws(() => A.enregistrer(db, { mois: '2026-08', studio: 'Neuilly', type: 'inconnu', ligne, texteAuto: FLEX, texte: 'x' }), /type/);
   assert.throws(() => A.enregistrer(db, { mois: '2026-08', studio: 'Neuilly', type: 'vni', ligne, texteAuto: '', texte: 'x' }), /origine/);
   assert.throws(() => A.enregistrer(db, { mois: '2026-08', studio: 'Neuilly', type: 'vni', ligne, texteAuto: FLEX, texte: 'x'.repeat(1001) }), /trop longue/);
 });

@@ -667,12 +667,64 @@
     };
   }
 
+  // ── SUIVI DES NON-RECONDUCTIONS : INDICATEURS (bloc DISTINCT) ─────────────
+  //  Le taux de non-reconduction (encaissements) n'est PAS touché : ces
+  //  indicateurs lisent le statut EFFECTIF de chaque dossier — décision
+  //  manuelle, sinon statut automatique du contrôle — un seul par dossier, donc
+  //  aucun double compte (la somme des statuts = les non-reconduits détectés).
+  //  Taux de récupération : COHORTE figée au premier contrôle concluant
+  //  (lib/recap2NrControles.js) — récupérés parmi les éligibles ; le
+  //  dénominateur ne change plus, les exclusions restent comptées par motif.
+  const STATUTS_SUIVI_NR = ['a_traiter', 'sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme', 'a_creuser'];
+  const statutEffectifNR = (l) => (l && l.suivi && l.suivi.statut) || (l && l.analyse && l.analyse.statut) || 'non_controle';
+  function indicateursNR(liste) {
+    const L = liste || [];
+    const n = {}; STATUTS_SUIVI_NR.concat(['non_controle']).forEach((s) => { n[s] = 0; });
+    L.forEach((l) => { n[statutEffectifNR(l)] = (n[statutEffectifNR(l)] || 0) + 1; });
+    const cohorte = L.filter((l) => l.cohorte);
+    const eligibles = cohorte.filter((l) => l.cohorte.eligible === true);
+    const recupEligibles = eligibles.filter((l) => statutEffectifNR(l) === 'recupere');
+    const exclus = {};
+    cohorte.filter((l) => l.cohorte.eligible === false).forEach((l) => { const m = l.cohorte.motifExclusion || 'autre'; exclus[m] = (exclus[m] || 0) + 1; });
+    const silencieux = ['sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme'];
+    let aVerifier = 0, nbEcarts = 0, divergences = 0;
+    L.forEach((l) => {
+      const f = l.analyse && l.analyse.finance;
+      if (!f || (l.analyse && l.analyse.contentieux) || (l.suivi && silencieux.indexOf(l.suivi.statut) > -1)) return;
+      if (f.anomalie) { divergences += 1; return; }
+      if (f.ecart != null && f.ecart >= 5 && !f.justification) { aVerifier += Number(f.ecart); nbEcarts += 1; }
+    });
+    let chiffre = 0, chiffreInconnu = 0;
+    L.filter((l) => statutEffectifNR(l) === 'recupere').forEach((l) => {
+      const m = l.analyse && l.analyse.reconduction && l.analyse.reconduction.mensuel;
+      if (m != null) chiffre += Number(m); else chiffreInconnu += 1;
+    });
+    const causes = {};
+    L.filter((l) => ['a_traiter', 'sous_controle', 'resilie', 'depart_confirme', 'recupere'].indexOf(statutEffectifNR(l)) > -1 && l.analyse && l.analyse.cause)
+      .forEach((l) => { const c = l.analyse.contentieux ? 'Contentieux' : l.analyse.cause.libelle; causes[c] = (causes[c] || 0) + 1; });
+    return {
+      detectees: L.length, parStatut: n,
+      veritables: L.length - n.toujours_actif - n.reconduit_autrement - n.suspendu,
+      resiliations: n.resilie + n.depart_confirme,
+      contentieux: L.filter((l) => l.analyse && l.analyse.contentieux && statutEffectifNR(l) === 'resilie').length,
+      suspensions: n.suspendu, reconductions: n.reconduit_autrement, toujoursActifs: n.toujours_actif,
+      aRecuperer: n.a_traiter + n.sous_controle, aCreuser: n.a_creuser, recuperes: n.recupere,
+      cohorte: { eligibles: eligibles.length, recuperes: recupEligibles.length, enAttente: cohorte.filter((l) => l.cohorte.eligible === null).length, exclus,
+        taux: eligibles.length ? recupEligibles.length / eligibles.length : null },
+      chiffreMensuelRecupere: Math.round(chiffre * 100) / 100, chiffreInconnu,
+      montantAVerifier: Math.round(aVerifier * 100) / 100, nbEcarts, divergences,
+      causes: Object.entries(causes).sort((a, b) => b[1] - a[1]),
+      suggestions: L.filter((l) => l.suggestion === 'recupere' && statutEffectifNR(l) !== 'recupere').length,
+    };
+  }
+
   return {
     STUDIOS, LABELS, normStudio, studioLabel,
     nonReconduction, completion, clientsRetrouves, analyserStudio,
     ventesDuRapport, commerciauxDuRapport, vniDuRapport, consoliderCommercial, libelleCommercial, referencesDuRapport, cleCommercial,
     siteDivergent, caNetStudio, eurosArrondis, contratsValides, motifValidation, venteValidee,
     VENDEURS_DECIPLUS, commercialDuVendeurDeciplus, attributionAutomatique, attributionNonReconduit, nonReconduitsDuRapport,
+    STATUTS_SUIVI_NR, statutEffectifNR, indicateursNR,
     commerciauxAttribuables, identifiantDeciplus,
   };
 }));

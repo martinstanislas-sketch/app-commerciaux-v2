@@ -21,16 +21,16 @@ const rapport = (avecIds = true) => ({
   businessVersion: 2, mois: '2026-08', m1: '2026-07',
   studios: {
     Lille: { studio: 'Lille', nonReconduction: nr([
-      Object.assign({ client: 'CAMACHO Samuel', netM1: 45, netM: 0 }, avecIds ? { idClient: '1001' } : {}),
-      Object.assign({ client: 'DERAED Maxence', netM1: 69, netM: 0 }, avecIds ? { idClient: '1002' } : {}),
+      Object.assign({ client: 'MARTINEAU Paulin', netM1: 45, netM: 0 }, avecIds ? { idClient: '1001' } : {}),
+      Object.assign({ client: 'BERNARDIN Lucie', netM1: 69, netM: 0 }, avecIds ? { idClient: '1002' } : {}),
     ]) },
     Marcq: { studio: 'Marcq', nonReconduction: nr([
-      Object.assign({ client: 'CAMACHO Samuel', netM1: 30, netM: 0 }, avecIds ? { idClient: '2001' } : {}),
+      Object.assign({ client: 'MARTINEAU Paulin', netM1: 30, netM: 0 }, avecIds ? { idClient: '2001' } : {}),
     ]) },
   },
 });
 const lire = (db, r, s, i) => N.appliquer(r, N.statutsDuMois(db, r.mois)).studios[s].nonReconduction.liste[i].suivi;
-const poser = (db, o) => N.enregistrer(db, Object.assign({ mois: '2026-08', studio: 'Lille', client: 'CAMACHO Samuel', idClient: '1001', par: 'Stan' }, o));
+const poser = (db, o) => N.enregistrer(db, Object.assign({ mois: '2026-08', studio: 'Lille', client: 'MARTINEAU Paulin', idClient: '1001', par: 'Stan' }, o));
 
 test('un seul statut : cocher remplace, vide retire', () => {
   const db = baseNeuve();
@@ -63,7 +63,7 @@ test('cloisonné par studio et par mois (même nom à Lille et à Marcq)', () =>
 
 test('rattachement : posé sans Id, retrouvé une fois les Id présents — et inversement', () => {
   const db = baseNeuve();
-  poser(db, { idClient: '', client: 'Camacho  Samuel', statut: 'sous_controle', maintenant: new Date('2026-09-10T10:00:00Z') });
+  poser(db, { idClient: '', client: 'Martineau  Paulin', statut: 'sous_controle', maintenant: new Date('2026-09-10T10:00:00Z') });
   assert.equal(lire(db, rapport(false), 'Lille', 0).statut, 'sous_controle', 'rapport sans id, graphie retouchée');
   assert.equal(lire(db, rapport(true), 'Lille', 0).statut, 'sous_controle', 'rapport avec id');
   poser(db, { statut: 'resilie', maintenant: new Date('2026-09-11T10:00:00Z') }); // cette fois avec l'id : la plus récente l'emporte partout
@@ -93,11 +93,11 @@ test('appliquer() : ne touche à rien d\'autre que `suivi`, et ne modifie pas l\
 
 test('ligneDe : par Id, sinon par identité unique ; rien d\'inventé', () => {
   const r = rapport();
-  assert.equal(N.ligneDe(r, { studio: 'Lille', client: 'n\'importe', idClient: '1002' }).client, 'DERAED Maxence');
-  assert.equal(N.ligneDe(rapport(false), { studio: 'Lille', client: 'samuel camacho' }).client, 'CAMACHO Samuel');
+  assert.equal(N.ligneDe(r, { studio: 'Lille', client: 'n\'importe', idClient: '1002' }).client, 'BERNARDIN Lucie');
+  assert.equal(N.ligneDe(rapport(false), { studio: 'Lille', client: 'paulin martineau' }).client, 'MARTINEAU Paulin');
   assert.equal(N.ligneDe(r, { studio: 'Lille', client: 'Personne Inventée' }), null);
-  assert.equal(N.ligneDe(r, { studio: 'Lille', client: 'CAMACHO Samuel', idClient: '2001' }), null, 'id d\'un autre studio / autre personne');
+  assert.equal(N.ligneDe(r, { studio: 'Lille', client: 'MARTINEAU Paulin', idClient: '2001' }), null, 'id d\'un autre studio / autre personne');
   const doublon = rapport(false);
-  doublon.studios.Lille.nonReconduction.liste.push({ client: 'Samuel CAMACHO', netM1: 10, netM: 0 });
-  assert.equal(N.ligneDe(doublon, { studio: 'Lille', client: 'CAMACHO Samuel' }), null, 'deux homonymes sans id : refus');
+  doublon.studios.Lille.nonReconduction.liste.push({ client: 'Paulin MARTINEAU', netM1: 10, netM: 0 });
+  assert.equal(N.ligneDe(doublon, { studio: 'Lille', client: 'MARTINEAU Paulin' }), null, 'deux homonymes sans id : refus');
 });

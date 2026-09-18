@@ -45,9 +45,11 @@
   const MOIS = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
   const SECTIONS = [
     { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: 'vente' },
-    { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction' },
+    { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction', auto: 'nr' },
     // VNI : la liste ACTIVE posée par le serveur (transformés déjà retirés).
     { type: 'vni', titre: 'VNI', bloc: 'vni', auto: 'vni' },
+    // Membres suspendus HORS non-reconduits (contrôle Deciplus, lecture sûre).
+    { type: 'suspension', titre: 'Suspensions à contrôler', bloc: 'suspensionsControle', auto: 'suspension' },
   ];
 
   function moisEnClair(ym) {
@@ -105,10 +107,17 @@
   // 'vente' (contrôle Deciplus) ou 'vni' (Challenge Flex).
   function remarquesLigne(l, { auto, controle }) {
     const origines = (auto && Conseils)
-      ? (auto === 'vni' ? Conseils.conseilsVni(l) : Conseils.conseilsVente(l, { controle }))
+      ? (auto === 'vni' ? Conseils.conseilsVni(l)
+        : auto === 'nr' ? Conseils.conseilsNonReconduit(l)
+          : auto === 'suspension' ? Conseils.conseilsSuspension(l)
+            : Conseils.conseilsVente(l, { controle }))
       : [];
-    // La version affichée : modifiée à la main si elle existe.
-    const autos = Conseils && Conseils.versions ? Conseils.versions(origines, l).map((v) => v.texte) : origines;
+    // La version affichée : modifiée à la main si elle existe. Pour les
+    // non-reconduits et les suspensions, le cahier des charges exige que la
+    // remarque automatique commence par « À faire : » — y compris dans la copie.
+    const prefixe = (auto === 'nr' || auto === 'suspension') ? 'À faire : ' : '';
+    const autos = (Conseils && Conseils.versions ? Conseils.versions(origines, l).map((v) => v.texte) : origines)
+      .map((t) => (prefixe && t.indexOf(prefixe) !== 0 ? prefixe + t : t));
     const manuelle = texteNote(l);
     return manuelle ? autos.concat([manuelle]) : autos;
   }
@@ -166,7 +175,7 @@
   //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé).
   const SECTIONS_COMMERCIAL = [
     { titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: 'vente', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
-    { titre: 'Clients non reconduits', bloc: 'nonReconduction', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
+    { titre: 'Clients non reconduits', bloc: 'nonReconduction', auto: 'nr', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
     { titre: 'VNI', bloc: 'vni', auto: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
   ];
 

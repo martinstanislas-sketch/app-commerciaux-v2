@@ -30,8 +30,8 @@ let serveur, jeton;
 const studio = (nom) => ({
   studio: nom,
   nonReconduction: { base: 10, nonReconduits: 3, taux: 0.3, tauxPct: 30, liste: [
-    { client: 'CAMACHO Samuel', idClient: '41001', netM1: 45, netM: 0, vendeurOrigine: { vendeur: 'Thibault Preguica', date: '10/03/2025', numVente: '201334', prestation: 'Challenge 12 mois IDF', site: 'My Coach Levallois Perret' } },
-    { client: 'DERAED Maxence', idClient: '41002', netM1: 69, netM: 0, vendeurOrigine: { vendeur: 'STAN MULTI-SITES', date: '02/02/2025', numVente: '198000' } },
+    { client: 'MARTINEAU Paulin', idClient: '41001', netM1: 45, netM: 0, vendeurOrigine: { vendeur: 'Thibault Preguica', date: '10/03/2025', numVente: '201334', prestation: 'Challenge 12 mois IDF', site: 'My Coach Levallois Perret' } },
+    { client: 'BERNARDIN Lucie', idClient: '41002', netM1: 69, netM: 0, vendeurOrigine: { vendeur: 'STAN MULTI-SITES', date: '02/02/2025', numVente: '198000' } },
     { client: 'SANS Identifiant', netM1: 20, netM: 0 },
   ] },
   clientsRetrouves: { ventesSignees: 0, annulees: 0, ventesActives: 0, ventesValides: 0, signataires: 0, retrouves: 0, taux: null, tauxPct: null, liste: [] },
@@ -54,7 +54,7 @@ const deposer = (corps) => fetch(BASE + '/api/recap2/2026-08', { method: 'POST',
 const auth = () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton });
 const lire = async () => { const r = await fetch(BASE + '/api/recap2/2026-08', { headers: auth() }); assert.equal(r.status, 200); return r.json(); };
 const attribuer = (o, h = auth()) => fetch(BASE + '/api/recap2/nr-commercial', { method: 'POST', headers: h,
-  body: JSON.stringify(Object.assign({ mois: '2026-08', studio: 'Levallois', client: 'CAMACHO Samuel', idClient: '41001', commercial: LUCA }, o)) });
+  body: JSON.stringify(Object.assign({ mois: '2026-08', studio: 'Levallois', client: 'MARTINEAU Paulin', idClient: '41001', commercial: LUCA }, o)) });
 const ligne = (r, client, s = 'Levallois') => r.studios[s].nonReconduction.liste.find((l) => l.client === client);
 const M = require('../public/recap2-metrics.js');
 const effectif = (r, client, s) => M.attributionNonReconduit(ligne(r, client, s));
@@ -73,31 +73,31 @@ after(async () => { await arreter(); try { fs.rmSync(BAC, { recursive: true, for
 
 test('au dépôt : vendeur d\'origine conservé, attribution automatique, compte générique Non attribué', async () => {
   const r = await lire();
-  assert.equal(ligne(r, 'CAMACHO Samuel').vendeurOrigine.numVente, '201334');
-  assert.deepEqual([effectif(r, 'CAMACHO Samuel').mode, effectif(r, 'CAMACHO Samuel').cle], ['auto', THIBAULT]);
-  assert.deepEqual([effectif(r, 'DERAED Maxence').mode, effectif(r, 'DERAED Maxence').cle], ['aucun', '']);
-  assert.match(effectif(r, 'DERAED Maxence').motif, /STAN MULTI-SITES/);
+  assert.equal(ligne(r, 'MARTINEAU Paulin').vendeurOrigine.numVente, '201334');
+  assert.deepEqual([effectif(r, 'MARTINEAU Paulin').mode, effectif(r, 'MARTINEAU Paulin').cle], ['auto', THIBAULT]);
+  assert.deepEqual([effectif(r, 'BERNARDIN Lucie').mode, effectif(r, 'BERNARDIN Lucie').cle], ['aucun', '']);
+  assert.match(effectif(r, 'BERNARDIN Lucie').motif, /STAN MULTI-SITES/);
   assert.equal(effectif(r, 'SANS Identifiant').cle, '');
-  assert.equal(ligne(r, 'CAMACHO Samuel').attribution, undefined, 'aucun choix manuel par défaut');
+  assert.equal(ligne(r, 'MARTINEAU Paulin').attribution, undefined, 'aucun choix manuel par défaut');
 });
 
 test('réattribution Thibault -> Luca, puis copie commerciale : la remarque change de commercial', async () => {
   const noter = await fetch(BASE + '/api/recap2/note', { method: 'POST', headers: auth(),
-    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'CAMACHO Samuel', idClient: '41001', remarque: 'Rappel prévu jeudi.' }) });
+    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'MARTINEAU Paulin', idClient: '41001', remarque: 'Rappel prévu jeudi.' }) });
   assert.equal(noter.status, 200);
   let r = await lire();
-  assert.match(RR.remarquesCommercial(r, THIBAULT, 'Thibault P.').texte, /Clients non reconduits\n\nSamuel Camacho\nRappel prévu jeudi\./);
+  assert.match(RR.remarquesCommercial(r, THIBAULT, 'Thibault P.').texte, /Clients non reconduits\n\nPaulin Martineau\nRappel prévu jeudi\./);
   const rep = await attribuer({});
   assert.equal(rep.status, 200);
   const j = await rep.json();
   assert.deepEqual([j.attribution.manuel, j.attribution.cle, j.attribution.nom], [true, LUCA, 'Luca R.']);
   r = await lire();
-  assert.deepEqual([effectif(r, 'CAMACHO Samuel').mode, effectif(r, 'CAMACHO Samuel').nom], ['manuel', 'Luca R.']);
+  assert.deepEqual([effectif(r, 'MARTINEAU Paulin').mode, effectif(r, 'MARTINEAU Paulin').nom], ['manuel', 'Luca R.']);
   assert.equal(RR.remarquesCommercial(r, THIBAULT, 'Thibault P.').nb, 0);
-  assert.match(RR.remarquesCommercial(r, LUCA, 'Luca R.').texte, /LEVALLOIS\n\nClients non reconduits\n\nSamuel Camacho\nRappel prévu jeudi\./);
-  assert.match(RR.remarquesClub(r, 'Levallois').texte, /Samuel Camacho/, 'le club la garde');
-  assert.equal(ligne(r, 'CAMACHO Samuel', 'Lille').attribution, undefined, 'autre studio intact');
-  assert.equal(ligne(r, 'CAMACHO Samuel').vendeurOrigine.vendeur, 'Thibault Preguica', 'la vente historique ne change pas');
+  assert.match(RR.remarquesCommercial(r, LUCA, 'Luca R.').texte, /LEVALLOIS\n\nClients non reconduits\n\nPaulin Martineau\nRappel prévu jeudi\./);
+  assert.match(RR.remarquesClub(r, 'Levallois').texte, /Paulin Martineau/, 'le club la garde');
+  assert.equal(ligne(r, 'MARTINEAU Paulin', 'Lille').attribution, undefined, 'autre studio intact');
+  assert.equal(ligne(r, 'MARTINEAU Paulin').vendeurOrigine.vendeur, 'Thibault Preguica', 'la vente historique ne change pas');
 });
 
 test('garde-fous : commercial inventé, client absent, studio inconnu, sans session', async () => {
@@ -106,7 +106,7 @@ test('garde-fous : commercial inventé, client absent, studio inconnu, sans sess
   assert.equal((await attribuer({ client: 'Personne Inventée', idClient: '' })).status, 404);
   assert.equal((await attribuer({ studio: 'Paris' })).status, 400);
   assert.equal((await attribuer({}, { 'Content-Type': 'application/json' })).status, 401);
-  assert.equal(effectif(await lire(), 'CAMACHO Samuel').nom, 'Luca R.', 'rien n\'a été écrit');
+  assert.equal(effectif(await lire(), 'MARTINEAU Paulin').nom, 'Luca R.', 'rien n\'a été écrit');
 });
 
 test('« Non attribué » choisi à la main l\'emporte sur un vendeur automatique', async () => {
@@ -124,7 +124,7 @@ test('le JSON déposé n\'est jamais réécrit, et AUCUN KPI ne bouge', async ()
 test('NOUVELLE COLLECTE (JSON redéposé, vendeur d\'origine inchangé) : le choix manuel reste', async () => {
   assert.equal((await deposer(rapport())).status, 200);
   const r = await lire();
-  assert.equal(effectif(r, 'CAMACHO Samuel').nom, 'Luca R.');
+  assert.equal(effectif(r, 'MARTINEAU Paulin').nom, 'Luca R.');
   assert.equal(effectif(r, 'SANS Identifiant').mode, 'manuel');
 });
 
@@ -132,18 +132,18 @@ test('REDÉMARRAGE (redéploiement + reconnexion) : toujours là', async () => {
   await arreter();
   await demarrer();
   const r = await lire();
-  assert.equal(effectif(r, 'CAMACHO Samuel').nom, 'Luca R.');
+  assert.equal(effectif(r, 'MARTINEAU Paulin').nom, 'Luca R.');
   assert.equal(kpi(r), KPI0);
 });
 
 test('statut de suivi et commercial sont indépendants', async () => {
   const statut = (s) => fetch(BASE + '/api/recap2/nr-statut', { method: 'POST', headers: auth(),
-    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', client: 'CAMACHO Samuel', idClient: '41001', statut: s }) });
+    body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', client: 'MARTINEAU Paulin', idClient: '41001', statut: s }) });
   assert.equal((await statut('a_creuser')).status, 200);
-  let l = ligne(await lire(), 'CAMACHO Samuel');
+  let l = ligne(await lire(), 'MARTINEAU Paulin');
   assert.deepEqual([l.suivi.statut, l.attribution.nom], ['a_creuser', 'Luca R.']);
   assert.equal((await statut('')).status, 200);
-  l = ligne(await lire(), 'CAMACHO Samuel');
+  l = ligne(await lire(), 'MARTINEAU Paulin');
   assert.deepEqual([l.suivi.statut, l.attribution.nom], ['', 'Luca R.']);
 });
 
@@ -152,7 +152,7 @@ test('RETOUR À L\'AUTOMATIQUE : le vendeur d\'origine revient', async () => {
   assert.equal(rep.status, 200);
   assert.equal((await rep.json()).attribution, null);
   const r = await lire();
-  assert.equal(ligne(r, 'CAMACHO Samuel').attribution, undefined);
-  assert.deepEqual([effectif(r, 'CAMACHO Samuel').mode, effectif(r, 'CAMACHO Samuel').cle], ['auto', THIBAULT]);
+  assert.equal(ligne(r, 'MARTINEAU Paulin').attribution, undefined);
+  assert.deepEqual([effectif(r, 'MARTINEAU Paulin').mode, effectif(r, 'MARTINEAU Paulin').cle], ['auto', THIBAULT]);
   assert.equal(kpi(r), KPI0);
 });

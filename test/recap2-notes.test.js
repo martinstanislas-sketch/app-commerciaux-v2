@@ -176,7 +176,7 @@ test('graphie « Prénom Nom » dans le texte copié', () => {
     'Najim Abd Al-nour': 'Najim Abd Al-nour',
     'Founaqa Mouna': 'Founaqa Mouna',
     'DUPONT MARIE': 'Dupont Marie',
-    '  CAMACHO   Samuel ': 'Samuel Camacho',
+    '  MARTINEAU   Paulin ': 'Paulin Martineau',
   };
   Object.entries(cas).forEach(([brut, attendu]) => assert.equal(RR.prenomNom(brut), attendu, brut));
 });
