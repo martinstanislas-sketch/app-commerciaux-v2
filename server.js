@@ -4676,6 +4676,11 @@ function ensureRecap2NrControlesSchema() {
   require('./lib/recap2NrControles.js').creerTable(getDb());
 }
 ensureRecap2NrControlesSchema();
+// Et pour la réintégration manuelle d'une vente détectée « annulée ».
+function ensureRecap2ReintegrationsSchema() {
+  require('./lib/recap2Reintegrations.js').creerTable(getDb());
+}
+ensureRecap2ReintegrationsSchema();
 // Commercial responsable des non-reconduits, choisi à la main (table dédiée, idempotente).
 require('./lib/recap2NrCommerciaux.js').creerTable(getDb());
 
@@ -5287,6 +5292,7 @@ const Recap2Vni = require('./lib/recap2Vni.js');
 // Le suivi des non-reconduits, même principe : en base, posé à la lecture.
 const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
 const Recap2NrControles = require('./lib/recap2NrControles.js');
+const Recap2Reintegrations = require('./lib/recap2Reintegrations.js');
 const Recap2NrCommerciaux = require('./lib/recap2NrCommerciaux.js');
 const Recap2Metrics = require('./public/recap2-metrics.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
@@ -5775,7 +5781,40 @@ app.get('/api/recap2/historique/:mois', requireAuth, requireAdmin, (req, res) =>
   const mois = String(req.params.mois || '');
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
   res.json({ mois, flex: Recap2Flex.historique(getDb(), mois), remarquesAuto: Recap2RemarquesAuto.historique(getDb(), mois),
-    statutsNonReconduits: Recap2NrStatuts.historique(getDb(), mois), remarques: Recap2Notes.historique(getDb(), mois) });
+    statutsNonReconduits: Recap2NrStatuts.historique(getDb(), mois), remarques: Recap2Notes.historique(getDb(), mois),
+    reintegrations: Recap2Reintegrations.historique(getDb(), mois) });
+});
+
+// ─── RÉINTÉGRER / MAINTENIR ANNULÉE UNE VENTE DÉTECTÉE « ANNULÉE » ──────────
+//  Admin connecté. { mois, studio, client, date, decision: reintegrer | maintenir }.
+//  La vente doit être ANNULÉE dans le rapport brut (ou déjà décidée). Persistante,
+//  datée, attribuée, historisée (lib/recap2Reintegrations.js). Rien n'est écrit
+//  dans Deciplus ni dans Vendor, ni dans le JSON du mois.
+app.post('/api/recap2/reintegration', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim();
+  const client = String(b.client || '').trim(), date = String(b.date || '').trim();
+  const decision = { reintegrer: 'reintegree', maintenir: 'maintenue' }[String(b.decision || '')];
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
+  if (!decision) return res.status(400).json({ error: 'decision : reintegrer ou maintenir' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const ligne = Recap2Reintegrations.ligneDe(lu.rapport, { studio, client, date });
+  const deja = Recap2Reintegrations.decisionsDuMois(getDb(), mois);
+  if (!ligne) return res.status(404).json({ error: 'Vente introuvable dans ' + studio + ' (' + mois + ').' });
+  if (ligne.annulee !== true && !deja.has(studio + '|' + require('./lib/recap2Checks.js').cleVente(ligne))) {
+    return res.status(409).json({ error: 'Cette vente n’est pas annulée : rien à réintégrer.' });
+  }
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const d = Recap2Reintegrations.decider(getDb(), { mois, studio, ligne, decision, par: qui });
+    console.log('recap2 vente ' + (decision === 'reintegree' ? 'réintégrée' : 'maintenue annulée') + ' : ' + mois + ' ' + studio);
+    res.json({ ok: true, decision: d });
+  } catch (e) {
+    res.status(400).json({ error: e && e.message ? e.message : 'décision refusée' });
+  }
 });
 
 app.post('/api/recap2/note', requireAuth, requireAdmin, (req, res) => {
@@ -5864,6 +5903,14 @@ app.post('/api/recap2/:mois', (req, res) => {
 //  qui permet à une recollecte de ne pas les écraser.
 function recap2AvecDecisions(rapport) {
   let r = rapport;
+  // EN PREMIER : une vente annulée réintégrée à la main redevient une vente
+  // active pour TOUT ce qui suit (cases, contrôle automatique, remarques,
+  // compteurs calculés depuis les lignes). Le JSON brut n'est jamais modifié.
+  try {
+    if (r && r.mois) r = Recap2Reintegrations.appliquer(r, Recap2Reintegrations.decisionsDuMois(getDb(), r.mois));
+  } catch (e) {
+    console.error('recap2 réintégrations :', e && e.message);
+  }
   try {
     r = Recap2Matches.appliquer(r, Recap2Matches.toutesLesDecisions(getDb()));
   } catch (e) {
