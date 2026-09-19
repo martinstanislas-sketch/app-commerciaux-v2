@@ -13,7 +13,9 @@
 //   · `member/bank/<id>` : SEULEMENT « RIB présent » / « mandat présent » ;
 //   · `reservations.php` : nombre de réservations FUTURES ;
 //   · `presta_ventes.php` : nombre d'achats sur 12 mois.
-//  Ce qui n'est JAMAIS gardé : IBAN, RUM, adresse, téléphone, email, notes.
+//  Ce qui n'est JAMAIS gardé : IBAN, RUM, adresse, téléphone, email. Les notes
+//  et la catégorie sont lues EN MÉMOIRE pour reconnaître un contentieux, jamais
+//  écrites ni déposées.
 // ============================================================================
 
 const DEC = require('./deciplus.js');
@@ -82,7 +84,9 @@ async function ouvrir(contexte) {
     const bloc = (nom) => { const m = f.t.match(new RegExp(nom + ':\\s*(\\{.*\\}|\\[.*\\])\\s*,?\\s*$', 'm')); try { return m ? JSON.parse(m[1]) : {}; } catch (_) { return null; } };
     const sc = bloc('subscriptionContracts'), cc = bloc('cardContracts');
     if (sc == null) return { ok: false, erreur: 'contrats illisibles' };
-    const dossier = { ok: true, contrats: [], cartes: [] };
+    // Catégorie et notes : SEULEMENT pour reconnaître un contentieux confirmé
+    // (gardées en mémoire, jamais écrites ni déposées).
+    const dossier = { ok: true, categorie: categorieDe(f.t), notes: notesDe(f.t), contrats: [], cartes: [] };
     const limite = new Date(Date.parse(aujourdHui) - 400 * 86400000).toISOString().slice(0, 10);
     for (const p of Object.values(sc)) {
       for (const c of p.contracts || []) {

@@ -86,7 +86,7 @@ test('réattribution Thibault -> Luca, puis copie commerciale : la remarque chan
     body: JSON.stringify({ mois: '2026-08', studio: 'Levallois', type: 'non_reconduit', client: 'MARTINEAU Paulin', idClient: '41001', remarque: 'Rappel prévu jeudi.' }) });
   assert.equal(noter.status, 200);
   let r = await lire();
-  assert.match(RR.remarquesCommercial(r, THIBAULT, 'Thibault P.').texte, /Clients non reconduits\n\nPaulin Martineau\nRappel prévu jeudi\./);
+  assert.match(RR.remarquesCommercial(r, THIBAULT, 'Thibault P.').texte, /Clients non reconduits\n\nPaulin Martineau — client non reconduit\nRappel prévu jeudi\./);
   const rep = await attribuer({});
   assert.equal(rep.status, 200);
   const j = await rep.json();
@@ -94,7 +94,7 @@ test('réattribution Thibault -> Luca, puis copie commerciale : la remarque chan
   r = await lire();
   assert.deepEqual([effectif(r, 'MARTINEAU Paulin').mode, effectif(r, 'MARTINEAU Paulin').nom], ['manuel', 'Luca R.']);
   assert.equal(RR.remarquesCommercial(r, THIBAULT, 'Thibault P.').nb, 0);
-  assert.match(RR.remarquesCommercial(r, LUCA, 'Luca R.').texte, /LEVALLOIS\n\nClients non reconduits\n\nPaulin Martineau\nRappel prévu jeudi\./);
+  assert.match(RR.remarquesCommercial(r, LUCA, 'Luca R.').texte, /LEVALLOIS\n\nClients non reconduits\n\nPaulin Martineau — client non reconduit\nRappel prévu jeudi\./);
   assert.match(RR.remarquesClub(r, 'Levallois').texte, /Paulin Martineau/, 'le club la garde');
   assert.equal(ligne(r, 'MARTINEAU Paulin', 'Lille').attribution, undefined, 'autre studio intact');
   assert.equal(ligne(r, 'MARTINEAU Paulin').vendeurOrigine.vendeur, 'Thibault Preguica', 'la vente historique ne change pas');

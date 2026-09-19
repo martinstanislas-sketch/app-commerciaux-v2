@@ -7,7 +7,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 const F = require('../lib/recap2Flex.js');
-const C = require('../public/recap2-conseils.js');
+const RG = require('./_regles.js');
+const C = { conseilsVni: RG.vni };
 const RR = require('../public/recap2-remarques.js');
 
 const ID1 = '1700000000001x100000000000000001';
@@ -65,12 +66,20 @@ test('dépôt accepté : statut, preuves et horodatage appliqués à la lecture'
   assert.equal(vni(r, 0).flex, undefined, 'le rapport d’origine n’est jamais modifié');
 });
 
-test('remarques : « Flex à proposer » et « À vérifier » seulement', () => {
-  assert.deepEqual(C.conseilsVni({ flex: { statut: 'Flex à proposer' } }), ['Propose au prospect le Challenge Flex à 4 séances par mois.']);
-  assert.deepEqual(C.conseilsVni({ flex: { statut: 'À vérifier' } }), ['Vérifie l’identité du prospect dans Vendor.']);
-  ['Flex proposé', 'Transformé depuis', 'Prospect non intéressé', 'À reproposer plus tard']
-    .forEach((s) => assert.deepEqual(C.conseilsVni({ flex: { statut: s } }), [], s));
+test('remarques : « Flex à proposer » et « À vérifier » seulement ; décision = preuve de proposition', () => {
+  const f = (statutAuto, decision) => ({ flex: { statut: decision ? decision.libelle : statutAuto, statutAuto, decision: decision || null } });
+  assert.deepEqual(C.conseilsVni(f('Flex à proposer')), ['Propose au prospect le Challenge Flex à 4 séances par mois.']);
+  assert.deepEqual(C.conseilsVni(f('À vérifier')), ['Vérifie l’identité du prospect dans Vendor.']);
+  assert.deepEqual(C.conseilsVni(f('Flex proposé')), [], 'preuve Vendor : aucune action');
+  ['Flex proposé', 'Prospect non intéressé', 'À reproposer plus tard'].forEach((lib) => {
+    assert.deepEqual(C.conseilsVni(f('Flex à proposer', { libelle: lib })), [], lib);
+    // Une décision commerciale ne masque JAMAIS la vérification d'identité.
+    assert.deepEqual(C.conseilsVni(f('À vérifier', { libelle: lib })), ['Vérifie l’identité du prospect dans Vendor.'], lib + ' + identité incertaine');
+  });
   assert.deepEqual(C.conseilsVni({}), [], 'mois non contrôlé : aucune remarque');
+  // Identité validée : le Flex est demandé sauf preuve.
+  assert.deepEqual(C.conseilsVni(Object.assign(f('À vérifier'), { identiteVni: { validee: true } })), ['Propose au prospect le Challenge Flex à 4 séances par mois.']);
+  assert.deepEqual(C.conseilsVni(Object.assign(f('À vérifier', { libelle: 'Flex proposé' }), { identiteVni: { validee: true } })), []);
 });
 
 test('DÉCISION DU CONSEILLER : datée, attribuée, prioritaire, et elle fait taire la remarque', () => {
@@ -141,10 +150,11 @@ test('COPIE DU CLUB ET DU COMMERCIAL : la remarque VNI est reprise, la manuelle 
   a.studios.Neuilly.vni.liste[0].note = { remarque: 'Rappelé hier.' };
   const club = RR.remarquesClub(a, 'Neuilly');
   assert.equal(club.nb, 1, 'seule Marie a quelque chose à traiter');
-  assert.ok(club.texte.includes('Marie Dupont\nPropose au prospect le Challenge Flex à 4 séances par mois.\nRappelé hier.'));
+  assert.match(club.texte, /Marie Dupont — VNI[^\n]*\nÀ faire : Propose au prospect le Challenge Flex à 4 séances par mois\.\nRappelé hier\./);
   assert.ok(!club.texte.includes('Luc Martin'), 'un Flex déjà proposé ne sort pas');
   const com = RR.remarquesCommercial(a, 'id:c1', 'Marvin R.');   // clé du jeu d'essai du module
-  assert.ok(com.texte.includes('Propose au prospect le Challenge Flex à 4 séances par mois.'));
+  assert.ok(com.texte.includes('À faire : Propose au prospect le Challenge Flex à 4 séances par mois.'));
+  assert.equal((com.texte.match(/À faire : À faire/g) || []).length, 0, 'préfixe exactement une fois');
 });
 
 test('sans aucun contrôle ni décision, le rapport est rendu tel quel', () => {

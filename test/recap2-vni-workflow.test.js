@@ -97,7 +97,7 @@ test('REMARQUE VNI : ajout, modification, suppression', async () => {
 
 test('COPIE DU CLUB : section VNI avec la seule personne à remarque', async () => {
   const c = RR.remarquesClub(await lire(), 'Lille');
-  assert.equal(c.texte, 'LILLE — AOÛT 2026\n\nVNI\n\nSophie Martin\nHésite sur le tarif, à rappeler.\n');
+  assert.equal(c.texte, 'LILLE — AOÛT 2026\n\nVNI\n\nSophie Martin — VNI venu le 12/08/2026\nHésite sur le tarif, à rappeler.\n');
 });
 
 test('SOPHIE SIGNE EN OCTOBRE : dépôt de la collecte d\'octobre -> retirée d\'août SANS recollecter août', async () => {

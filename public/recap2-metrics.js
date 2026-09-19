@@ -22,10 +22,11 @@
 
 (function (root, factory) {
   const R = (root && root.Retention) || (typeof require !== 'undefined' ? require('./retention.js') : null);
-  const api = factory(R);
+  const G = (root && root.Recap2Regles) || (typeof require !== 'undefined' ? require('./recap2-regles.js') : null);
+  const api = factory(R, G);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Recap2Metrics = api;
-}(typeof self !== 'undefined' ? self : this, function (Retention) {
+}(typeof self !== 'undefined' ? self : this, function (Retention, Regles) {
 
   // ── STUDIOS : les 6 studios en propre, dans l'ordre imposé ──────────────────
   // Table d'alias EXPLICITE : un nom de studio n'est reconnu que s'il figure
@@ -676,29 +677,27 @@
   //  (lib/recap2NrControles.js) — récupérés parmi les éligibles ; le
   //  dénominateur ne change plus, les exclusions restent comptées par motif.
   const STATUTS_SUIVI_NR = ['a_traiter', 'sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme', 'a_creuser'];
-  // Même règle que Recap2Conseils.recuperationOuverte (déménagement récupérable).
-  const recupOuverte = (l) => {
-    const a = l && l.analyse;
-    if (!a || a.contentieux || a.irrecuperable || a.statut !== 'a_traiter') return false;
-    return a.recuperationOuverte === true || !!(a.cause && a.cause.code === 'demenagement' && (a.remarques || []).some((t) => /transfert de studio/.test(t)));
-  };
-  const statutEffectifNR = (l) => (l && l.suivi && l.suivi.statut) || (l && l.analyse && l.analyse.statut) || 'non_controle';
+  // Registre unique (public/recap2-regles.js) : statut effectif (contentieux et
+  // rétractation priment sur une décision manuelle), déménagement récupérable.
+  const recupOuverte = (l) => Regles.recuperationOuverte(l);
+  const statutEffectifNR = (l) => Regles.statutEffectifNR(l);
   function indicateursNR(liste) {
     const L = liste || [];
     const n = {}; STATUTS_SUIVI_NR.concat(['non_controle']).forEach((s) => { n[s] = 0; });
     L.forEach((l) => { n[statutEffectifNR(l)] = (n[statutEffectifNR(l)] || 0) + 1; });
-    const cohorte = L.filter((l) => l.cohorte);
+    const cohorte = L.filter((l) => l.cohorte);   // requalifiée à la lecture (lib/recap2NrControles.js)
     const eligibles = cohorte.filter((l) => l.cohorte.eligible === true);
     const recupEligibles = eligibles.filter((l) => statutEffectifNR(l) === 'recupere');
     const exclus = {};
     cohorte.filter((l) => l.cohorte.eligible === false).forEach((l) => { const m = l.cohorte.motifExclusion || 'autre'; exclus[m] = (exclus[m] || 0) + 1; });
-    const silencieux = ['sous_controle', 'resilie', 'reconduit_autrement', 'toujours_actif', 'suspendu', 'recupere', 'depart_confirme'];
+    // Finance : exactement ce que le registre affiche — une décision manuelle
+    // ne masque jamais une anomalie financière (arbitrage du 18/09/2026).
     let aVerifier = 0, nbEcarts = 0, divergences = 0;
     L.forEach((l) => {
       const f = l.analyse && l.analyse.finance;
-      if (!f || (l.analyse && l.analyse.contentieux) || (l.suivi && silencieux.indexOf(l.suivi.statut) > -1)) return;
-      if (f.anomalie) { divergences += 1; return; }
-      if (f.ecart != null && f.ecart >= 5 && !f.justification) { aVerifier += Number(f.ecart); nbEcarts += 1; }
+      const items = f ? Regles.evaluerNR(l) : [];
+      if (items.some((x) => x.regle === 'FIN-IMPOSSIBLE')) divergences += 1;
+      if (items.some((x) => x.regle === 'FIN-ECART')) { aVerifier += Number(f.ecart); nbEcarts += 1; }
     });
     let chiffre = 0, chiffreInconnu = 0;
     L.filter((l) => statutEffectifNR(l) === 'recupere').forEach((l) => {
@@ -707,12 +706,13 @@
     });
     const causes = {};
     L.filter((l) => ['a_traiter', 'sous_controle', 'resilie', 'depart_confirme', 'recupere'].indexOf(statutEffectifNR(l)) > -1 && l.analyse && l.analyse.cause)
-      .forEach((l) => { const c = l.analyse.contentieux ? 'Contentieux' : l.analyse.cause.libelle; causes[c] = (causes[c] || 0) + 1; });
+      .forEach((l) => { const q = Regles.requalifierNR(l.analyse); const c = q.contentieux ? 'Contentieux' : q.cause.libelle; causes[c] = (causes[c] || 0) + 1; });
     return {
       detectees: L.length, parStatut: n,
       veritables: L.length - n.toujours_actif - n.reconduit_autrement - n.suspendu,
       resiliations: n.resilie + n.depart_confirme,
-      contentieux: L.filter((l) => l.analyse && l.analyse.contentieux && statutEffectifNR(l) === 'resilie').length,
+      // « dont contentieux » : la donnée Deciplus seule, jamais un statut manuel.
+      contentieux: L.filter((l) => l.analyse && l.analyse.contentieux).length,
       suspensions: n.suspendu, reconductions: n.reconduit_autrement, toujoursActifs: n.toujours_actif,
       // « À récupérer » = possibilité commerciale ENCORE OUVERTE : À traiter, Sous
       // contrôle, et les « Résilié » manuels dont le déménagement reste

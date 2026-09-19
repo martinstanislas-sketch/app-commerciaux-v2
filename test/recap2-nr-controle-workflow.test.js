@@ -17,7 +17,8 @@ const { spawn } = require('child_process');
 const S = require('../lib/recap2Store.js');
 const RR = require('../public/recap2-remarques.js');
 const M = require('../public/recap2-metrics.js');
-const T = require('../public/recap2-conseils.js').TEXTES_NR;
+const RG = require('./_regles.js');
+const T = { PRIX: RG.T['NR-PRIX'], DEMENAGEMENT: RG.T['NR-DEMENAGEMENT'], SUSP_RAISON: RG.T['SUSP-DOC'], IDENTITE: RG.T['NR-IDENTITE'] };
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'recap2-nrctl-'));
 const PORT = 3979;
@@ -86,7 +87,8 @@ test('dépôt accepté : analyse posée, remarque affichée, KPI et JSON intacts
     r1({ analyse: analyse({ indication: 'Cause probable : Prix — tel 06 11 22 33 44' }) }),
     r1({ idClient: '90002', client: 'MARTIN Luc', analyse: analyse({ statut: 'resilie', contentieux: true, remarques: [], motifExclusion: 'contentieux', cause: null, indication: 'Contentieux confirmé' }) }),
     r1({ idClient: '90003', client: 'LEROY Anne', analyse: analyse({ statut: 'toujours_actif', remarques: [], motifExclusion: 'toujours actif', indication: 'contrat toujours actif', reconduction: { produit: 'X', debut: '2026-01-01', mensuel: 195 } }) }),
-    { type: 'suspension', studio: 'Lille', idClient: '90010', client: 'PETIT Jean', analyse: analyse({ statut: 'suspendu', remarques: [T.SUSP_RAISON], cause: null, indication: 'suspension sans raison renseignée' }) },
+    { type: 'suspension', studio: 'Lille', idClient: '90010', client: 'PETIT Jean', analyse: analyse({ statut: 'suspendu', remarques: [T.SUSP_RAISON], cause: null, indication: 'suspension sans raison renseignée',
+      suspension: { debut: '2026-08-03', fin: '', repriseDate: '', indeterminee: false, active: true, terminee: false, raisonRenseignee: false, montantSuspendu: 0, prolongation: null } }) },
   ]));
   assert.equal(d.status, 200);
   const r = await lire();
@@ -103,14 +105,14 @@ test('dépôt accepté : analyse posée, remarque affichée, KPI et JSON intacts
 test('copies du club et du commercial : remarques automatiques avec « À faire : », suspensions dans la copie du club', async () => {
   const r = await lire();
   const club = RR.remarquesClub(r, 'Lille').texte;
-  assert.match(club, /Clients non reconduits\n\nMarie Dupont\nÀ faire : Contacte le client et propose-lui l’abonnement Flex\./);
-  assert.match(club, /Suspensions à contrôler\n\nJean Petit\nÀ faire : Renseigne dans Deciplus la raison de la suspension du client\./);
+  assert.match(club, /Clients non reconduits\n\nMarie Dupont — client non reconduit\nÀ faire : Contacte le client et propose-lui le Challenge Flex à 4 séances par mois\./);
+  assert.match(club, /Suspensions à contrôler\n\nJean Petit — suspension\nÀ faire : Renseigne dans Deciplus la raison et la période de la suspension du client\./);
   assert.ok(!/Luc Martin/.test(club), 'contentieux : aucune remarque, absent de la copie');
   const com = M.commerciauxAttribuables(r)[0];
   assert.ok(com, 'au moins un commercial attribuable');
   assert.equal((await post('/api/recap2/nr-commercial', { mois: '2026-08', studio: 'Lille', client: 'DUPONT Marie', idClient: '90001', commercial: com.cle })).status, 200);
   const r2 = await lire();
-  assert.match(RR.remarquesCommercial(r2, com.cle, com.nom).texte, /Clients non reconduits\n\nMarie Dupont\nÀ faire : Contacte le client et propose-lui l’abonnement Flex\./);
+  assert.match(RR.remarquesCommercial(r2, com.cle, com.nom).texte, /Clients non reconduits\n\nMarie Dupont — client non reconduit\nÀ faire : Contacte le client et propose-lui le Challenge Flex à 4 séances par mois\./);
 });
 
 test('décision manuelle : prioritaire, fait taire la remarque, réversible, historisée ; droits admin', async () => {
@@ -120,21 +122,21 @@ test('décision manuelle : prioritaire, fait taire la remarque, réversible, his
   assert.equal((await post('/api/recap2/nr-statut', corps)).status, 200);
   let r = await lire();
   assert.equal(ligne(r).suivi.statut, 'sous_controle');
-  assert.ok(!RR.remarquesClub(r, 'Lille').texte.includes('abonnement Flex'), 'action faite : remarque éteinte');
+  assert.ok(!RR.remarquesClub(r, 'Lille').texte.includes('Challenge Flex à 4 séances'), 'action faite : remarque éteinte');
   assert.equal((await post('/api/recap2/nr-statut', Object.assign({}, corps, { statut: '' }))).status, 200);
   r = await lire();
-  assert.equal(ligne(r).suivi.statut, ''); assert.ok(RR.remarquesClub(r, 'Lille').texte.includes('abonnement Flex'), 'retour à l’automatique');
+  assert.equal(ligne(r).suivi.statut, ''); assert.ok(RR.remarquesClub(r, 'Lille').texte.includes('Challenge Flex à 4 séances'), 'retour à l’automatique');
   const h = await (await fetch(BASE + '/api/recap2/historique/2026-08', { headers: auth() })).json();
   assert.deepEqual(h.statutsNonReconduits.map((x) => x.avant + '→' + x.apres), ['→sous_controle', 'sous_controle→']);
   assert.equal((await fetch(BASE + '/api/recap2/historique/2026-08', { headers: auth(jetonConseiller) })).status, 403);
 });
 
 test('remarque automatique : modifier, copier la version affichée, revenir à l’automatique ; historisé', async () => {
-  const base = { mois: '2026-08', studio: 'Lille', type: 'non_reconduit', client: 'DUPONT Marie', idClient: '90001', texteAuto: T.PRIX };
+  const base = { mois: '2026-08', studio: 'Lille', type: 'non_reconduit', client: 'DUPONT Marie', idClient: '90001', regle: 'NR-PRIX' };
   assert.equal((await post('/api/recap2/remarque-auto', Object.assign({}, base, { texte: 'Rappeler Marie mardi pour le Flex.' }))).status, 200);
   let r = await lire();
   assert.match(RR.remarquesClub(r, 'Lille').texte, /À faire : Rappeler Marie mardi pour le Flex\./);
-  assert.equal((await post('/api/recap2/remarque-auto', Object.assign({}, base, { texteAuto: 'Une phrase inventée.', texte: 'x' }))).status, 409);
+  assert.equal((await post('/api/recap2/remarque-auto', Object.assign({}, base, { regle: 'NR-INCONNU', texte: 'x' }))).status, 409);
   assert.equal((await post('/api/recap2/remarque-auto', Object.assign({}, base, { texte: '' }))).status, 200);
   r = await lire();
   assert.ok(RR.remarquesClub(r, 'Lille').texte.includes(T.PRIX));

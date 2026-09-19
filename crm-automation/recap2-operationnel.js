@@ -71,7 +71,8 @@ async function envoyer(mois, contenu) {
         const attribution = ATTR.attributionVente(mois, studio, ligne, ident.id);
         resultats.push({ studio, client: ligne.client, date: ligne.date, annulee: !!ligne.annulee, idDeciplus: ident.id, source: ident.source,
           prelevement: verdict.prelevement, reservation: verdict.reservation, resilie: verdict.resilie,
-          alertes: verdict.alertes, regles: [...new Set(verdict.regles)], contrat: verdict.contrat, raison: verdict.raison, attribution, controleLe: maintenant });
+          alertes: verdict.alertes, regles: [...new Set(verdict.regles)], contrat: verdict.contrat, raison: verdict.raison,
+          details: verdict.details || {}, attribution, controleLe: maintenant });
         console.log('· ' + studio + ' / ' + ligne.client + ' : ' + [verdict.prelevement, verdict.reservation, verdict.resilie].join(' / ')
           + (verdict.alertes.length ? ' — ' + verdict.alertes.join(' ; ') : '') + (verdict.raison ? ' — ' + verdict.raison : ''));
       }

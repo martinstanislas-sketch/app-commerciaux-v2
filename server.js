@@ -5284,7 +5284,7 @@ const Recap2Flex = require('./lib/recap2Flex.js');
 const Recap2RemarquesAuto = require('./lib/recap2RemarquesAuto.js');
 // Les règles des remarques automatiques : le MÊME fichier que l'écran, pour
 // qu'une version modifiée ne puisse viser qu'une remarque réellement produite.
-const Recap2Conseils = require('./public/recap2-conseils.js');
+const Recap2Regles = require('./public/recap2-regles.js');
 // Les remarques par personne, même principe : en base, posées à la lecture.
 const Recap2Notes = require('./lib/recap2Notes.js');
 // Les VNI : liste historique du mois − transformations connues aujourd'hui.
@@ -5732,17 +5732,19 @@ app.post('/api/recap2/forcage', requireAuth, requireAdmin, (req, res) => {
 //  et l'Id membre DU RAPPORT, jamais ceux envoyés.
 //  Aucun KPI, aucun statut, aucune donnée du rapport n'en dépend.
 //  Déclarée AVANT `POST /api/recap2/:mois`, sinon « note » serait lu comme un mois.
-// ─── REMARQUE AUTOMATIQUE MODIFIÉE À LA MAIN ────────────────────────────────
-//  Admin connecté. { mois, studio, type: vente|vni, client, idClient, idVendor,
-//  texteAuto, texte }. `texteAuto` doit être une remarque RÉELLEMENT produite
-//  pour cette ligne par les règles de l'écran (public/recap2-conseils.js).
-//  Texte vide ou identique à l'origine = « Revenir à la version automatique ».
+// ─── REMARQUE AUTOMATIQUE PERSONNALISÉE À LA MAIN ───────────────────────────
+//  { mois, studio, type: vente|vni|non_reconduit|suspension, client, idClient,
+//  idVendor, date (vente), regle, texte }. `regle` (identifiant stable du
+//  registre public/recap2-regles.js) doit être une action RÉELLEMENT produite
+//  pour ce dossier. Texte vide ou identique à la version automatique =
+//  « Revenir à la version automatique ». Clé : dossier · mois · règle.
 //  Historisé (lib/recap2RemarquesAuto.js). Déclarée AVANT `POST /api/recap2/:mois`.
 app.post('/api/recap2/remarque-auto', requireAuth, (req, res) => {
   const b = req.body || {};
   const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim(), type = String(b.type || '').trim();
   const client = String(b.client || '').trim(), idClient = String(b.idClient || '').trim(), idVendor = String(b.idVendor || '').trim();
-  const texteAuto = typeof b.texteAuto === 'string' ? b.texteAuto.trim() : '';
+  const regle = String(b.regle || '').trim();
+  const date = String(b.date || '').trim();
   const texte = typeof b.texte === 'string' ? b.texte : null;
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
   if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
@@ -5750,7 +5752,7 @@ app.post('/api/recap2/remarque-auto', requireAuth, (req, res) => {
   if (!client || client.length > 200) return res.status(400).json({ error: 'client requis' });
   if (idClient && !/^[0-9]{1,20}$/.test(idClient)) return res.status(400).json({ error: 'idClient : chiffres attendus' });
   if (idVendor && !Recap2Vni.ID_VENDOR_RE.test(idVendor)) return res.status(400).json({ error: 'idVendor : identifiant Vendor attendu' });
-  if (!texteAuto || texte === null) return res.status(400).json({ error: 'texteAuto et texte requis' });
+  if (!Recap2Regles.PAR_ID[regle] || texte === null) return res.status(400).json({ error: 'regle et texte requis' });
   if (texte.trim().length > Recap2RemarquesAuto.LONGUEUR_MAX) return res.status(400).json({ error: 'remarque trop longue (' + Recap2RemarquesAuto.LONGUEUR_MAX + ' caractères maximum)' });
 
   const lu = recap2LireRapport(mois);
@@ -5759,24 +5761,60 @@ app.post('/api/recap2/remarque-auto', requireAuth, (req, res) => {
   const blocSusp = ((affiche.studios[studio] || {}).suspensionsControle || {}).liste || [];
   const ligne = type === 'non_reconduit' ? Recap2NrStatuts.ligneDe(affiche, { studio, client, idClient })
     : type === 'suspension' ? (idClient ? blocSusp.find((x) => String(x.idClient) === idClient) : null)
-      : Recap2Notes.ligneDe(affiche, { studio, type, client, idClient, idVendor });
-  if (!ligne) return res.status(404).json({ error: 'Personne introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
-  const produites = type === 'vni' ? Recap2Conseils.conseilsVni(ligne)
-    : type === 'non_reconduit' ? Recap2Conseils.conseilsNonReconduit(ligne)
-      : type === 'suspension' ? Recap2Conseils.conseilsSuspension(ligne)
-        : Recap2Conseils.conseilsVente(ligne, { controle: Recap2Conseils.moisControle(affiche) });
-  if (produites.indexOf(texteAuto) < 0) return res.status(409).json({ error: 'Cette remarque automatique n\'est plus produite pour cette personne.' });
-  const perso = (ligne.remarquesAuto || {})[texteAuto];
+      : type === 'vente' ? Recap2Checks.ligneDe(affiche, { studio, client, date })
+        : Recap2Notes.ligneDe(affiche, { studio, type, client, idClient, idVendor });
+  if (!ligne) return res.status(404).json({ error: 'Dossier introuvable dans le rapport de ' + studio + ' (' + mois + ').' });
+  const produites = recap2Remarques(type, ligne, affiche);
+  const produite = produites.find((x) => x.regle === regle && x.nature === 'action');
+  if (!produite) return res.status(409).json({ error: 'Cette remarque automatique n\'est plus produite pour ce dossier.' });
+  if (!produite.modifiable) return res.status(409).json({ error: 'Cette remarque n\'est pas modifiable.' });
+  const perso = (ligne.remarquesPerso || {})[regle];
   if (!recap2PeutModifierRemarque(req.session, perso ? perso.auteur : '')) {
     return res.status(403).json({ error: 'Seul l’auteur de la personnalisation ou un administrateur peut la modifier.' });
   }
   try {
     const qui = (req.session && (req.session.name || req.session.role)) || '';
-    const version = Recap2RemarquesAuto.enregistrer(getDb(), { mois, studio, type, ligne, texteAuto, texte, par: qui });
+    const version = Recap2RemarquesAuto.enregistrer(getDb(), { mois, studio, type, ligne, regle, texteAuto: produite.texte, texte, par: qui });
     console.log('recap2 remarque auto ' + (version.texte ? 'modifiée' : 'remise en automatique') + ' (' + type + ') : ' + mois + ' ' + studio);
     res.json({ ok: true, version });
   } catch (e) {
     res.status(400).json({ error: e && e.message ? e.message : 'remarque refusée' });
+  }
+});
+
+// Les remarques (actions et alertes) produites par le registre pour un dossier
+// tel qu'il est servi — la même fonction que l'écran et les copies.
+function recap2Remarques(type, ligne, affiche) {
+  if (type === 'vni') return Recap2Regles.evaluerVni(ligne);
+  if (type === 'non_reconduit') return Recap2Regles.evaluerNR(ligne);
+  if (type === 'suspension') return Recap2Regles.evaluerSuspension(ligne);
+  return Recap2Regles.evaluerVente(ligne, Recap2Regles.contexteRapport(affiche));
+}
+
+// ─── VNI : VALIDATION EXPLICITE DE L'IDENTITÉ ───────────────────────────────
+//  Admin connecté. { mois, studio, contactId, valeur: validee | auto }. Seule
+//  cette validation fait disparaître « Vérifie l'identité du prospect dans
+//  Vendor. » ; historisée. Déclarée AVANT `POST /api/recap2/:mois`.
+app.post('/api/recap2/vni-identite', requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const mois = String(b.mois || '').trim(), studio = String(b.studio || '').trim();
+  const contactId = String(b.contactId || '').trim();
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  if (Recap2Store.LABELS.indexOf(studio) < 0) return res.status(400).json({ error: 'studio inconnu' });
+  const lu = recap2LireRapport(mois);
+  if (!lu.rapport) return res.status(404).json({ error: 'Aucun rapport pour ce mois.' });
+  const affiche = recap2AvecDecisions(lu.rapport);
+  const ligne = ((((affiche.studios[studio] || {}).vni || {}).liste) || []).find((l) => String(l.contactId || '') === contactId);
+  if (!ligne) return res.status(404).json({ error: 'VNI introuvable dans le rapport de ' + mois + '.' });
+  if (String(b.valeur) === 'validee' && !(ligne.flex && ligne.flex.statutAuto === 'À vérifier')) {
+    return res.status(409).json({ error: 'L’identité de ce prospect n’est pas à vérifier.' });
+  }
+  try {
+    const qui = (req.session && (req.session.name || req.session.role)) || '';
+    const identite = Recap2Flex.validerIdentite(getDb(), { mois, studio, contactId, valeur: String(b.valeur || ''), client: ligne.client, par: qui });
+    res.json({ ok: true, identite });
+  } catch (e) {
+    res.status(400).json({ error: e && e.message ? e.message : 'validation refusée' });
   }
 });
 
@@ -5981,7 +6019,7 @@ function recap2AvecDecisions(rapport) {
   // Le Challenge Flex, APRÈS le retrait des transformés : ce qui reste est un
   // VNI actif. Décision du conseiller prioritaire sur le contrôle Vendor.
   try {
-    if (r && r.mois) r = Recap2Flex.appliquer(r, Recap2Flex.controlesDuMois(getDb(), r.mois), Recap2Flex.decisionsDuMois(getDb(), r.mois));
+    if (r && r.mois) r = Recap2Flex.appliquer(r, Recap2Flex.controlesDuMois(getDb(), r.mois), Recap2Flex.decisionsDuMois(getDb(), r.mois), Recap2Flex.identitesDuMois(getDb(), r.mois));
   } catch (e) {
     console.error('recap2 Flex :', e && e.message);
   }
@@ -5992,7 +6030,7 @@ function recap2AvecDecisions(rapport) {
   } catch (e) {
     console.error('recap2 contrôle non-reconduits :', e && e.message);
   }
-  // Les versions modifiées des remarques automatiques (texte d'origine gardé).
+  // Les versions personnalisées des remarques automatiques (clé : dossier · mois · règle).
   try {
     if (r && r.mois) r = Recap2RemarquesAuto.appliquer(r, Recap2RemarquesAuto.versionsDuMois(getDb(), r.mois));
   } catch (e) {

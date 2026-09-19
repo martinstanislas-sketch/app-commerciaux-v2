@@ -40,11 +40,11 @@ test('Thibault P. : studios puis types, uniquement les personnes à remarque, te
   assert.equal(r.texte, [
     'THIBAULT P. — AOÛT 2026', '',
     'LEVALLOIS', '',
-    'Ventes signées', '', 'Jean Dupont', 'Client à rappeler concernant son démarrage.', '',
-    'VNI', '', 'Sophie Martin', 'Hésite encore sur l\'engagement, relance prévue.', '',
+    'Ventes signées', '', 'Jean Dupont — vente du 05/08/2026', 'Client à rappeler concernant son démarrage.', '',
+    'VNI', '', 'Sophie Martin — VNI venu le 12/08/2026', 'Hésite encore sur l\'engagement, relance prévue.', '',
     'NEUILLY', '',
-    'Ventes signées', '', 'Paul Durand', 'Situation à vérifier.', '',
-    'VNI', '', 'Marie Bernard', 'À rappeler début septembre.', '',
+    'Ventes signées', '', 'Paul Durand — vente du 05/08/2026', 'Situation à vérifier.', '',
+    'VNI', '', 'Marie Bernard — VNI venu le 12/08/2026', 'À rappeler début septembre.', '',
   ].join('\n'));
   assert.deepEqual([r.nb, r.studios, r.categories], [4, ['Levallois', 'Neuilly'], ['Ventes signées', 'VNI']]);
   assert.ok(!/Sans Remarque|Chez Marvin|Autre Commercial|LILLE/.test(r.texte + r.html));
@@ -62,7 +62,7 @@ test('une catégorie ou un studio sans remarque n\'apparaît pas', () => {
   x.studios.Levallois.clientsRetrouves.liste[0].note.remarque = '';
   x.studios.Levallois.vni.liste[0].note.remarque = '';
   const r = RR.remarquesCommercial(x, 'id:' + THIBAULT, 'Thibault P.');
-  assert.equal(r.texte, 'THIBAULT P. — AOÛT 2026\n\nNEUILLY\n\nVentes signées\n\nPaul Durand\nSituation à vérifier.\n');
+  assert.equal(r.texte, 'THIBAULT P. — AOÛT 2026\n\nNEUILLY\n\nVentes signées\n\nPaul Durand — vente du 05/08/2026\nSituation à vérifier.\n');
 });
 
 test('aucune remarque -> nb 0, rien à copier ; clé vide -> rien', () => {
@@ -75,7 +75,7 @@ test('vente sans identifiant Vendor : clé « nom: » exacte, comme la vue comme
   x.studios.Lille.clientsRetrouves.liste.push(vente(Object.assign({ client: 'Hors Vendor', commercial: 'Pas de commercial', commercialId: '' }, note('sans id'))));
   x.studios.Lille.vni.liste.push(vni(Object.assign({ client: 'VNI sans id', commercial: 'Pas de commercial', commercialId: '' }, note('ne sort pas'))));
   const r = RR.remarquesCommercial(x, 'nom:Pas de commercial', 'Pas de commercial');
-  assert.equal(r.texte, 'PAS DE COMMERCIAL — AOÛT 2026\n\nLILLE\n\nVentes signées\n\nHors Vendor\nsans id\n');
+  assert.equal(r.texte, 'PAS DE COMMERCIAL — AOÛT 2026\n\nLILLE\n\nVentes signées\n\nHors Vendor — vente du 05/08/2026\nsans id\n');
 });
 
 test('la copie du club reste inchangée (3 sections)', () => {

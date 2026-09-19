@@ -153,11 +153,11 @@ test('COPIE DU CLUB : deux sections, uniquement les personnes à remarque', asyn
   assert.equal(r.texte, [
     'NEUILLY — AOÛT 2026', '',
     'Ventes signées', '',
-    'Daouda Sy', 'A demandé à résilier, à revoir avec le coach leader.', '',
-    'Aurélie Fourlin', 'Aucun encaissement depuis la signature, à contacter.', '',
+    'Daouda Sy — vente du 05/08/2026 · Challenge', 'A demandé à résilier, à revoir avec le coach leader.', '',
+    'Aurélie Fourlin — vente du 08/08/2026 · Challenge', 'Aucun encaissement depuis la signature, à contacter.', '',
     'Clients non reconduits', '',
-    'Anais Amiel', 'Cliente contactée, situation sous contrôle.', '',
-    'Robin Bassin', 'À creuser avec le coach.', '',
+    'Anais Amiel — client non reconduit', 'Cliente contactée, situation sous contrôle.', '',
+    'Robin Bassin — client non reconduit', 'À creuser avec le coach.', '',
   ].join('\n'));
   assert.ok(!/Personne Tranquille|SANS Remarque/i.test(r.texte + r.html), 'aucune personne sans remarque');
   assert.equal(RR.remarquesClub(await lire(), 'Lille').nb, 0, 'club sans remarque : rien à copier');

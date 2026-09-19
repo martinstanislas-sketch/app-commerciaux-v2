@@ -22340,7 +22340,7 @@ tr.rec2-ligne-transforme td { font-style: italic; }
 .rec2-conseils { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; max-width: 320px; }
 .rec2-conseil { padding: 3px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.35;
   background: rgba(15, 82, 186, .14); border: 1px solid rgba(61, 123, 219, .45); color: var(--r2-text); }
-.rec2-conseil::before { content: "À faire : "; color: var(--r2-text-3); font-weight: 600; }
+/* « À faire : » est écrit dans le texte de la remarque (registre), jamais par CSS. */
 .rec2-conseil-ligne { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
 .rec2-conseil.is-modifiee { border-style: dashed; }
 .rec2-conseil-marque { font-size: 10px; color: var(--r2-text-3); font-style: italic; padding-left: 9px; }
@@ -22358,3 +22358,23 @@ tr.rec2-ligne-transforme td { font-style: italic; }
 .rec2-auto-bloc { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-top: 4px; }
 .rec2-auto-alerte { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: rgba(220, 38, 38, .12); color: #f87171; border: 1px solid rgba(220, 38, 38, .35); }
 .rec2-auto-attrib { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--r2-line-2); color: var(--r2-text-2); }
+
+/* ── RECAP 2 : alertes administrateur (non copiées) et référentiel des remarques ── */
+.rec2-alertes-admin { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.rec2-alertes-admin .rec2-auto-alerte { font-style: normal; }
+.rec2-ref-btn { border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text-2); font: inherit; font-size: 12px; border-radius: 999px; padding: 5px 12px; cursor: pointer; align-self: flex-end; }
+.rec2-ref-btn:hover, .rec2-ref-btn[aria-expanded="true"] { border-color: var(--r2-accent-ligne); color: var(--r2-text); background: var(--r2-accent-soft); }
+.rec2-ref-btn:focus-visible, .rec2-ref-f select:focus-visible { outline: 2px solid var(--r2-focus); outline-offset: 2px; }
+.rec2-ref { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--r2-line-2); border-radius: 12px; background: var(--r2-surface); color: var(--r2-text); }
+.rec2-ref h3 { margin: 0 0 6px; font-size: 16px; }
+.rec2-ref-filtres { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin: 10px 0; }
+.rec2-ref-f { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--r2-text-3); }
+.rec2-ref-f select { font: inherit; font-size: 12px; color: var(--r2-text); background: var(--r2-surface-2); border: 1px solid var(--r2-line-2); border-radius: 8px; padding: 4px 8px; max-width: 260px; }
+.rec2-ref-scroll { overflow-x: auto; max-height: 70vh; overflow-y: auto; border: 1px solid var(--r2-line); border-radius: 10px; }
+.rec2-ref-table { min-width: 1500px; font-size: 12px; }
+.rec2-ref-table th { position: sticky; top: 0; background: var(--r2-surface-2); z-index: 1; }
+.rec2-ref-table td { vertical-align: top; }
+.rec2-ref-id { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+.rec2-ref-texte { min-width: 240px; font-weight: 500; }
+.rec2-ref-table tr.is-silence td { color: var(--r2-text-3); }
+.rec2-ref-table tr.is-alerte .rec2-ref-id { color: #FBBF24; }
