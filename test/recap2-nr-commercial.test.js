@@ -121,9 +121,9 @@ test('commercial : « Clients non reconduits » entre les ventes et les VNI, tex
   assert.equal(r.texte, [
     'THIBAULT P. — AOÛT 2026', '',
     'LEVALLOIS', '',
-    'Ventes signées', '', 'Jean Dupont', 'Vente à suivre.', '',
-    'Clients non reconduits', '', 'Anais Amiel', 'Cliente contactée, retour prévu.', '',
-    'VNI', '', 'Sophie Martin', 'Relance.', '',
+    'Ventes signées', '', 'Jean Dupont — vente', 'Vente à suivre.', '',
+    'Clients non reconduits', '', 'Anais Amiel — client non reconduit', 'Cliente contactée, retour prévu.', '',
+    'VNI', '', 'Sophie Martin — VNI', 'Relance.', '',
   ].join('\n'));
   assert.ok(!/SANS|Remarque|Generique|GENERIQUE|Non attribuée/.test(r.texte + r.html));
 });
@@ -133,7 +133,7 @@ test('réattribution Thibault -> Luca : la remarque quitte l\'un et rejoint l\'a
   x.studios.Levallois.nonReconduction.liste[0].attribution = { manuel: true, cle: 'id:' + LUCA, nom: 'Luca R.' };
   assert.ok(!/Anais Amiel/.test(RR.remarquesCommercial(x, 'id:' + THIBAULT, 'Thibault P.').texte));
   assert.equal(RR.remarquesCommercial(x, 'id:' + LUCA, 'Luca R.').texte, [
-    'LUCA R. — AOÛT 2026', '', 'LEVALLOIS', '', 'Clients non reconduits', '', 'Anais Amiel', 'Cliente contactée, retour prévu.', '',
+    'LUCA R. — AOÛT 2026', '', 'LEVALLOIS', '', 'Clients non reconduits', '', 'Anais Amiel — client non reconduit', 'Cliente contactée, retour prévu.', '',
   ].join('\n'));
 });
 
@@ -141,7 +141,7 @@ test('club : inchangé, tous les non-reconduits à remarque quel que soit leur c
   const x = rapportCopie();
   x.studios.Levallois.nonReconduction.liste[0].attribution = { manuel: true, cle: 'id:' + LUCA, nom: 'Luca R.' };
   const t = RR.remarquesClub(x, 'Levallois').texte;
-  assert.match(t, /Clients non reconduits\n\nAnais Amiel\nCliente contactée, retour prévu\.\n\nCompte Generique\nNon attribuée\./);
+  assert.match(t, /Clients non reconduits\n\nAnais Amiel — client non reconduit\nCliente contactée, retour prévu\.\n\nCompte Generique — client non reconduit\nNon attribuée\./);
 });
 
 // ── DÉPÔT ──────────────────────────────────────────────────────────────────

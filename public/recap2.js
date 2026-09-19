@@ -75,6 +75,19 @@ const Recap2UI = (function () {
       commercial = ''; filtreCom = 'tous'; refsOuvertes = false; vniComOuvert = false; charger();
     });
     $('#rec2-body').addEventListener('click', onBodyClick);
+    // Le référentiel des remarques automatiques (administrateur, lecture seule),
+    // généré depuis le registre du moteur (public/recap2-referentiel.js).
+    const btnRef = $('#rec2-ref-btn');
+    if (btnRef) {
+      btnRef.hidden = !(window.isAdmin && window.isAdmin());
+      btnRef.addEventListener('click', () => {
+        const hote = $('#rec2-referentiel');
+        const ouvrir = hote.hidden;
+        hote.hidden = !ouvrir;
+        btnRef.setAttribute('aria-expanded', ouvrir ? 'true' : 'false');
+        if (ouvrir && window.Recap2Referentiel) window.Recap2Referentiel.monter(hote);
+      });
+    }
     // Les cases de contrôle : `change`, pour ne réagir qu'à un vrai basculement.
     $('#rec2-body').addEventListener('change', (e) => {
       const box = e.target.closest && e.target.closest('input[data-ctl]');
@@ -87,6 +100,8 @@ const Recap2UI = (function () {
       if (reint && rapport) { enregistrerReintegration(reint); return; }
       const flex = e.target.closest && e.target.closest('select[data-flex]');
       if (flex && rapport) { enregistrerFlex(flex); return; }
+      const idv = e.target.closest && e.target.closest('select[data-vni-identite]');
+      if (idv && rapport) { enregistrerIdentiteVni(idv); return; }
       const nrSel = e.target.closest && e.target.closest('select[data-nrstatut]');
       if (nrSel && rapport) { enregistrerStatutNR(nrSel); return; }
       const nrCom = e.target.closest && e.target.closest('select[data-nrcom]');
@@ -887,23 +902,39 @@ const Recap2UI = (function () {
     let i = 0;
     return html.replace(/<\/td>/g, (m) => pastilleAuto(v, champs[i++], studio) + m);
   }
-  // ── REMARQUES AUTOMATIQUES ADRESSÉES AU CONSEILLER ────────────────────────
-  //  Calculées (public/recap2-conseils.js) à partir de l'état AFFICHÉ, forçage
-  //  compris : rien en base, aucun doublon, et elles s'effacent d'elles-mêmes
-  //  quand le problème est réglé. Elles ne remplacent JAMAIS la remarque
-  //  manuelle, qui garde sa ligne et son bouton juste en dessous.
-  function blocConseils(v, studio) {
-    const C = window.Recap2Conseils;
-    if (!C) return '';
-    return blocRemarquesAuto('vente', studio, v, C.conseilsVente(v, { controle: C.moisControle(rapport) }),
-      'Remarque automatique, d\'après le contrôle Deciplus — elle disparaîtra une fois le point réglé.');
+  // ── REMARQUES AUTOMATIQUES (registre unique public/recap2-regles.js) ────────
+  //  Calculées à la lecture à partir de l'état AFFICHÉ (réintégration, forçage,
+  //  décisions, dernier contrôle) : rien en base, aucun doublon, et elles
+  //  s'effacent d'elles-mêmes quand le point est réglé. Les ACTIONS vont au
+  //  conseiller (« À faire : » écrit dans le texte, une fois) ; les ALERTES
+  //  techniques restent ici, pour l'administrateur, et ne sont jamais copiées.
+  const G = () => window.Recap2Regles;
+  let ctxCache = null;   // contexte de lecture du rapport (mois contrôlé, contentieux)
+  function ctxRegles() {
+    if (!ctxCache || ctxCache.rapport !== rapport) ctxCache = { rapport, ctx: G() ? G().contexteRapport(rapport) : { controle: false } };
+    return ctxCache.ctx;
   }
-  // ── REMARQUE AUTOMATIQUE MODIFIABLE ─────────────────────────────────────────
-  //  Chaque remarque automatique peut être réécrite à la main (administrateur).
-  //  Le texte d'origine est gardé en base (lib/recap2RemarquesAuto.js) : la
-  //  version modifiée s'affiche et se copie à sa place, et « Revenir à la
-  //  version automatique » la retire. Si la règle cesse de produire la
-  //  remarque (point réglé), la version modifiée disparaît avec elle.
+  function blocConseils(v, studio) {
+    if (!G()) return '';
+    const items = G().evaluerVente(v, ctxRegles());
+    const etat = G().etatVente(v, ctxRegles());
+    const badge = etat === 'contentieux' ? '<span class="rec2-auto-attrib">Contentieux confirmé — aucune action demandée</span>'
+      : etat === 'retractation' ? '<span class="rec2-auto-attrib">Rétractation confirmée — départ confirmé, aucune action demandée</span>' : '';
+    return (badge ? '<div class="rec2-auto-bloc">' + badge + '</div>' : '')
+      + blocAlertesAdmin(items)
+      + blocRemarquesAuto('vente', studio, v, items, 'Remarque automatique, d\'après le contrôle Deciplus — elle disparaîtra une fois le point réglé.');
+  }
+  // Les alertes techniques (administrateur) : jamais copiées.
+  function blocAlertesAdmin(items) {
+    const al = G() ? G().alertesAdmin(items) : [];
+    if (!al.length || !(window.isAdmin && window.isAdmin())) return '';
+    return '<div class="rec2-alertes-admin">' + al.map((x) => '<span class="rec2-auto-alerte" data-regle="' + esc(x.regle) + '" title="' + esc(x.regle + ' — alerte administrateur, non copiée') + '">' + esc(x.texte) + '</span>').join('') + '</div>';
+  }
+  // ── REMARQUE AUTOMATIQUE PERSONNALISABLE ────────────────────────────────────
+  //  Chaque action peut être réécrite (administrateur ; l'auteur pour la
+  //  sienne). Clé stable : dossier · mois · identifiant de règle
+  //  (lib/recap2RemarquesAuto.js) — la personnalisation survit à une
+  //  reformulation du registre. « Revenir à la version automatique » la retire.
   let editionAuto = null;   // { cle, texte, erreur, enCours }
   // Modifier une remarque : un administrateur, ou l'auteur de la remarque.
   const utilisateur = () => { try { return JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch (_) { return {}; } };
@@ -922,52 +953,57 @@ const Recap2UI = (function () {
     ? '<ul class="rec2-histo">' + (historiqueOuvert.lignes.length ? historiqueOuvert.lignes.map((h) => '<li><span class="rec2-det-date">' + esc(fmtDate(h.le)) + (h.par ? ' · ' + esc(h.par) : '') + '</span> '
       + (h.avant ? '<s>' + esc(h.avant) + '</s> → ' : '') + (h.apres ? esc(h.apres) : '<i>' + esc(h.vide || 'supprimée') + '</i>') + '</li>').join('') : '<li>Aucune version antérieure.</li>') + '</ul>'
     : '';
-  const cleAuto = (type, studio, l, origine) => [type, studio, l.client || '', l.idClient || '', type === 'vni' ? (l.contactId || '') : '', origine].join('|');
-  function blocRemarquesAuto(type, studio, l, origines, titreAuto) {
-    const C = window.Recap2Conseils;
-    if (!origines || !origines.length) return '';
-    const admin = !!(window.isAdmin && window.isAdmin());
-    const versions = C && C.versions ? C.versions(origines, l) : origines.map((t) => ({ origine: t, texte: t, modifiee: false }));
+  const cleAuto = (type, studio, l, regle) => [type, studio, G() ? G().cleDossier(type, l) : l.client, regle].join('|');
+  function blocRemarquesAuto(type, studio, l, items, titreAuto) {
+    const R = G();
+    const acts = R ? R.actions(items) : [];
+    if (!acts.length) return '';
+    const admin = estAdminR2();
+    const versions = R.versions(acts, l);
     const data = ' data-type="' + type + '" data-studio="' + esc(studio || '') + '" data-client="' + esc(l.client || '')
-      + '" data-idclient="' + esc(l.idClient || '') + '" data-idvendor="' + esc(type === 'vni' ? (l.contactId || '') : '') + '"';
+      + '" data-idclient="' + esc(l.idClient || '') + '" data-idvendor="' + esc(type === 'vni' ? (l.contactId || '') : '') + '" data-date="' + esc(type === 'vente' ? (l.date || '') : '') + '"';
     return '<div class="rec2-conseils">' + versions.map((v) => {
-      const cle = cleAuto(type, studio, l, v.origine);
-      const d = data + ' data-origine="' + esc(v.origine) + '"';
+      const cle = cleAuto(type, studio, l, v.regle);
+      const d = data + ' data-regle="' + esc(v.regle) + '"';
       const btn = (action, texte, cls) => '<button type="button" class="' + cls + '" data-auto-action="' + action + '"' + d + '>' + texte + '</button>';
       if (editionAuto && editionAuto.cle === cle) {
         const e = editionAuto;
         return '<div class="rec2-note-edit rec2-auto-edit">'
-          + '<textarea class="rec2-note-zone" rows="2" maxlength="1000" data-auto-texte="1"' + (e.enCours ? ' disabled' : '') + '>' + esc(e.texte) + '</textarea>'
-          + '<div class="rec2-det-date">Version automatique : « ' + esc(v.origine) + ' »</div>'
+          + '<label class="rec2-det-date" for="rec2-auto-' + esc(v.regle) + '">À faire :</label>'
+          + '<textarea id="rec2-auto-' + esc(v.regle) + '" class="rec2-note-zone" rows="2" maxlength="1000" data-auto-texte="1"' + (e.enCours ? ' disabled' : '') + '>' + esc(e.texte) + '</textarea>'
+          + '<div class="rec2-det-date">Version automatique (' + esc(v.regle) + ') : « ' + esc(R.enAction(v.origine)) + ' »</div>'
           + '<div class="rec2-prop-actions">' + btn('enregistrer', 'Enregistrer', 'rec2-btn-ok')
           + (v.modifiee ? btn('revenir', 'Revenir à la version automatique', 'rec2-btn-non') : '')
           + btn('annuler', 'Annuler', 'rec2-btn-non') + (admin ? btn('historique', 'Historique', 'rec2-note-ajout') : '') + '</div>'
           + (e.erreur ? '<div class="rec2-resil-err">' + esc(e.erreur) + '</div>' : '') + blocHistorique('auto|' + cle) + '</div>';
       }
-      const perso = ((l.remarquesAuto || {})[v.origine]) || {};
       const titre = v.modifiee
-        ? 'Personnalisée' + (v.modifiePar ? ' par ' + v.modifiePar : '') + (v.modifieLe ? ' le ' + fmtDate(v.modifieLe) : '') + '\nVersion automatique : « À faire : ' + v.origine + ' »'
-        : titreAuto;
-      const edit = v.modifiee ? peutModifier(perso.auteur || v.modifiePar) : admin;
-      return '<div class="rec2-conseil-ligne"><span class="rec2-conseil' + (v.modifiee ? ' is-modifiee' : '') + '" title="' + esc(titre) + '">' + esc(v.texte) + '</span>'
+        ? 'Personnalisée' + (v.modifiePar ? ' par ' + v.modifiePar : '') + (v.modifieLe ? ' le ' + fmtDate(v.modifieLe) : '') + '\nVersion automatique (' + v.regle + ') : « ' + R.enAction(v.origine) + ' »'
+        : titreAuto + '\nRègle ' + v.regle;
+      const edit = v.modifiee ? peutModifier(v.auteur || v.modifiePar) : admin;
+      return '<div class="rec2-conseil-ligne"><span class="rec2-conseil' + (v.modifiee ? ' is-modifiee' : '') + '" data-regle="' + esc(v.regle) + '" title="' + esc(titre) + '">' + esc(R.enAction(v.texte)) + '</span>'
         + (v.modifiee ? '<span class="rec2-conseil-marque">Remarque automatique personnalisée' + (v.modifiePar ? ' — par ' + esc(v.modifiePar) : '') + (v.modifieLe ? ' le ' + esc(fmtDate(v.modifieLe)) : '') + '</span>' : '')
         + (edit ? '<span class="rec2-conseil-actions">' + btn('ouvrir', '✏️ Modifier', 'rec2-note-ajout')
           + (v.modifiee ? btn('revenir', 'Revenir à la version automatique', 'rec2-note-ajout') : '') + '</span>' : '')
         + '</div>';
     }).join('') + '</div>';
   }
-  function lignesPersonneAuto(d) {
-    return lignesPersonne(d.type, d.studio, d.client, d.idclient, d.idvendor);
+  // La ligne exacte du dossier (une vente = client + date).
+  function lignesDossierAuto(d) {
+    const lignes = lignesPersonne(d.type, d.studio, d.client, d.idclient, d.idvendor);
+    return d.type === 'vente' ? lignes.filter((l) => (l.date || '') === (d.date || '')) : lignes;
   }
   async function actionRemarqueAuto(bouton) {
     const d = bouton.dataset;
     const action = d.autoAction;
-    const ligne0 = lignesPersonneAuto(d)[0];
+    const ligne0 = lignesDossierAuto(d)[0];
     if (!ligne0) return;
-    const cle = cleAuto(d.type, d.studio, ligne0, d.origine);
+    const cle = cleAuto(d.type, d.studio, ligne0, d.regle);
     if (action === 'ouvrir') {
-      const m = (ligne0.remarquesAuto || {})[d.origine];
-      editionAuto = { cle, texte: (m && m.texte) || d.origine, erreur: '', enCours: false };
+      const m = (ligne0.remarquesPerso || {})[d.regle];
+      const item = G().PAR_ID[d.regle];
+      const produite = (m && m.texte) || (bouton.closest('.rec2-conseil-ligne') && G().sansPrefixe((bouton.closest('.rec2-conseil-ligne').querySelector('.rec2-conseil') || {}).textContent || '')) || (item && item.texte) || '';
+      editionAuto = { cle, texte: produite, erreur: '', enCours: false };
       render();
       const zone = $('#rec2-body textarea[data-auto-texte]');
       if (zone) { zone.focus(); zone.setSelectionRange(zone.value.length, zone.value.length); }
@@ -975,10 +1011,11 @@ const Recap2UI = (function () {
     }
     if (action === 'annuler') { editionAuto = null; historiqueOuvert = null; render(); return; }
     if (action === 'historique') {
-      return afficherHistorique('auto|' + cle, (j) => (j.remarquesAuto || []).filter((h) => h.studio === d.studio && h.type === d.type && h.texte_auto === d.origine
-        && (h.client === ligne0.client)).map((h) => Object.assign({}, h, { vide: 'retour à la version automatique' })));
+      const cd = G().cleDossier(d.type, ligne0);
+      return afficherHistorique('auto|' + cle, (j) => (j.remarquesAuto || []).filter((h) => h.studio === d.studio && h.type === d.type && h.regle === d.regle
+        && h.cle_dossier === cd).map((h) => Object.assign({}, h, { vide: 'retour à la version automatique' })));
     }
-    if (action === 'enregistrer' && editionAuto && editionAuto.cle === cle && !String(editionAuto.texte || '').trim()) {
+    if (action === 'enregistrer' && editionAuto && editionAuto.cle === cle && !G().sansPrefixe(editionAuto.texte || '')) {
       editionAuto.erreur = 'La remarque ne peut pas être vide. Utilise « Revenir à la version automatique ».'; render(); return;
     }
     // Enregistrer, ou revenir à la version automatique (texte vide) : le serveur fait foi.
@@ -988,15 +1025,15 @@ const Recap2UI = (function () {
     try {
       const r = await fetch('/api/recap2/remarque-auto', {
         method: 'POST', headers: H(),
-        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, idVendor: d.idvendor || '', texteAuto: d.origine, texte }),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, type: d.type, client: d.client, idClient: d.idclient, idVendor: d.idvendor || '', date: d.date || '', regle: d.regle, texte }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || !j.version) throw new Error((j && j.error) || ('HTTP ' + r.status));
-      lignesPersonneAuto(d).forEach((l) => {
-        const m = Object.assign({}, l.remarquesAuto || {});
-        if (j.version.texte) m[d.origine] = { texte: j.version.texte, modifieLe: j.version.modifieLe, modifiePar: j.version.modifiePar };
-        else delete m[d.origine];
-        l.remarquesAuto = m;
+      lignesDossierAuto(d).forEach((l) => {
+        const m = Object.assign({}, l.remarquesPerso || {});
+        if (j.version.texte) m[d.regle] = { texte: j.version.texte, modifieLe: j.version.modifieLe, modifiePar: j.version.modifiePar, auteur: (m[d.regle] && m[d.regle].auteur) || j.version.modifiePar };
+        else delete m[d.regle];
+        l.remarquesPerso = m;
       });
       editionAuto = null;
     } catch (err) {
@@ -1009,13 +1046,14 @@ const Recap2UI = (function () {
     const a = v.automatique;
     if (!a) return '';
     const heure = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(a.controleLe || '');
-    const quand = heure ? 'Contrôlé le ' + heure[3] + '/' + heure[2] + '/' + heure[1] + ' à ' + heure[4] + ':' + heure[5] : '';
+    const quand = heure ? 'Dernier contrôle Deciplus le ' + heure[3] + '/' + heure[2] + '/' + heure[1] + ' à ' + heure[4] + ':' + heure[5] : '';
     const alertes = (a.alertes || []).map((x) => '<span class="rec2-auto-alerte">' + esc(x) + '</span>').join('');
+    const requal = a.requalification ? '<span class="rec2-auto-attrib" title="Recalculé à la lecture, sans relire Deciplus">Recalculé : ' + esc(a.requalification) + '</span>' : '';
     const at = a.attribution;
     const attribution = at ? '<span class="rec2-auto-attrib">' + esc(at.compte
       ? 'Vente comptée ici' + (at.commercial ? ' · ' + at.commercial : '')
       : 'Non comptée — ' + at.motif) + '</span>' : '';
-    return '<div class="rec2-auto-bloc">' + alertes + attribution + (quand ? '<span class="rec2-det-date">' + quand + '</span>' : '') + '</div>';
+    return '<div class="rec2-auto-bloc">' + alertes + requal + attribution + (quand ? '<span class="rec2-det-date">' + quand + '</span>' : '') + '</div>';
   }
   function casesPrelevementReservation(v, studio) {
     return CONTROLES.map((c) => {
@@ -1390,7 +1428,12 @@ const Recap2UI = (function () {
   const LIB_NR = Object.fromEntries(STATUTS_NR.map((s) => [s.val, s.libelle]));
   const statutNR = (c) => (c && c.suivi && c.suivi.statut) || '';               // manuel
   const statutAutoNR = (c) => (c && c.analyse && c.analyse.statut) || '';        // contrôle
-  const statutEffNR = (c) => statutNR(c) || statutAutoNR(c) || 'non_controle';
+  // Statut effectif : registre unique (contentieux et rétractation confirmés
+  // priment sur toute décision manuelle — niveaux 1 et 2).
+  const statutEffNR = (c) => (G() ? G().statutEffectifNR(c) : (statutNR(c) || statutAutoNR(c) || 'non_controle'));
+  // Date ET heure du contrôle, visibles : le résultat dépend d'une collecte externe.
+  const quandControle = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] + ' à ' + m[4] + ':' + m[5] : ''; };
+  const aujourdHuiIso = () => new Date().toISOString().slice(0, 10);
   function selectStatutNR(c, studio) {
     if (!(window.isAdmin && window.isAdmin())) return '';
     const actuel = statutNR(c);
@@ -1405,32 +1448,40 @@ const Recap2UI = (function () {
   // Le bloc d'analyse sous le nom : statut, indication, cause, finance, remarques.
   function blocAnalyseNR(c, studio) {
     const a = c.analyse;
+    const R = G();
+    const q = R ? R.requalifierNR(a) : null;
     const eff = statutEffNR(c);
     const def = STATUTS_NR.find((s) => s.val === eff);
     const manuel = statutNR(c);
-    const titre = a ? 'Contrôle Deciplus du ' + fmtDate(a.controleLe) + (manuel && a.statut ? ' — statut automatique : ' + LIB_NR[a.statut] : '') : 'Mois non contrôlé';
+    const imposeParDonnee = !!(q && (q.contentieux || q.retractation));
+    const titre = a ? 'Contrôle Deciplus du ' + quandControle(a.controleLe) + (manuel && a.statut ? ' — statut automatique : ' + LIB_NR[q ? q.statut : a.statut] : '') : 'Mois non contrôlé';
     let h = '<div class="rec2-flex">';
-    if (def) h += '<span class="rec2-etat ' + def.classe + '" title="' + esc(titre) + '">' + esc(def.libelle) + '</span>'
-      + (manuel ? ' <span class="rec2-det-date">décision manuelle</span>' : '');
-    if (manuel === 'resilie' && window.Recap2Conseils && window.Recap2Conseils.recuperationOuverte && window.Recap2Conseils.recuperationOuverte(c)) {
-      h += '<span class="rec2-nr-suggest" title="Déménagement confirmé sans refus définitif documenté : un transfert de studio ou un Challenge en visioconférence reste possible. La décision « Résilié » est conservée.">Récupération proposée malgré la décision manuelle « Résilié »</span>';
+    const susp = a && a.suspension && R ? R.etatSuspension(a.suspension, aujourdHuiIso()) : null;
+    const libelle = (eff === 'suspendu' && susp && susp.code !== 'active') ? susp.libelle : (def ? def.libelle : '');
+    if (def) h += '<span class="rec2-etat ' + (eff === 'suspendu' && susp && susp.code !== 'active' ? 'is-faire' : def.classe) + '" title="' + esc(titre) + '">' + esc(libelle) + '</span>'
+      + (manuel && !imposeParDonnee ? ' <span class="rec2-det-date">décision manuelle</span>' : '');
+    if (q && q.contentieux) h += '<span class="rec2-nr-indic">Contentieux confirmé par Deciplus — aucune action de récupération' + (manuel && manuel !== 'resilie' ? ' (décision manuelle « ' + esc(LIB_NR[manuel] || manuel) + ' » sans effet)' : '') + '</span>';
+    else if (q && q.retractation) h += '<span class="rec2-nr-indic">Rétractation confirmée — départ confirmé, aucune action de récupération</span>';
+    if (manuel === 'resilie' && R && R.recuperationOuverte(c)) {
+      h += '<span class="rec2-nr-suggest" title="Déménagement sans refus définitif documenté : un transfert de studio ou un Challenge en visioconférence reste possible. La décision « Résilié » est conservée.">Récupération proposée malgré la décision manuelle « Résilié »</span>';
     }
     if (c.suggestion === 'recupere' && manuel !== 'recupere') h += '<span class="rec2-nr-suggest" title="Nouvelle prestation détectée après une première analyse « À traiter ». Seul un administrateur peut poser le statut.">Suggestion : Récupéré ?</span>';
-    if (a && a.indication) h += '<span class="rec2-nr-indic">' + esc(a.indication) + '</span>';
+    if (a && a.indication && !(q && q.retractation)) h += '<span class="rec2-nr-indic">' + esc(a.indication) + '</span>';
     if (a && a.finance && (a.finance.ecart != null || a.finance.anomalie)) {
       const f = a.finance;
       const lim = (f.limites || []).join(' · ');
       const parts = [];
-      if (f.contratVendor != null) parts.push('Vendor ' + eurosFr(f.contratVendor));
+      if (f.contratVendor != null) parts.push('Vendor ' + eurosFr(f.contratVendor) + (f.vendorEstime ? ' (estimé)' : ''));
       if (f.contratDeciplus != null) parts.push('Deciplus ' + eurosFr(f.contratDeciplus));
       if (f.facture != null) parts.push('facturé ' + eurosFr(f.facture));
       if (f.encaisse != null) parts.push('encaissé ' + eurosFr(f.encaisse));
       if (f.remboursements) parts.push('remboursé ' + eurosFr(f.remboursements));
       h += '<span class="rec2-nr-fin" title="' + esc('Calcul non définitif — ' + lim) + '">' + esc(parts.join(' · ')) + '</span>';
     }
-    const C = window.Recap2Conseils;
-    const conseils = (C && C.conseilsNonReconduit) ? C.conseilsNonReconduit(c) : [];
-    h += blocRemarquesAuto('non_reconduit', studio, c, conseils, 'Remarque automatique, d\'après le contrôle Deciplus des non-reconduits.');
+    if (a) h += '<span class="rec2-det-date">Dernier contrôle Deciplus le ' + esc(quandControle(a.controleLe)) + '</span>';
+    const items = R ? R.evaluerNR(c) : [];
+    h += blocAlertesAdmin(items);
+    h += blocRemarquesAuto('non_reconduit', studio, c, items, 'Remarque automatique, d\'après le contrôle Deciplus des non-reconduits.');
     return h + selectStatutNR(c, studio) + '</div>';
   }
   const eurosFr = (x) => (x == null ? '—' : (Math.round(Number(x) * 100) / 100).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' €');
@@ -1484,14 +1535,22 @@ const Recap2UI = (function () {
       + '</div>';
   }
   // Les membres suspendus HORS non-reconduits (lecture sûre uniquement).
+  //  Une suspension terminée n'est JAMAIS affichée comme suspension active.
   function blocSuspensions(label) {
     const b = rapport.studios && rapport.studios[label];
     const l = (b && b.suspensionsControle && b.suspensionsControle.liste) || [];
     if (!l.length) return '';
-    const C = window.Recap2Conseils;
-    const lignes = l.map((x) => '<tr><td>' + nomNonReconduit(x) + '<div class="rec2-flex"><span class="rec2-etat is-susp">Suspendu temporairement</span>'
-      + (x.analyse.indication ? '<span class="rec2-nr-indic">' + esc(x.analyse.indication) + '</span>' : '')
-      + blocRemarquesAuto('suspension', label, x, C ? C.conseilsSuspension(x) : [], 'Remarque automatique, d\'après le contrôle Deciplus des suspensions.') + '</div></td></tr>').join('');
+    const R = G();
+    const lignes = l.map((x) => {
+      const e = R ? R.etatSuspension(x.analyse.suspension, aujourdHuiIso()) : null;
+      const items = R ? R.evaluerSuspension(x) : [];
+      const badge = e ? e.libelle : 'Suspendu temporairement';
+      return '<tr><td>' + nomNonReconduit(x) + '<div class="rec2-flex"><span class="rec2-etat ' + (e && e.code !== 'active' ? 'is-faire' : 'is-susp') + '">' + esc(badge) + '</span>'
+        + (x.analyse.indication ? '<span class="rec2-nr-indic">' + esc(x.analyse.indication) + '</span>' : '')
+        + '<span class="rec2-det-date">Dernier contrôle Deciplus le ' + esc(quandControle(x.analyse.controleLe)) + '</span>'
+        + blocAlertesAdmin(items)
+        + blocRemarquesAuto('suspension', label, x, items, 'Remarque automatique, d\'après le contrôle Deciplus des suspensions.') + '</div></td></tr>';
+    }).join('');
     return '<div class="rec2-nr-susp"><div class="rec2-nr-kpis-titre">Suspensions à contrôler (hors non-reconduits) — ' + l.length + '</div>'
       + '<table class="rec2-table"><tbody>' + lignes + '</tbody></table></div>';
   }
@@ -1754,8 +1813,8 @@ const Recap2UI = (function () {
   }
   // ── CHALLENGE FLEX D'UN VNI ────────────────────────────────────────────────
   //  Statut posé par le contrôle Vendor (lib/recap2Flex.js) ou par la décision
-  //  du conseiller, qui l'emporte toujours. La remarque « À faire : … » n'existe
-  //  que pour « Flex à proposer » : ailleurs, l'action est faite ou sans objet.
+  //  du conseiller. Remarques : registre unique (VNI-IDENTITE, jamais masquée
+  //  par une décision commerciale ; VNI-FLEX sans preuve de proposition).
   const FLEX_CLASSE = { 'Flex proposé': 'is-ok', 'Flex à proposer': 'is-faire', 'À vérifier': 'is-non',
     'Prospect non intéressé': 'is-ok', 'À reproposer plus tard': 'is-faire', 'Transformé depuis': 'is-oui' };
   function blocFlex(l) {
@@ -1768,13 +1827,46 @@ const Recap2UI = (function () {
         + (f.statutAuto ? ' — contrôle Vendor : ' + f.statutAuto : '')
       : 'Contrôle Vendor' + (f.controleLe ? ' du ' + fmtDate(f.controleLe) : '')
         + (preuve ? ' — ' + preuve.type + ' ' + preuve.quand + ' : ' + preuve.texte : '');
-    const C = window.Recap2Conseils;
-    const conseils = (C && C.conseilsVni) ? C.conseilsVni(l) : [];
+    const items = G() ? G().evaluerVni(l) : [];
+    const idv = l.identiteVni;
+    const quand = quandControle(f.controleLe);
     return '<div class="rec2-flex">'
       + '<span class="rec2-etat ' + (FLEX_CLASSE[f.statut] || 'is-non') + '" title="' + esc(titre) + '">' + esc(f.statut) + '</span>'
       + (d ? ' <span class="rec2-det-date">décision du conseiller</span>' : '')
-      + blocRemarquesAuto('vni', l.studio, l, conseils, 'Remarque automatique, d\'après le contrôle Vendor du Challenge Flex.')
-      + choixFlex(l) + '</div>';
+      + (idv && idv.validee ? ' <span class="rec2-det-date">identité validée' + (idv.modifiePar ? ' par ' + esc(idv.modifiePar) : '') + '</span>' : '')
+      + (quand ? '<span class="rec2-det-date">Dernier contrôle Vendor le ' + esc(quand) + '</span>' : '')
+      + blocAlertesAdmin(items)
+      + blocRemarquesAuto('vni', l.studio, l, items, 'Remarque automatique, d\'après le contrôle Vendor du Challenge Flex.')
+      + choixIdentiteVni(l) + choixFlex(l) + '</div>';
+  }
+  // Validation EXPLICITE de l'identité : seule elle fait disparaître
+  // « Vérifie l'identité du prospect dans Vendor. » (administrateur, réversible).
+  function choixIdentiteVni(l) {
+    if (!(window.isAdmin && window.isAdmin()) || !(l.flex && l.flex.statutAuto === 'À vérifier')) return '';
+    const v = l.identiteVni && l.identiteVni.validee ? 'validee' : 'auto';
+    const opt = (x, t) => '<option value="' + x + '"' + (v === x ? ' selected' : '') + '>' + t + '</option>';
+    return '<div class="rec2-verif"><select class="rec2-verif-sel" data-vni-identite="1" data-studio="' + esc(l.studio || '')
+      + '" data-contact="' + esc(l.contactId || '') + '" aria-label="' + esc('Identité Vendor — ' + l.client) + '"'
+      + ' title="Après vérification dans Vendor : confirmer l’identité du prospect.">'
+      + opt('auto', 'Identité à vérifier') + opt('validee', 'Identité validée') + '</select></div>';
+  }
+  async function enregistrerIdentiteVni(sel) {
+    const d = sel.dataset;
+    sel.disabled = true;
+    try {
+      const r = await fetch('/api/recap2/vni-identite', { method: 'POST', headers: H(),
+        body: JSON.stringify({ mois: rapport.mois, studio: d.studio, contactId: d.contact, valeur: sel.value }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const b = rapport.studios && rapport.studios[d.studio];
+      const ligne = ((b && b.vni && b.vni.liste) || []).find((x) => String(x.contactId || '') === d.contact);
+      if (ligne) { if (j.identite && j.identite.validee) ligne.identiteVni = j.identite; else delete ligne.identiteVni; }
+      render();
+    } catch (err) {
+      sel.disabled = false;
+      alert('Identité non enregistrée : ' + (err && err.message ? err.message : 'erreur'));
+      render();
+    }
   }
   // Après son action, le conseiller dit ce qu'il en est. Réversible.
   function choixFlex(l) {

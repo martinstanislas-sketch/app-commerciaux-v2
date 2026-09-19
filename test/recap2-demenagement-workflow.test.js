@@ -17,7 +17,8 @@ const { spawn } = require('child_process');
 const S = require('../lib/recap2Store.js');
 const RR = require('../public/recap2-remarques.js');
 const M = require('../public/recap2-metrics.js');
-const T = require('../public/recap2-conseils.js').TEXTES_NR;
+const RG = require('./_regles.js');
+const T = { PRIX: RG.T['NR-PRIX'], DEMENAGEMENT: RG.T['NR-DEMENAGEMENT'], SUSP_RAISON: RG.T['SUSP-DOC'], IDENTITE: RG.T['NR-IDENTITE'] };
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'recap2-dem-'));
 const PORT = 3969;
@@ -68,7 +69,10 @@ let KPI0, FICHIER0;
 const DEM = T.DEMENAGEMENT;
 const dem = () => analyse({ cause: { code: 'demenagement', libelle: 'Déménagement', certitude: 'Confirmée', indice: 'note Message accueil du 19/05/2026' },
   indication: 'Cause probable : Déménagement (Confirmée)', recuperationOuverte: true,
-  remarques: ['Vérifie la situation financière du client. Le contrat signé prévoyait 3 588 €, mais 552 € ont réellement été réglés, soit un écart de 3 036 €.', DEM] });
+  finance: { contratVendor: 3588, contratDeciplus: 3588, contratReference: 3588, facture: 552, encaisse: 552, journalNet: 552, net: 552, ecart: 3036,
+    anomalie: '', justification: '', valide: false, limites: ['avoirs non lisibles dans Deciplus : calcul à confirmer'] },
+  remarques: [DEM] });
+const ECART = 'À faire : Le client devait régler 3\u202f588 €, mais 552 € ont réellement été encaissés, soit un écart de 3\u202f036 €. Vérifie et régularise cet écart.';
 
 before(async () => {
   await demarrer();
@@ -82,8 +86,8 @@ const verifier = async (msg) => {
   const r = await lire(); const l = ligne(r);
   assert.equal(l.suivi.statut, 'resilie', msg + ' : décision humaine conservée');
   const club = RR.remarquesClub(r, 'Lille').texte;
-  assert.match(club, /Marie Dupont\nÀ faire : Contacte le client et propose-lui un transfert de studio ou de poursuivre son Challenge en visioconférence\./, msg + ' : copie du club');
-  assert.ok(!/situation financière/.test(club), msg + ' : seule l’action de récupération malgré « Résilié »');
+  assert.ok(club.includes('Marie Dupont — client non reconduit\n' + ECART + '\nÀ faire : Contacte le client et propose-lui un transfert de studio ou de poursuivre son Challenge en visioconférence.'),
+    msg + ' : copie du club — l’action de récupération ET l’anomalie financière malgré « Résilié »');
   const k = M.indicateursNR(r.studios.Lille.nonReconduction.liste);
   assert.deepEqual([k.aRecuperer, k.resiliations, k.dontResilieRecuperable], [1, 1, 1], msg + ' : compteurs');
   return r;

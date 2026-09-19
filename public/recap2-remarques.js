@@ -7,49 +7,46 @@
 //  rend le texte à copier. Chargé des deux côtés (UMD) : navigateur pour le
 //  bouton, Node pour les tests.
 //
-//  Format (texte brut) :
+//  Format (texte brut) — chaque remarque garde son CONTEXTE (client, date,
+//  vente concernée) ; une personne qui a deux ventes a deux blocs :
 //      NEUILLY — AOÛT 2026
 //
 //      Ventes signées
 //
-//      Daouda Sy
+//      Daouda Sy — vente du 12/08/2026 · Challenge 12 mois
+//      À faire : Contacte le client pour planifier ses prochaines séances.
 //      A demandé à résilier, à revoir avec le coach leader.
 //
 //      Clients non reconduits
 //
-//      Amiel Anais
-//      Cliente contactée, situation sous contrôle.
+//      Anais Amiel — client non reconduit
+//      À faire : Contacte le client et propose-lui le Challenge Flex à 4 séances par mois.
 //
-//  Les remarques AUTOMATIQUES (public/recap2-conseils.js) sont reprises ici,
-//  sur les ventes signées ET les VNI (Challenge Flex), AVANT la remarque
-//  manuelle et sans marque
-//  distinctive : le conseiller lit une suite de phrases. Elles ne sont pas
-//  stockées — recalculées à chaque copie, donc jamais en double et à jour —
-//  sauf leur VERSION MODIFIÉE à la main (lib/recap2RemarquesAuto.js), reprise
-//  telle qu'elle s'affiche.
-//
-//  Plus une version HTML (titres et noms en gras) pour un collage propre dans
-//  Gmail. UNIQUEMENT les personnes qui ont une remarque ; une section sans
-//  remarque n'apparaît pas. Une personne présente sur plusieurs lignes d'une
-//  même liste (deux ventes) n'est écrite qu'une fois.
-//  Aucun filtre de l'écran (commercial, statut) n'entre en compte : le club
-//  entier, sur le mois du rapport.
+//  Les remarques AUTOMATIQUES viennent du registre unique (public/recap2-regles.js) :
+//  seules les ACTIONS sont copiées, chacune commençant exactement une fois par
+//  « À faire : » (écrit dans le texte, jamais par CSS) ; les alertes techniques
+//  (codes de contrôle, contrôle financier impossible…) restent à l'écran de
+//  l'administrateur. Version personnalisée reprise telle qu'affichée. La
+//  remarque manuelle suit, sans préfixe, une seule fois par personne et par
+//  section. Plus une version HTML (titres et noms en gras) pour Gmail.
+//  UNIQUEMENT les dossiers qui ont une remarque ; une section vide n'apparaît
+//  pas. Aucun filtre de l'écran n'entre en compte : le club entier, sur le mois.
 // ============================================================================
 
 (function (racine, fabrique) {
   // Dépend de Recap2Metrics (attribution d'un non-reconduit) : même règle que l'écran,
-  // et de Recap2Conseils (les remarques automatiques adressées au conseiller).
-  if (typeof module === 'object' && module.exports) module.exports = fabrique(require('./recap2-metrics.js'), require('./recap2-conseils.js'));
-  else racine.Recap2Remarques = fabrique(racine.Recap2Metrics, racine.Recap2Conseils);
-}(typeof self !== 'undefined' ? self : this, function (Metrics, Conseils) {
+  // et du registre Recap2Regles (les remarques automatiques adressées au conseiller).
+  if (typeof module === 'object' && module.exports) module.exports = fabrique(require('./recap2-metrics.js'), require('./recap2-regles.js'));
+  else racine.Recap2Remarques = fabrique(racine.Recap2Metrics, racine.Recap2Regles);
+}(typeof self !== 'undefined' ? self : this, function (Metrics, Regles) {
   const MOIS = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
   const SECTIONS = [
-    { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: 'vente' },
-    { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction', auto: 'nr' },
+    { type: 'vente', titre: 'Ventes signées', bloc: 'clientsRetrouves' },
+    { type: 'non_reconduit', titre: 'Clients non reconduits', bloc: 'nonReconduction' },
     // VNI : la liste ACTIVE posée par le serveur (transformés déjà retirés).
-    { type: 'vni', titre: 'VNI', bloc: 'vni', auto: 'vni' },
+    { type: 'vni', titre: 'VNI', bloc: 'vni' },
     // Membres suspendus HORS non-reconduits (contrôle Deciplus, lecture sûre).
-    { type: 'suspension', titre: 'Suspensions à contrôler', bloc: 'suspensionsControle', auto: 'suspension' },
+    { type: 'suspension', titre: 'Suspensions à contrôler', bloc: 'suspensionsControle' },
   ];
 
   function moisEnClair(ym) {
@@ -102,39 +99,57 @@
     return cleIdentite(a.client) === cleIdentite(b.client);
   }
 
-  // Les remarques d'une ligne : les automatiques puis la manuelle, jamais
-  // remplacée. `auto` dit de quelle famille de règles relève la ligne :
-  // 'vente' (contrôle Deciplus) ou 'vni' (Challenge Flex).
-  function remarquesLigne(l, { auto, controle }) {
-    const origines = (auto && Conseils)
-      ? (auto === 'vni' ? Conseils.conseilsVni(l)
-        : auto === 'nr' ? Conseils.conseilsNonReconduit(l)
-          : auto === 'suspension' ? Conseils.conseilsSuspension(l)
-            : Conseils.conseilsVente(l, { controle }))
-      : [];
-    // La version affichée : modifiée à la main si elle existe. Pour les
-    // non-reconduits et les suspensions, le cahier des charges exige que la
-    // remarque automatique commence par « À faire : » — y compris dans la copie.
-    const prefixe = (auto === 'nr' || auto === 'suspension') ? 'À faire : ' : '';
-    const autos = (Conseils && Conseils.versions ? Conseils.versions(origines, l).map((v) => v.texte) : origines)
-      .map((t) => (prefixe && t.indexOf(prefixe) !== 0 ? prefixe + t : t));
+  // Les remarques AUTOMATIQUES d'une ligne (actions seulement, version affichée,
+  // préfixe « À faire : » exactement une fois). `type` : vente | non_reconduit | vni | suspension.
+  function actionsLigne(l, type, ctx) {
+    if (!Regles) return [];
+    const items = type === 'vni' ? Regles.evaluerVni(l)
+      : type === 'non_reconduit' ? Regles.evaluerNR(l)
+        : type === 'suspension' ? Regles.evaluerSuspension(l)
+          : Regles.evaluerVente(l, ctx);
+    return Regles.versions(Regles.actions(items), l).map((v) => Regles.enAction(v.texte));
+  }
+  // Compatibilité : automatiques puis manuelle, pour une ligne isolée.
+  function remarquesLigne(l, { type = 'vente', ctx = {} } = {}) {
     const manuelle = texteNote(l);
+    const autos = actionsLigne(l, type, ctx);
     return manuelle ? autos.concat([manuelle]) : autos;
   }
+  // Le contexte d'un dossier dans le texte copié.
+  function contexte(l, type) {
+    const nom = prenomNom(l.client);
+    if (type === 'vente') {
+      return nom + ' — vente' + (l.date ? ' du ' + l.date : '') + (l.prestation ? ' · ' + String(l.prestation).trim() : '') + (l.annulee ? ' (annulée)' : '');
+    }
+    if (type === 'vni') return nom + ' — VNI' + (l.dateVenue ? ' venu le ' + l.dateVenue : '');
+    if (type === 'suspension') return nom + ' — suspension';
+    return nom + ' — client non reconduit';
+  }
 
-  // Les personnes à remarque d'une liste, dans l'ordre de l'écran, sans doublon.
-  //  `auto` : la liste porte-t-elle des remarques automatiques (ventes signées) ;
-  //  `controle` : le mois a-t-il été contrôlé (cf. Recap2Conseils.moisControle).
-  function personnesAvecRemarque(liste, options) {
-    const o = options || {};
+  // Les dossiers à remarque d'une liste, dans l'ordre de l'écran. Chaque vente
+  // est un dossier : une personne qui a deux ventes a deux blocs (rien n'est
+  // perdu). La remarque manuelle (par personne) n'est écrite qu'une fois.
+  function dossiersAvecRemarque(liste, type, ctx) {
     const out = [];
+    const notesVues = [];
     (liste || []).forEach((l) => {
-      const remarques = remarquesLigne(l, o);
+      const autos = actionsLigne(l, type, ctx);
+      const manuelle = texteNote(l);
+      const dejaNote = !!manuelle && notesVues.some((p) => memePersonne(p, l));
+      if (manuelle && !dejaNote) notesVues.push(l);
+      const remarques = autos.concat(manuelle && !dejaNote ? [manuelle] : []);
       if (!remarques.length) return;
-      if (out.some((p) => memePersonne(p, l))) return;
-      out.push({ client: prenomNom(l.client), idClient: idDe(l.idClient), remarque: remarques.join('\n'), remarques });
+      // Même dossier deux fois (même vente) : une seule fois.
+      if (out.some((p) => p.cle === Regles.cleDossier(type, l))) return;
+      out.push({ cle: Regles.cleDossier(type, l), client: prenomNom(l.client), titre: contexte(l, type), idClient: idDe(l.idClient),
+        remarque: remarques.join('\n'), remarques });
     });
     return out;
+  }
+  // Compatibilité (anciens appels) : même règle.
+  function personnesAvecRemarque(liste, options) {
+    const o = options || {};
+    return dossiersAvecRemarque(liste, o.type || 'vente', o.ctx || {});
   }
 
   function echapper(s) {
@@ -144,21 +159,21 @@
   // { nb, texte, html } — nb = 0 : rien à copier (texte et html vides).
   function remarquesClub(rapport, studio) {
     const b = rapport && rapport.studios && rapport.studios[studio];
-    const controle = !!(Conseils && Conseils.moisControle(rapport));
+    const ctx = Regles ? Regles.contexteRapport(rapport) : {};
     const sections = SECTIONS.map((s) => ({
       titre: s.titre,
-      personnes: personnesAvecRemarque(b && b[s.bloc] && b[s.bloc].liste, { auto: s.auto, controle }),
+      personnes: dossiersAvecRemarque(b && b[s.bloc] && b[s.bloc].liste, s.type, ctx),
     })).filter((s) => s.personnes.length);
     const nb = sections.reduce((n, s) => n + s.personnes.length, 0);
     if (!nb) return { nb: 0, texte: '', html: '' };
 
     const titre = String(studio || '').toUpperCase() + ' — ' + moisEnClair(rapport.mois);
     const texte = [titre].concat(sections.map((s) => s.titre + '\n\n'
-      + s.personnes.map((p) => p.client + '\n' + p.remarque).join('\n\n'))).join('\n\n') + '\n';
+      + s.personnes.map((p) => p.titre + '\n' + p.remarque).join('\n\n'))).join('\n\n') + '\n';
     const para = (contenu) => '<p style="margin:0 0 12px">' + contenu + '</p>';
     const html = '<div>' + para('<b>' + echapper(titre) + '</b>')
       + sections.map((s) => para('<b>' + echapper(s.titre) + '</b>')
-        + s.personnes.map((p) => para('<b>' + echapper(p.client) + '</b><br>' + echapper(p.remarque).replace(/\n/g, '<br>'))).join('')).join('')
+        + s.personnes.map((p) => para('<b>' + echapper(p.titre) + '</b><br>' + echapper(p.remarque).replace(/\n/g, '<br>'))).join('')).join('')
       + '</div>';
     return { nb, texte, html };
   }
@@ -174,21 +189,21 @@
   //     explicite), sinon personne. « Non attribué » ne sort chez aucun commercial ;
   //   · VNI            : le commercial du dernier RDV venu du mois (déjà calculé).
   const SECTIONS_COMMERCIAL = [
-    { titre: 'Ventes signées', bloc: 'clientsRetrouves', auto: 'vente', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
-    { titre: 'Clients non reconduits', bloc: 'nonReconduction', auto: 'nr', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
-    { titre: 'VNI', bloc: 'vni', auto: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
+    { titre: 'Ventes signées', bloc: 'clientsRetrouves', type: 'vente', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : 'nom:' + String(l.commercial == null ? '' : l.commercial)) },
+    { titre: 'Clients non reconduits', bloc: 'nonReconduction', type: 'non_reconduit', cle: (l) => ((Metrics && Metrics.attributionNonReconduit) ? Metrics.attributionNonReconduit(l).cle : '') },
+    { titre: 'VNI', bloc: 'vni', type: 'vni', cle: (l) => (l.commercialId ? 'id:' + l.commercialId : '') },
   ];
 
   // { nb, texte, html, studios: [...], categories: [...] } — nb = 0 : rien à copier.
   function remarquesCommercial(rapport, cleCommercial, nomAffiche) {
     const cle = String(cleCommercial || '');
-    const controle = !!(Conseils && Conseils.moisControle(rapport));
+    const ctx = Regles ? Regles.contexteRapport(rapport) : {};
     const studios = [];
     Object.keys((rapport && rapport.studios) || {}).forEach((s) => {
       const b = rapport.studios[s];
       const sections = SECTIONS_COMMERCIAL.map((sec) => ({
         titre: sec.titre,
-        personnes: personnesAvecRemarque(((b && b[sec.bloc] && b[sec.bloc].liste) || []).filter((l) => cle && sec.cle(l) === cle), { auto: sec.auto, controle }),
+        personnes: dossiersAvecRemarque(((b && b[sec.bloc] && b[sec.bloc].liste) || []).filter((l) => cle && sec.cle(l) === cle), sec.type, ctx),
       })).filter((sec) => sec.personnes.length);
       if (sections.length) studios.push({ studio: s, sections });
     });
@@ -197,15 +212,15 @@
 
     const titre = String(nomAffiche || '').toUpperCase() + ' — ' + moisEnClair(rapport.mois);
     const texte = [titre].concat(studios.map((st) => String(st.studio).toUpperCase() + '\n\n'
-      + st.sections.map((sec) => sec.titre + '\n\n' + sec.personnes.map((p) => p.client + '\n' + p.remarque).join('\n\n')).join('\n\n'))).join('\n\n') + '\n';
+      + st.sections.map((sec) => sec.titre + '\n\n' + sec.personnes.map((p) => p.titre + '\n' + p.remarque).join('\n\n')).join('\n\n'))).join('\n\n') + '\n';
     const para = (contenu, marge) => '<p style="margin:' + (marge || '0 0 12px') + '">' + contenu + '</p>';
     const html = '<div>' + para('<b>' + echapper(titre) + '</b>', '0 0 16px')
       + studios.map((st) => para('<b><u>' + echapper(String(st.studio).toUpperCase()) + '</u></b>', '16px 0 12px')
         + st.sections.map((sec) => para('<b>' + echapper(sec.titre) + '</b>')
-          + sec.personnes.map((p) => para('<b>' + echapper(p.client) + '</b><br>' + echapper(p.remarque).replace(/\n/g, '<br>'))).join('')).join('')).join('')
+          + sec.personnes.map((p) => para('<b>' + echapper(p.titre) + '</b><br>' + echapper(p.remarque).replace(/\n/g, '<br>'))).join('')).join('')).join('')
       + '</div>';
     return { nb, texte, html, studios: studios.map((st) => st.studio), categories: [...new Set(studios.flatMap((st) => st.sections.map((sec) => sec.titre)))] };
   }
 
-  return { remarquesClub, remarquesCommercial, moisEnClair, cleIdentite, memePersonne, prenomNom, remarquesLigne };
+  return { remarquesClub, remarquesCommercial, moisEnClair, cleIdentite, memePersonne, prenomNom, remarquesLigne, actionsLigne, dossiersAvecRemarque, personnesAvecRemarque, contexte };
 }));

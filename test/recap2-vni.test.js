@@ -142,7 +142,7 @@ test('copie du club : section « VNI » après les deux autres, seulement les pe
   poser(db, { remarque: 'Hésite sur le tarif, à rappeler.' });
   const r = lireNotes(db, rapport());
   const c = RR.remarquesClub(r, 'Lille');
-  assert.equal(c.texte, 'LILLE — AOÛT 2026\n\nVNI\n\nSophie Martin\nHésite sur le tarif, à rappeler.\n');
+  assert.equal(c.texte, 'LILLE — AOÛT 2026\n\nVNI\n\nSophie Martin — VNI venu le 12/08/2026\nHésite sur le tarif, à rappeler.\n');
   assert.ok(!/Paul/.test(c.texte + c.html));
 });
 

@@ -139,15 +139,17 @@ test('copie du club : format exact, deux sections, sans les personnes sans remar
   poser(db, { type: 'non_reconduit', client: 'AMIEL Anais', idClient: '6001', remarque: 'Cliente contactée, situation sous contrôle.' });
   poser(db, { type: 'non_reconduit', client: 'BASSIN Robin', idClient: '6002', remarque: 'À creuser avec le coach.' });
   const r = RR.remarquesClub(lire(db, rapport()), 'Neuilly');
-  assert.equal(r.nb, 4, 'Daouda Sy compté une fois malgré ses deux ventes');
+  // La remarque manuelle (par personne) n'est écrite qu'une fois ; chaque
+  // bloc porte son contexte (vente du …, prestation).
+  assert.equal(r.nb, 4, 'Daouda Sy : sa remarque manuelle une seule fois malgré ses deux ventes');
   assert.equal(r.texte, [
     'NEUILLY — AOÛT 2026', '',
     'Ventes signées', '',
-    'Daouda Sy', 'A demandé à résilier, à revoir avec le coach leader.', '',
-    'Aurélie Fourlin', 'Aucun encaissement depuis la signature, à contacter.', '',
+    'Daouda Sy — vente du 05/08/2026 · Challenge', 'A demandé à résilier, à revoir avec le coach leader.', '',
+    'Aurélie Fourlin — vente du 05/08/2026 · Challenge', 'Aucun encaissement depuis la signature, à contacter.', '',
     'Clients non reconduits', '',
-    'Anais Amiel', 'Cliente contactée, situation sous contrôle.', '',
-    'Robin Bassin', 'À creuser avec le coach.', '',
+    'Anais Amiel — client non reconduit', 'Cliente contactée, situation sous contrôle.', '',
+    'Robin Bassin — client non reconduit', 'À creuser avec le coach.', '',
   ].join('\n'));
   assert.match(r.html, /<b>NEUILLY — AOÛT 2026<\/b>/);
   assert.match(r.html, /<b>Clients non reconduits<\/b>/);

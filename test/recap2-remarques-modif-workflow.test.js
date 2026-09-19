@@ -17,7 +17,8 @@ const { spawn } = require('child_process');
 const S = require('../lib/recap2Store.js');
 const RR = require('../public/recap2-remarques.js');
 const M = require('../public/recap2-metrics.js');
-const T = require('../public/recap2-conseils.js').TEXTES_NR;
+const RG = require('./_regles.js');
+const T = { PRIX: RG.T['NR-PRIX'], DEMENAGEMENT: RG.T['NR-DEMENAGEMENT'], SUSP_RAISON: RG.T['SUSP-DOC'], IDENTITE: RG.T['NR-IDENTITE'] };
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'recap2-rem-'));
 const PORT = 3972;
@@ -68,7 +69,7 @@ let KPI0, FICHIER0;
 const Database = require('better-sqlite3');
 const Notes = require('../lib/recap2Notes.js');
 const note = (o) => Object.assign({ mois: '2026-08', studio: 'Lille', type: 'non_reconduit', client: 'DUPONT Marie', idClient: '90001' }, o);
-const perso = (o) => Object.assign({ mois: '2026-08', studio: 'Lille', type: 'non_reconduit', client: 'DUPONT Marie', idClient: '90001', texteAuto: T.PRIX }, o);
+const perso = (o) => Object.assign({ mois: '2026-08', studio: 'Lille', type: 'non_reconduit', client: 'DUPONT Marie', idClient: '90001', regle: 'NR-PRIX' }, o);
 const histo = async () => (await fetch(BASE + '/api/recap2/historique/2026-08', { headers: auth() })).json();
 
 before(async () => {
@@ -105,7 +106,7 @@ test('remarque automatique : personnalisée, repérée, copiée ; l’origine es
   assert.equal((await post('/api/recap2/remarque-auto', perso({ texte: 'Appelle le client vendredi et propose-lui l’abonnement Flex.' }), auth(jetonConseiller))).status, 403, 'création réservée à l’admin');
   assert.equal((await post('/api/recap2/remarque-auto', perso({ texte: 'Appelle le client vendredi et propose-lui l’abonnement Flex.' }))).status, 200);
   const r = await lire();
-  const v = ligne(r).remarquesAuto[T.PRIX];
+  const v = ligne(r).remarquesPerso['NR-PRIX'];
   assert.deepEqual([v.texte, v.auteur], ['Appelle le client vendredi et propose-lui l’abonnement Flex.', 'Stan']);
   assert.match(RR.remarquesClub(r, 'Lille').texte, /À faire : Appelle le client vendredi et propose-lui l’abonnement Flex\./);
   const com = M.commerciauxAttribuables(r)[0];
@@ -120,12 +121,12 @@ test('persistance : rechargement, nouvelle collecte, nouveau contrôle identique
   assert.equal((await deposerControle(controle([r1()], '2026-09-20T09:00'))).status, 200);
   await arreter(); await demarrer();
   const l = ligne(await lire());
-  assert.equal(l.remarquesAuto[T.PRIX].texte, 'Appelle le client vendredi et propose-lui l’abonnement Flex.');
+  assert.equal(l.remarquesPerso['NR-PRIX'].texte, 'Appelle le client vendredi et propose-lui l’abonnement Flex.');
   assert.equal(l.note.remarque, 'Appelée le 20/09, rappel vendredi.');
 });
 
 test('nouvelle règle différente : l’ancienne personnalisation n’est PAS réutilisée ; situation résolue : elle disparaît, l’historique reste', async () => {
-  assert.equal((await deposerControle(controle([r1({ analyse: analyse({ cause: null, remarques: [T.DEMENAGEMENT] }) })], '2026-09-21T09:00'))).status, 200);
+  assert.equal((await deposerControle(controle([r1({ analyse: analyse({ cause: { code: 'demenagement', libelle: 'Déménagement', certitude: 'Confirmée', indice: '' }, remarques: [T.DEMENAGEMENT] }) })], '2026-09-21T09:00'))).status, 200);
   let r = await lire();
   assert.ok(!/Appelle le client vendredi/.test(RR.remarquesClub(r, 'Lille').texte), 'autre règle : pas de réemploi');
   assert.match(RR.remarquesClub(r, 'Lille').texte, /À faire : Contacte le client et propose-lui un transfert de studio/);
@@ -140,7 +141,7 @@ test('retour à la version automatique quand la règle revient', async () => {
   assert.equal((await deposerControle(controle([r1()], '2026-09-23T09:00'))).status, 200);
   assert.match(RR.remarquesClub(await lire(), 'Lille').texte, /Appelle le client vendredi/, 'même règle revenue : sa personnalisation revient');
   assert.equal((await post('/api/recap2/remarque-auto', perso({ texte: '' }))).status, 200);
-  assert.match(RR.remarquesClub(await lire(), 'Lille').texte, /À faire : Contacte le client et propose-lui l’abonnement Flex\./);
+  assert.match(RR.remarquesClub(await lire(), 'Lille').texte, /À faire : Contacte le client et propose-lui le Challenge Flex à 4 séances par mois\./);
 });
 
 test('aucune écriture vers Deciplus ou Vendor', () => {

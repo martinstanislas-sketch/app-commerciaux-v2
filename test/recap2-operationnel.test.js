@@ -107,3 +107,19 @@ test('R17 / R23 : attributions décidées, par Id Deciplus + studio + date', () 
   assert.deepEqual([w.compte, w.commercial, w.regle], [true, 'Cédric H.', 'R23']);
   assert.equal(ATTR.attributionVente('2026-08', 'Wasquehal', { date: '19/08/2026' }, '99999'), null, 'jamais par nom ni par date seule');
 });
+
+// ── Détails transmis au registre des remarques (18/09/2026) ────────────────
+test('contentieux confirmé (catégorie ou note Deciplus) : transmis dans details, jamais les notes', () => {
+  const r = OP.evaluerVente(vente(), dossier({ categorie: 'Contentieux', notes: { admin: 'tel 06 11 22 33 44' } }), AUJ);
+  assert.deepStrictEqual(r.details, { contentieux: true, contentieuxSource: 'catégorie Deciplus « Contentieux »' });
+  const n = OP.evaluerVente(vente(), dossier({ categorie: 'Clients', notes: { admin: 'Dossier transmis au contentieux le 02/08', compta: '', accueil: '' } }), AUJ);
+  assert.strictEqual(n.details.contentieux, true);
+  assert.ok(!/06 11/.test(JSON.stringify(n)), 'aucune note recopiée');
+  assert.deepStrictEqual(OP.evaluerVente(vente(), dossier({ categorie: 'Clients', notes: { admin: 'risque de contentieux' } }), AUJ).details, {});
+});
+test('rejet SEPA : le code du rejet est transmis (R9)', () => {
+  const c = contrat({ echeances: [ech('2026-08-10', 'I', { rejet: '2026-08-12', motifRejet: 'MD01' }), ech('2026-09-21', 'T')] });
+  const r = OP.evaluerVente(vente(), dossier({ contrats: [c] }), AUJ);
+  assert.ok(r.alertes.includes(OP.ALERTES.REJET));
+  assert.deepStrictEqual(r.details.codesRejet, [{ code: 'MD01', date: '2026-08-12' }]);
+});

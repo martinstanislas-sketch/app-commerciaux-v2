@@ -14,7 +14,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 const S = require('../lib/recap2Store.js');
 const M = require('../public/recap2-metrics.js');
-const C = require('../public/recap2-conseils.js');
+const RG = require('./_regles.js');
+const C = { conseilsVente: RG.vente, TEXTES: { DECIPLUS: RG.T['VENTE-INTROUVABLE'], SEANCES: RG.T['VENTE-SEANCES'] } };
 
 const BAC = fs.mkdtempSync(path.join(os.tmpdir(), 'recap2-reint-'));
 const PORT = 3974;

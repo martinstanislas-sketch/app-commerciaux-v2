@@ -8,8 +8,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../lib/recap2NrAnalyse.js');
-const C = require('../public/recap2-conseils.js');
-const T = C.TEXTES_NR;
+const RG = require('./_regles.js');
+// Textes exacts du registre unique (public/recap2-regles.js).
+const T = { IMPAYE: RG.T['NR-IMPAYE'], IDENTITE: RG.T['NR-IDENTITE'], SUSP_DOC: RG.T['SUSP-DOC'], SUSP_FINIE: RG.T['SUSP-TERMINEE'],
+  PRIX: RG.T['NR-PRIX'], DEMENAGEMENT: RG.T['NR-DEMENAGEMENT'], FREINS: RG.T['NR-FREINS'], RESULTATS: RG.T['NR-RESULTATS'],
+  PLANNING: RG.T['NR-PLANNING'], SANTE: RG.T['NR-SANTE'], INSATISFACTION: RG.T['NR-INSATISFACTION'], COACH: RG.T['NR-COACH'],
+  FIN_CHALLENGE: RG.T['NR-FIN-CHALLENGE'], INCONNU: RG.T['NR-INCONNU'], A_CONFIRMER: RG.T['NR-A-CONFIRMER'], TRANSFERT: RG.T['NR-TRANSFERT'] };
+const C = { conseilsNonReconduit: RG.nr, recuperationOuverte: RG.G.recuperationOuverte };
+const alertes = (a, l = {}) => RG.G.alertesAdmin(RG.G.evaluerNR(Object.assign({ analyse: a }, l)));
+const ECART = 'Le client devait régler 2\u202f340 €, mais 900 € ont réellement été encaissés, soit un écart de 1\u202f440 €. Vérifie et régularise cet écart.';
 
 const MOIS = '2026-08';
 const AUJ = '2026-09-18';
@@ -97,11 +104,12 @@ test('suspension correctement documentée : Suspendu temporairement, aucune rema
 });
 test('suspension sans motif (le code Deciplus seul ne suffit pas)', () => {
   const r = an(dossier({ contrats: [cSusp()], notes: notes('client en suspension') }));
-  assert.deepEqual(r.remarques, [T.SUSP_RAISON]);
+  assert.deepEqual(r.remarques, [T.SUSP_DOC]);
+  assert.equal(T.SUSP_DOC, 'Renseigne dans Deciplus la raison et la période de la suspension du client.');
 });
 test('suspension sans date de reprise (ni dates structurées, ni note)', () => {
   const r = an(dossier({ contrats: [cSusp({ suspensions: [{ debut: '2026-08-03', fin: '', motif: '' }] })], notes: notes('', 'suspension car voyage professionnel') }));
-  assert.deepEqual(r.remarques, [T.SUSP_REPRISE]);
+  assert.deepEqual(r.remarques, [T.SUSP_DOC]);
 });
 test('suspension « durée indéterminée » renseignée : aucune remarque de reprise', () => {
   const r = an(dossier({ contrats: [cSusp({ suspensions: [{ debut: '2026-08-03', fin: '', motif: '' }] })], notes: notes('', 'suspension pour grossesse, durée indéterminée') }));
@@ -129,8 +137,9 @@ test('échéances S d’un contrat ARRÊTÉ ≠ suspension', () => {
 const cas = [
   ['prix', 'résilie car trop cher pour son budget', T.PRIX],
   ['demenagement', 'arrêt car déménagement à Bordeaux', T.DEMENAGEMENT],
-  ['temps', 'stop : manque de temps avec son travail', T.TEMPS],
-  ['motivation', 'arrête car plus de motivation', T.MOTIVATION],
+  ['temps', 'stop : manque de temps avec son travail', T.FREINS],
+  ['motivation', 'arrête car plus de motivation', T.FREINS],
+  ['frequentation', 'arrête car ne vient plus', T.FREINS],
   ['resultats', 'résilie car pas de résultat', T.RESULTATS],
   ['planning', 'arrêt car horaires incompatibles avec son planning', T.PLANNING],
   ['sante', 'arrête suite à une blessure', T.SANTE],
@@ -140,7 +149,7 @@ const cas = [
 ];
 cas.forEach(([code, note, action]) => test('cause « ' + code + ' » : action adaptée', () => {
   const r = an(dossier({ notes: notes('', note) }));
-  assert.equal(r.cause.code, code); assert.equal(r.remarques[r.remarques.length - 1], action);
+  assert.equal(r.cause.code, code); assert.ok(r.remarques.includes(action), code + ' : ' + JSON.stringify(r.remarques));
   assert.ok(!/genou|opér|une blessure/i.test(r.indication), 'aucun détail médical de la note dans l’indication');
 }));
 test('fin de Challenge sans nouvelle formule (structure Deciplus)', () => {
@@ -159,9 +168,14 @@ test('la note la plus récente l’emporte', () => {
   const r = an(dossier({ notes: notes('', '02/03 : trop cher au départ\n15/07 : arrête car déménagement') }));
   assert.equal(r.cause.code, 'demenagement');
 });
-test('départ irrécupérable : cause visible, aucune fausse tâche', () => {
+test('départ irrécupérable : aucune action de récupération ; l’anomalie financière reste (niveau 3)', () => {
   ['refus catégorique de toute proposition', 'client décédé', 'exclusion pour comportement']
-    .forEach((n) => { const r = an(dossier({ notes: notes(n) })); assert.equal(r.statut, 'resilie', n); assert.deepEqual(r.remarques, [], n); });
+    .forEach((n) => {
+      const r = an(dossier({ notes: notes(n) })); assert.equal(r.statut, 'resilie', n); assert.equal(r.irrecuperable, true, n);
+      assert.deepEqual(r.remarques, [ECART], n);
+    });
+  const sansEcart = an(dossier({ notes: notes('client décédé'), contrats: [contrat({ paye: 2340 })] }));
+  assert.deepEqual(sansEcart.remarques, []);
 });
 
 // ── Finance ─────────────────────────────────────────────────────────────────
@@ -169,22 +183,26 @@ const vendorOk = (total) => ({ fiable: true, total });
 const journalOk = (net, remb = 0) => ({ couvert: true, net, remboursements: remb });
 test('différence financière non justifiée : X, Y, Z et part facturée', () => {
   const r = an(dossier(), { vendor: vendorOk(2340), journal: journalOk(900) });
-  assert.equal(r.remarques[0], 'Vérifie la situation financière du client. Le contrat signé prévoyait 2 340 €, mais 900 € ont réellement été réglés, soit un écart de 1 440 €. La facturation Deciplus ne couvre que 900 €.');
+  assert.equal(r.remarques[0], ECART);
   assert.equal(r.finance.valide, false, 'jamais présenté comme validé (avoirs non lisibles)');
 });
-test('différence financière justifiée (rétractation, geste commercial) : remarque de vérification du motif', () => {
+test('différence financière justifiée (rétractation, geste commercial) : alerte administrateur, aucune action au conseiller', () => {
   const r1 = an(dossier({ contrats: [contrat({ historique: [{ date: '2026-07-31', type: 'TERMINATED', raison: 'RETRACTATION' }] })] }), { vendor: vendorOk(2340), journal: journalOk(900) });
-  assert.match(r1.remarques[0], /^Vérifie que l’écart de 1 440 € est bien justifié par la rétractation/);
+  assert.equal(r1.statut, 'resilie'); assert.equal(r1.retractation, true); assert.equal(r1.cause.libelle, 'Rétractation confirmée');
+  assert.deepEqual(r1.remarques, [], 'rétractation confirmée : aucune remarque de récupération');
+  assert.match(alertes(r1)[0].texte, /^Écart de 1.440 € probablement justifié par la rétractation/);
   const r2 = an(dossier({ notes: notes('geste commercial accordé par le gérant') }), { vendor: vendorOk(2340), journal: journalOk(900) });
-  assert.match(r2.remarques[0], /justifié par un geste commercial/);
+  assert.ok(!r2.remarques.some((x) => /écart/.test(x)));
+  assert.match(alertes(r2)[0].texte, /justifié par un geste commercial/);
 });
 test('Vendor et Deciplus divergent : anomalie à vérifier, aucun choix silencieux', () => {
   const r = an(dossier(), { vendor: vendorOk(2500), journal: journalOk(900) });
-  assert.equal(r.finance.anomalie, 'divergence'); assert.match(r.remarques[0], /Vendor prévoit 2 500 €, Deciplus 2 340 €/);
+  assert.equal(r.finance.anomalie, 'divergence'); assert.ok(!r.remarques.some((x) => /€/.test(x)), 'aucun montant présenté comme certain');
+  assert.equal(alertes(r)[0].texte, 'Contrôle financier impossible : données incomplètes — montant du contrat : Vendor 2\u202f500 €, Deciplus 2\u202f340 €.');
 });
 test('facturé ≠ encaissé : encaissé recoupé avec le journal, sinon anomalie', () => {
   const r = an(dossier(), { vendor: vendorOk(2340), journal: journalOk(700) });
-  assert.equal(r.finance.anomalie, 'encaisse_discordant'); assert.match(r.remarques[0], /Deciplus indique 900 € encaissés, le journal 700 €/);
+  assert.equal(r.finance.anomalie, 'encaisse_discordant'); assert.equal(alertes(r)[0].texte, 'Contrôle financier impossible : données incomplètes — encaissé : Deciplus 900 €, journal 700 €.');
 });
 test('remboursements lus dans le journal, avoirs non lisibles : limite affichée', () => {
   const r = an(dossier(), { vendor: vendorOk(2340), journal: journalOk(900, 45) });
@@ -193,7 +211,7 @@ test('remboursements lus dans le journal, avoirs non lisibles : limite affichée
 });
 test('écart strictement inférieur à 5 € neutralisé ; fin normale d’engagement : aucun contrôle', () => {
   const r = an(dossier({ contrats: [contrat({ valeurInitiale: 904 })] }), { vendor: vendorOk(904), journal: journalOk(900) });
-  assert.ok(!r.remarques.some((x) => /situation financière/.test(x)));
+  assert.ok(!r.remarques.some((x) => /écart/.test(x)));
   const r2 = an(dossier({ contrats: [contrat({ fin: '2026-08-01' })] }), { vendor: vendorOk(2340), journal: journalOk(900) });
   assert.equal(r2.finance, null);
 });
@@ -208,7 +226,7 @@ test('Vendor non retrouvé : contractuel Deciplus, limite dite', () => {
 // ── Priorités et remarques ──────────────────────────────────────────────────
 test('ordre : finance puis action, sans doublon, jamais plus de deux remarques', () => {
   const r = an(dossier({ notes: notes('', 'arrêt car trop cher') }), { vendor: vendorOk(2340), journal: journalOk(900) });
-  assert.equal(r.remarques.length, 2); assert.match(r.remarques[0], /situation financière/); assert.equal(r.remarques[1], T.PRIX);
+  assert.deepEqual(r.remarques, [ECART, T.PRIX]);
   assert.equal(new Set(r.remarques).size, r.remarques.length);
 });
 test('la remarque disparaît quand la situation est corrigée (nouveau contrat au contrôle suivant)', () => {
@@ -216,10 +234,13 @@ test('la remarque disparaît quand la situation est corrigée (nouveau contrat a
   const apres = an(dossier({ contrats: [contrat(), contrat({ id: 2, etat: 'ACTIVE', debut: '2026-09-01', resiliation: '', historique: [], echeances: [ech('2026-09-21', 'T')] })] }));
   assert.ok(avant.remarques.length > 0); assert.deepEqual(apres.remarques, []);
 });
-test('la décision manuelle fait taire les remarques (sauf À traiter / À creuser)', () => {
-  const l = { analyse: { remarques: [T.PRIX] }, suivi: { statut: 'sous_controle' } };
-  assert.deepEqual(C.conseilsNonReconduit(l), []);
-  assert.deepEqual(C.conseilsNonReconduit(Object.assign({}, l, { suivi: { statut: 'a_traiter' } })), [T.PRIX]);
+test('décision manuelle : tait seulement la récupération, JAMAIS l’anomalie financière', () => {
+  const a = an(dossier({ notes: notes('', 'arrêt car trop cher') }), { vendor: vendorOk(2340), journal: journalOk(900) });
+  ['sous_controle', 'suspendu', 'toujours_actif', 'reconduit_autrement', 'recupere', 'resilie']
+    .forEach((m) => assert.deepEqual(C.conseilsNonReconduit({ analyse: a, suivi: { statut: m } }), [ECART], m));
+  assert.deepEqual(C.conseilsNonReconduit({ analyse: a, suivi: { statut: 'a_traiter' } }), [ECART, T.PRIX]);
+  assert.deepEqual(C.conseilsNonReconduit({ analyse: a, suivi: { statut: 'depart_confirme' } }), [ECART, T.PRIX, 'Précise le motif du départ confirmé.'],
+    '« Départ confirmé » sans motif irrécupérable : la récupération reste et le motif est demandé');
   assert.deepEqual(C.conseilsNonReconduit({}), [], 'mois non contrôlé : rien');
 });
 test('aucune donnée brute : l’indication ne recopie jamais la note', () => {
@@ -239,7 +260,7 @@ test('suspension : « reporter … car vacances » explique la raison ; une note
   const r1 = an(dossier({ contrats: [cSusp()], notes: notes('', 'à reporter à la fin du contrat car vacance 15 jours, reprise le 30/11') }));
   assert.equal(r1.suspension.raisonRenseignee, true);
   const r2 = an(dossier({ contrats: [cSusp()], notes: notes('', 'Suspension 2 semaines car vacances, le 30/07/24') }));
-  assert.deepEqual(r2.remarques, [T.SUSP_RAISON]);
+  assert.deepEqual(r2.remarques, [T.SUSP_DOC]);
 });
 
 test('contrat Vendor : prix HEBDOMADAIRE ; semaines confirmées par Deciplus, sinon estimation qui fera ressortir l’écart', () => {
@@ -255,7 +276,7 @@ test('contrat Vendor : prix HEBDOMADAIRE ; semaines confirmées par Deciplus, si
 
 test('« FA offert » ne justifie pas un écart ; un contrat annulé à 0 € n’est pas contrôlé', () => {
   const r = an(dossier({ notes: notes('', 'FA OFFERT, challenge 12 mois') }), { vendor: { fiable: true, total: 2340 }, journal: { couvert: true, net: 900 } });
-  assert.match(r.remarques[0], /^Vérifie la situation financière/);
+  assert.equal(r.remarques[0], ECART);
   const r2 = an(dossier({ contrats: [contrat({ etat: 'CANCELED', valeurInitiale: 0, valeur: 0, paye: 0 })] }), { vendor: { fiable: true, total: 3120 } });
   assert.equal(r2.finance, null);
 });
@@ -271,19 +292,19 @@ test('déménagement sans refus : À traiter, action transfert/visio, récupéra
 test('déménagement + décision manuelle « Résilié » : l’action reste, comptée « À récupérer » ET « Résiliations », jamais deux fois', () => {
   const a = an(dossier({ notes: notes('', 'arrêt car déménagement à Bordeaux') }), { vendor: { fiable: true, total: 2340 }, journal: { couvert: true, net: 900 } });
   const l = { analyse: a, suivi: { statut: 'resilie' } };
-  assert.deepEqual(C.conseilsNonReconduit(l), [DEM], 'seule l’action de récupération, pas la finance');
+  assert.deepEqual(C.conseilsNonReconduit(l), [ECART, DEM], 'l’action de récupération reste ; la finance n’est plus masquée');
   assert.equal(C.recuperationOuverte(l), true);
   const k = M2.indicateursNR([l, { analyse: a, suivi: { statut: '' } }]);
   assert.deepEqual([k.aRecuperer, k.resiliations, k.dontResilieRecuperable, k.detectees], [2, 1, 1, 2]);
   assert.equal(Object.values(k.parStatut).reduce((x, y) => x + y, 0), 2, 'chaque dossier une seule fois par statut');
 });
 test('refus définitif explicite, ou refus du transfert ET de la visio : plus d’action', () => {
-  ['déménage à Lyon, refus définitif de toute proposition', 'déménagement : refuse le transfert et la visio', 'déménage, ne veut ni transfert ni visio', 'déménagement, sans possibilité de suivi en visio']
-    .forEach((n) => { const r = an(dossier({ notes: notes('', n) })); assert.deepEqual(r.remarques, [], n); assert.equal(r.recuperationOuverte, false, n); });
+  ['déménage à Lyon, refus définitif de toute proposition', 'déménagement : refuse le transfert et la visio', 'déménage, ne veut ni transfert ni visio', 'déménagement, départ définitif']
+    .forEach((n) => { const r = an(dossier({ notes: notes('', n) })); assert.ok(!r.remarques.includes(DEM), n); assert.equal(r.recuperationOuverte, false, n); });
 });
 test('refus de la visioconférence UNIQUEMENT : le transfert reste possible, action maintenue', () => {
-  const r = an(dossier({ notes: notes('', 'déménagement, refuse la visio') }));
-  assert.equal(r.statut, 'a_traiter'); assert.equal(r.remarques[r.remarques.length - 1], DEM);
+  ['déménagement, refuse la visio', 'déménagement, sans possibilité de suivi en visio', 'déménage, pas de volonté de continuer à distance']
+    .forEach((n) => { const r = an(dossier({ notes: notes('', n) })); assert.equal(r.statut, 'a_traiter', n); assert.equal(r.remarques[r.remarques.length - 1], DEM, n); });
 });
 test('le mot « déménagement », une résiliation ou un contrat arrêté ne valent jamais refus', () => {
   const r = an(dossier({ notes: notes('', 'résiliation reçue, déménagement, pas de réponse aux appels') }));
