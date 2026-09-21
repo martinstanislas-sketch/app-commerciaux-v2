@@ -8701,7 +8701,7 @@ async function loadMissionsBonus(host, attente) {
   // File d'attente : plus ANCIENNE d'abord (l'API renvoie les plus récentes en tête).
   const file = missions.filter((m) => m.statut === 'declaree').sort((a, b) => a.id - b.id);
   const histo = missions.filter((m) => m.statut !== 'declaree');
-  if (!missions.length && !enAttente.length) return;
+  // Liste vide : le bloc reste affiché avec un état vide (plus de disparition).
   const dateStr = (iso) => { const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); };
   const row = (m, actionnable) => {
     const nom = [m.prenom, m.nom].filter(Boolean).join(' ') || m.client_email;
@@ -8729,6 +8729,8 @@ async function loadMissionsBonus(host, attente) {
     // Une seule à la fois : la plus ancienne. La suivante apparaît après décision.
     const suite = file.length > 1 ? `<p class="ch-mb-next">Puis ${file.length - 1} autre${file.length - 1 > 1 ? 's' : ''} mission${file.length - 1 > 1 ? 's' : ''} à traiter.</p>` : '';
     corps = row(file[0], true) + suite;
+  } else if (!missions.length) {
+    corps = '<p class="ch-mb-next">Aucune mission bonus déclarée.</p>';
   } else {
     corps = '<p class="ch-mb-next">Aucune mission en attente de validation.</p>';
   }
@@ -9422,6 +9424,11 @@ function renderChallengeList(host, clients, unreadMap) {
 function chRenderList() {
   const host = _chHost; if (!host) return;
   const clients = _chClients;
+  // Le bloc « Missions bonus » est posé au-dessus de la liste par loadMissionsBonus :
+  // on le conserve quand la liste se redessine (codes reçus, recherche, filtres),
+  // sinon il disparaissait selon l'ordre d'arrivée des réponses.
+  const keepMb = host.querySelector(':scope > .ch-mb');
+  const restoreMb = () => { if (keepMb) host.insertBefore(keepMb, host.firstChild); };
   const inviteBtn = '<button type="button" class="ch-btn ch-group-new" id="ch-group-new">+ Créer un groupe</button>'
     + '<button type="button" class="ch-btn ch-invite-btn" id="ch-invite-open">+ Inviter un client</button>';
   const wireCommon = () => {
@@ -9432,6 +9439,7 @@ function chRenderList() {
   if (!clients.length && !_chGroups.length) {
     host.innerHTML = `<div class="ch-head"><div class="ch-head-l"><h2>🔥 Mes clients</h2></div>${inviteBtn}</div>
       <div class="ch-empty"><p>Aucun client pour le moment.</p><p class="ch-muted">Invite un client avec un lien ci-dessus.</p></div>`;
+    restoreMb();
     wireCommon();
     return;
   }
@@ -9517,6 +9525,7 @@ function chRenderList() {
     </div>
     <div class="ch-filters"><input type="search" id="ch-f-q" placeholder="Rechercher un client (nom, email)…" value="${chEsc(_chFilter.q)}" autocomplete="off">${villeSel}${noSel}</div>
     ${listHtml}`;
+  restoreMb();
   wireCommon();
   const fv = host.querySelector('#ch-f-ville'); if (fv) fv.addEventListener('change', () => { _chFilter.ville = fv.value; chRenderList(); });
   const fn = host.querySelector('#ch-f-no'); if (fn) fn.addEventListener('change', () => { _chFilter.no = fn.value; chRenderList(); });
