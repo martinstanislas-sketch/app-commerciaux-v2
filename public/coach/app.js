@@ -257,33 +257,61 @@ function initAuthUI() {
         }
         return;
       }
-      authToken = data.token;
-      currentUser = { role: data.role, name: data.name, coach_id: data.coach_id, is_leader: data.is_leader || false };
-      localStorage.setItem('authToken_coach', authToken);
-      localStorage.setItem('currentUser_coach', JSON.stringify(currentUser));
-      enforceAdminOnlyElements();
       pinInput.value = '';
-
-      if (data.role === 'coach') {
-        // Show club selection
-        document.getElementById('login-overlay').classList.add('hidden');
-        showClubSelect();
-      } else if (data.role === 'academy') {
-        // Academy mode — direct access, no name selection needed
-        hideLogin();
-        updateUserUI();
-        await bootApp();
-      } else {
-        // Admin → go directly
-        hideLogin();
-        updateUserUI();
-        await bootApp();
-      }
+      await onLoginSuccess(data);
     } catch (err) {
       errorDiv.textContent = 'Erreur de connexion';
       errorDiv.classList.remove('hidden');
     }
   });
+
+  // Connexion coach par email + mot de passe (compte créé via invitation).
+  document.getElementById('coach-login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById('coach-login-email');
+    const pwInput = document.getElementById('coach-login-password');
+    const errorDiv = document.getElementById('coach-login-error');
+    const btn = e.target.querySelector('button[type="submit"]');
+    errorDiv.classList.add('hidden');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/auth/coach-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailInput.value, password: pwInput.value })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errorDiv.textContent = data.error || 'Email ou mot de passe incorrect';
+        errorDiv.classList.remove('hidden');
+        pwInput.value = '';
+        pwInput.focus();
+        const loginCard = document.querySelector('#login-overlay .login-card');
+        if (loginCard) { loginCard.classList.add('shake'); setTimeout(() => loginCard.classList.remove('shake'), 350); }
+        return;
+      }
+      pwInput.value = '';
+      await onLoginSuccess(data);
+    } catch (err) {
+      errorDiv.textContent = 'Erreur de connexion';
+      errorDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Bascule email + mot de passe <-> code d'accès (admin, anciens codes coach).
+  document.getElementById('login-switch').addEventListener('click', () => {
+    const emailForm = document.getElementById('coach-login-form');
+    const pinForm = document.getElementById('login-form');
+    const toPin = !emailForm.classList.contains('hidden');
+    emailForm.classList.toggle('hidden', toPin);
+    pinForm.classList.toggle('hidden', !toPin);
+    document.getElementById('login-switch').textContent = toPin ? 'Se connecter avec mon email' : 'Accès administrateur';
+    document.getElementById(toPin ? 'login-pin' : 'coach-login-email').focus();
+  });
+
+  initInviteUI();
 
   const nutBtn = document.getElementById('btn-nutrition');
   if (nutBtn) nutBtn.addEventListener('click', () => {
@@ -304,6 +332,7 @@ function initAuthUI() {
     selectedClub = '';
     valSelectedCoachId = null;
     valInitialized = false;
+    _chFilter.q = ''; // la recherche client ne survit pas à un changement de compte
     localStorage.removeItem('authToken_coach');
     localStorage.removeItem('currentUser_coach');
     localStorage.removeItem('selectedClub_coach');
@@ -312,49 +341,113 @@ function initAuthUI() {
   });
 }
 
-const MAIN_STUDIOS = [
-  { name: 'Wasquehal', color: '#3b82f6' },
-  { name: 'Lille',     color: '#10b981' },
-  { name: 'Marcq',     color: '#f59e0b' },
-  { name: 'Boulogne',  color: '#ef4444' },
-  { name: 'Neuilly',   color: '#8b5cf6' },
-  { name: 'Levallois', color: '#ec4899' },
-];
+// Après une connexion réussie (email, invitation, ou code administrateur) : mêmes
+// étapes pour tous. (L'ancien choix du studio des coachs connectés par PIN a été
+// supprimé avec cette connexion.)
+async function onLoginSuccess(data) {
+  authToken = data.token;
+  currentUser = { role: data.role, name: data.name, coach_id: data.coach_id, is_leader: data.is_leader || false, auth: data.auth || '' };
+  localStorage.setItem('authToken_coach', authToken);
+  localStorage.setItem('currentUser_coach', JSON.stringify(currentUser));
+  enforceAdminOnlyElements();
 
-function showClubSelect() {
-  const overlay = document.getElementById('club-select-overlay');
-  const grid = document.getElementById('club-select-grid');
-  overlay.classList.remove('hidden');
+  hideLogin();
+  updateUserUI();
+  await bootApp();
+}
 
-  grid.innerHTML = MAIN_STUDIOS.map(s => `
-    <button class="club-select-btn" data-club="${s.name}"
-            style="--studio-color:${s.color}">
-      <span class="club-select-btn-dot" style="background:${s.color}"></span>
-      <span class="club-select-btn-label">${s.name}</span>
-    </button>`
-  ).join('');
-
-  grid.querySelectorAll('.club-select-btn').forEach(btn => {
-    // Hover: tint border with studio color
-    const color = btn.style.getPropertyValue('--studio-color');
-    btn.addEventListener('mouseenter', () => {
-      btn.style.borderColor = color;
-      btn.style.background = color + '14';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.borderColor = '';
-      btn.style.background = '';
-    });
-    btn.addEventListener('click', async () => {
-      selectedClub = btn.dataset.club;
-      localStorage.setItem('selectedClub_coach', selectedClub);
-      overlay.classList.add('hidden');
-      hideLogin();
-      updateUserUI();
-      await bootApp();
-    });
+// ─── Invitation coach (#invitation=<jeton> dans l'URL) ─────────────────────
+// Le jeton est lu dans le fragment puis retiré de la barre d'adresse : il ne
+// reste ni dans l'historique ni dans un éventuel partage d'écran.
+function readInviteToken() {
+  const m = /(?:^#|&)invitation=([A-Za-z0-9_-]+)/.exec(window.location.hash || '');
+  return m ? m[1] : '';
+}
+function clearInviteFromUrl() {
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (_) { /* ignore */ }
+}
+function initInviteUI() {
+  document.getElementById('invite-to-login').addEventListener('click', () => {
+    document.getElementById('invite-overlay').classList.add('hidden');
+    showLogin();
+  });
+  document.getElementById('invite-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const errorDiv = document.getElementById('invite-error');
+    const pw = document.getElementById('invite-password').value;
+    const pw2 = document.getElementById('invite-password2').value;
+    errorDiv.classList.add('hidden');
+    if (pw !== pw2) {
+      errorDiv.textContent = 'Les deux mots de passe ne sont pas identiques.';
+      errorDiv.classList.remove('hidden');
+      return;
+    }
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/auth/coach-invite/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: form.dataset.token, password: pw })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        errorDiv.textContent = data.error || 'Création du compte impossible.';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      document.getElementById('invite-overlay').classList.add('hidden');
+      await onLoginSuccess(data);
+    } catch (err) {
+      errorDiv.textContent = 'Erreur de connexion';
+      errorDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+    }
   });
 }
+// Affiche l'écran « Crée ton mot de passe ». Renvoie true si une invitation est
+// présente dans l'URL (elle passe alors avant une session déjà ouverte).
+async function showInviteIfAny() {
+  const token = readInviteToken();
+  if (!token) return false;
+  clearInviteFromUrl();
+  document.getElementById('login-overlay').classList.add('hidden');
+  const overlay = document.getElementById('invite-overlay');
+  const loading = document.getElementById('invite-loading');
+  const form = document.getElementById('invite-form');
+  const invalid = document.getElementById('invite-invalid');
+  overlay.classList.remove('hidden');
+  loading.classList.remove('hidden');
+  form.classList.add('hidden');
+  invalid.classList.add('hidden');
+  try {
+    const res = await fetch('/api/auth/coach-invite/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json().catch(() => ({}));
+    loading.classList.add('hidden');
+    if (!res.ok || !data.ok) {
+      document.getElementById('invite-invalid-msg').textContent = data.error || 'Lien d’invitation invalide.';
+      invalid.classList.remove('hidden');
+      return true;
+    }
+    document.getElementById('invite-hello').textContent = `Bienvenue ${data.name} ! Choisis ton mot de passe pour accéder à l’espace coach.`;
+    document.getElementById('invite-email').value = data.email;
+    form.dataset.token = token;
+    form.classList.remove('hidden');
+    document.getElementById('invite-password').focus();
+  } catch (_) {
+    loading.classList.add('hidden');
+    document.getElementById('invite-invalid-msg').textContent = 'Impossible de vérifier l’invitation. Réessaie.';
+    invalid.classList.remove('hidden');
+  }
+  return true;
+}
+
 
 
 
@@ -397,7 +490,7 @@ async function bootApp() {
   if (isAdmin()) {
     await loadDashboard();
   } else if (isAcademy()) {
-    await loadValidation();
+    // Onglet Validations retiré de /coach/ : rien à précharger pour ce rôle.
   } else {
     await loadTodayTab();
   }
@@ -418,14 +511,12 @@ function initTabs() {
       else if (t === 'today') loadTodayTab();
       else if (t === 'challenge') loadChallengeTab();
       else if (t === 'messagerie') loadMessagerieTab();
-      else if (t === 'academy') loadAcademyBadges();
       else if (t === 'recap') loadRecapTab();
       else if (t === 'notes') loadNotes();
       else if (t === 'controle') loadControlTab();
       else if (t === 'community') { if (!commActiveClubFilter) commActiveClubFilter = getMyStudio() || ''; loadCommunityMessages(); }
       else if (t === 'ressources') loadRessources();
       else if (t === 'module') loadModuleTab();
-      else if (t === 'validation') loadValidation();
       else if (t === 'parcours') loadParcoursTab();
       else if (t === 'calendrier') loadCalendrierTab();
       else if (t === 'accompagnement') { loadAccompagnementTab(); }
@@ -443,18 +534,6 @@ function initTabs() {
 
 function updateTabVisibility() {
   // Label/icon adjustments per role
-  const validationTabBtn = document.querySelector('[data-tab="validation"] .tab-label');
-  if (validationTabBtn) validationTabBtn.textContent = isAdmin() ? 'Validations' : 'ACADEMY';
-  const validationTabIcon = document.querySelector('[data-tab="validation"] .tab-icon');
-  if (validationTabIcon) validationTabIcon.textContent = isAdmin() ? '✅' : '🎓';
-  const valTitle = document.getElementById('val-section-title');
-  if (valTitle) valTitle.textContent = isAdmin() ? '✅ Validation des formations' : '🎓 ACADEMY';
-  const valSub = document.getElementById('val-section-subtitle');
-  if (valSub) valSub.textContent = isAdmin() ? 'Suivi des formations de l\'équipe' : 'Ton parcours de formations';
-
-  // Rename ressources tab for 1234 academy users
-  const ressTabLabel = document.querySelector('[data-tab="ressources"] .tab-label');
-  if (ressTabLabel) ressTabLabel.textContent = isAcademy() ? 'PERF' : 'Academy';
 
   // Rename recap tab for Director
   const recapTabLabel = document.querySelector('[data-tab="recap"] .tab-label');
@@ -470,9 +549,7 @@ function updateTabVisibility() {
     notes:          document.querySelector('[data-tab="notes"]'),
     controle:       document.querySelector('[data-tab="controle"]'),
     community:      document.querySelector('[data-tab="community"]'),
-    ressources:     document.querySelector('[data-tab="ressources"]'),
     module:         document.querySelector('[data-tab="module"]'),
-    validation:     document.querySelector('[data-tab="validation"]'),
     parcours:       document.querySelector('[data-tab="parcours"]'),
     calendrier:     document.querySelector('[data-tab="calendrier"]'),
     perso:          document.querySelector('[data-tab="perso"]'),
@@ -486,12 +563,11 @@ function updateTabVisibility() {
     data:           document.querySelector('[data-tab="data"]'),
   };
 
-  // Espace /coach/ : Challenge (clients) · Messagerie (privé + groupes) · Academy
-  // (badges perso). L'admin/academy voit en plus « Validations » pour valider les
-  // formations des coachs. Les autres onglets restent dans le code, masqués.
+  // Espace /coach/ : Challenge (clients) · Messagerie (privé + groupes), pour tous
+  // les rôles. Academy et Validations ont été retirés de cet espace (ils restent
+  // disponibles ailleurs). Les autres onglets restent dans le code, masqués.
   Object.values(tabs).forEach((t) => { if (t) t.style.display = 'none'; });
-  const _shown = ['challenge', 'messagerie', 'academy'];
-  if (isFormationAdmin()) _shown.push('validation'); // admin + academy : validation des formations
+  const _shown = ['challenge', 'messagerie'];
   _shown.forEach((k) => { const b = document.querySelector('[data-tab="' + k + '"]'); if (b) b.style.display = ''; });
   if (tabs.challenge) tabs.challenge.click();
   return;
@@ -528,7 +604,7 @@ function updateTabVisibility() {
     if (tabs.module)      tabs.module.style.display = '';
     if (tabs.parcours)    tabs.parcours.style.display = '';
     if (tabs.calendrier)  tabs.calendrier.style.display = '';
-    tabs.ressources.click();
+    if (tabs.ressources) tabs.ressources.click();
   } else {
     // Coach / Leader: Journée + Succès + Team + ACADEMY + Calendrier (+ Accompagnement pour leaders)
     Object.values(tabs).forEach(t => { if (t) t.style.display = 'none'; });
@@ -1211,7 +1287,6 @@ function renderAdminCoachList() {
         <button class="btn-danger-sm" onclick="archiveCoach(${c.id})" title="Archiver">🗑️</button>
       </div>
       <div class="admin-coach-info">
-        <span class="admin-coach-detail">🔑 ${c.pin || '—'}</span>
         <span class="admin-coach-detail">📍 ${c.studio || 'Aucun club'}</span>
         <span class="admin-coach-detail">${c.is_leader ? '👑 Leader' : '🏋️ Coach'}</span>
       </div>
@@ -1240,10 +1315,6 @@ function openEditCoach(coachId) {
         <div class="modal-field">
           <label>Nom</label>
           <input type="text" id="edit-coach-name" value="${coach.name}">
-        </div>
-        <div class="modal-field">
-          <label>Code PIN</label>
-          <input type="text" id="edit-coach-pin" value="${coach.pin || ''}" maxlength="6" placeholder="ex: mari">
         </div>
         <div class="modal-field">
           <label>Club d’appartenance</label>
@@ -1289,13 +1360,11 @@ function openEditCoach(coachId) {
   overlay.querySelector('#edit-coach-save').addEventListener('click', async () => {
     const body = {
       name: document.getElementById('edit-coach-name').value.trim(),
-      pin: document.getElementById('edit-coach-pin').value.trim(),
       studio: document.getElementById('edit-coach-studio').value,
       is_leader: selectedLeader === 1,
     };
 
     if (!body.name) return alert('Le nom est requis');
-    if (!body.pin) return alert('Le code PIN est requis');
 
     try {
       await api(`/coaches/${coachId}`, { method: 'PATCH', body });
@@ -5417,18 +5486,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Always show login first to avoid black screen
   showLogin();
 
+  // Lien d'invitation coach : l'écran « Crée ton mot de passe » passe en premier.
+  if (await showInviteIfAny()) return;
+
   if (authToken && currentUser) {
     try {
       const me = await api('/auth/me');
       if (me && me.role) {
         currentUser = me;
         localStorage.setItem('currentUser_coach', JSON.stringify(currentUser));
-
-        if (me.role === 'coach' && !selectedClub) {
-          hideLogin();
-          showClubSelect();
-          return;
-        }
 
         hideLogin();
         updateUserUI();
@@ -8477,6 +8543,8 @@ function chInjectStyles() {
     .ch-filters { display: flex; gap: 10px; margin: 0 4px 16px; flex-wrap: wrap; }
     .ch-filters select { font: inherit; font-weight: 550; font-size: 13px; padding: 9px 13px; border: 1px solid var(--mc-border); border-radius: 11px; background: var(--mc-white); color: var(--mc-text); cursor: pointer; }
     .ch-filters select:focus { outline: none; border-color: var(--mc-gold); box-shadow: 0 0 0 3px var(--mc-gold-soft); }
+    .ch-filters input[type=search] { font: inherit; font-size: 13px; padding: 9px 13px; border: 1px solid var(--mc-border); border-radius: 11px; background: var(--mc-white); color: var(--mc-text); flex: 1 1 auto; min-width: 180px; }
+    .ch-filters input[type=search]:focus { outline: none; border-color: var(--mc-gold); box-shadow: 0 0 0 3px var(--mc-gold-soft); }
     .ch-group { margin-bottom: 22px; }
     .ch-group-h { margin: 0 4px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .ch-group-t { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--mc-text); display: inline-flex; align-items: center; gap: 8px; }
@@ -9202,7 +9270,7 @@ function chCardHtml(c) {
     <span class="ch-chev">›</span>
   </button>`;
 }
-let _chHost = null, _chClients = [], _chUnread = {}, _chFilter = { ville: '', no: '' };
+let _chHost = null, _chClients = [], _chUnread = {}, _chFilter = { ville: '', no: '', q: '' };
 // Codes des challenges : « ville#n° » -> { code, actif }. C'est LE code que le coach
 // donne à son groupe pour que les clients créent leur espace (auto-inscription).
 let _chCodes = {};
@@ -9374,7 +9442,11 @@ function chRenderList() {
   const fVille = villes.includes(_chFilter.ville) ? _chFilter.ville : '';
   const fNo = nos.map(String).includes(String(_chFilter.no)) ? String(_chFilter.no) : '';
   _chFilter.ville = fVille; _chFilter.no = fNo;
-  const shown = clients.filter((c) => (!fVille || (c.ville || '') === fVille) && (!fNo || String(c.challengeNo || 0) === fNo));
+  // Recherche libre : prénom, nom ou email (sans tenir compte des accents/majuscules).
+  const norm = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const q = norm(_chFilter.q).trim();
+  const matchQ = (c) => !q || norm([c.prenom, c.nom, c.email].join(' ')).includes(q);
+  const shown = clients.filter((c) => (!fVille || (c.ville || '') === fVille) && (!fNo || String(c.challengeNo || 0) === fNo) && matchQ(c));
   const urg = (c) => chUrgency(c, _chUnread[c.email]);
   shown.sort((a, b) => urg(b) - urg(a));
   // Regroupement par CANAL = ville + n° de challenge (le vrai groupe de discussion).
@@ -9383,6 +9455,7 @@ function chRenderList() {
   // le registre, sinon un groupe fraîchement créé serait invisible jusqu'au 1er membre.
   _chGroups.forEach((g) => {
     if (!g.ville || !g.challengeNo) return;
+    if (q) return; // en recherche, seuls les groupes contenant un résultat s'affichent
     if (fVille && g.ville !== fVille) return;
     if (fNo && String(g.challengeNo) !== String(fNo)) return;
     const key = chCodeKey(g.ville, g.challengeNo);
@@ -9430,7 +9503,7 @@ function chRenderList() {
         : '<div class="ch-empty ch-group-empty"><p class="ch-muted">Aucun membre pour le moment — communique le code ci-dessus pour qu\'ils rejoignent ce groupe.</p></div>';
       return `<div class="ch-group"><div class="ch-group-h"><span class="ch-group-t">${title} <span class="ch-group-n">${g.clients.length}</span></span>${codeHtml}${writeBtn}${manageBtns}</div>${body}</div>`;
     }).join('')
-    : '<div class="ch-empty"><p>Aucun client pour ce filtre.</p></div>';
+    : `<div class="ch-empty"><p>${q ? 'Aucun client ne correspond à cette recherche.' : 'Aucun client pour ce filtre.'}</p></div>`;
   const opt = (val, label, sel) => `<option value="${chEsc(String(val))}"${String(sel) === String(val) ? ' selected' : ''}>${chEsc(label)}</option>`;
   const villeSel = `<select id="ch-f-ville"><option value="">Toutes les villes</option>${villes.map((v) => opt(v, v, fVille)).join('')}</select>`;
   const noSel = `<select id="ch-f-no"><option value="">Tous les challenges</option>${nos.map((n) => opt(n, n === 0 ? 'Sans n°' : 'Challenge n°' + n, fNo)).join('')}</select>`;
@@ -9442,11 +9515,19 @@ function chRenderList() {
       </div>
       ${inviteBtn}
     </div>
-    <div class="ch-filters">${villeSel}${noSel}</div>
+    <div class="ch-filters"><input type="search" id="ch-f-q" placeholder="Rechercher un client (nom, email)…" value="${chEsc(_chFilter.q)}" autocomplete="off">${villeSel}${noSel}</div>
     ${listHtml}`;
   wireCommon();
   const fv = host.querySelector('#ch-f-ville'); if (fv) fv.addEventListener('change', () => { _chFilter.ville = fv.value; chRenderList(); });
   const fn = host.querySelector('#ch-f-no'); if (fn) fn.addEventListener('change', () => { _chFilter.no = fn.value; chRenderList(); });
+  const fq = host.querySelector('#ch-f-q');
+  if (fq) fq.addEventListener('input', () => {
+    _chFilter.q = fq.value;
+    chRenderList();
+    // La liste est re-rendue : on rend le focus au champ, curseur en fin de saisie.
+    const again = host.querySelector('#ch-f-q');
+    if (again) { again.focus(); const n = again.value.length; try { again.setSelectionRange(n, n); } catch (_) { /* type search */ } }
+  });
   host.querySelectorAll('.ch-group-write').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openGroupComposer(b.dataset.ville, Number(b.dataset.no)); }));
   // Clic sur le code : copie dans le presse-papier (le coach le dicte ou le colle).
   host.querySelectorAll('.ch-group-code[data-code]').forEach((s) => s.addEventListener('click', (e) => {
@@ -9671,12 +9752,16 @@ function renderChallengeDetail(host, c, pc, msgData) {
   const convPanel = `
     <div class="ch-panel">
       <h3>💬 Conversation</h3>
-      <div class="ch-conv" id="ch-conv">${thread}</div>
+      ${c.canMessage === false
+    // Uniquement si la messagerie est limitée aux coachs attribués
+    // (COACH_MESSAGING_SCOPE = 'assigned' côté serveur).
+    ? '<div class="ch-conv-empty">La messagerie privée de ce client est réservée à son coach attitré. L’administrateur peut t’attribuer ce client si tu dois lui écrire.</div>'
+    : `<div class="ch-conv" id="ch-conv">${thread}</div>
       <form class="ch-form" id="ch-msg-form" style="flex-direction:column;align-items:stretch">
         <label style="width:100%">Répondre à ${chEsc(c.prenom || name)}<textarea name="message" placeholder="Ton message…"></textarea></label>
         <button type="submit" class="ch-btn" style="align-self:flex-start">Envoyer</button>
       </form>
-      <div class="ch-msg" id="ch-msg-status"></div>
+      <div class="ch-msg" id="ch-msg-status"></div>`}
     </div>`;
 
   const actionsPanel = `
@@ -9706,6 +9791,7 @@ function renderChallengeDetail(host, c, pc, msgData) {
         🔒 Compte bloqué après plusieurs codes PIN erronés.
         <button type="button" class="ch-btn sec" id="ch-unlock-btn" style="margin-top:7px;">Débloquer le PIN</button>
       </div>` : ''}
+      <div><button type="button" class="ch-btn sec" id="ch-resetpin-btn">Réinitialiser le code PIN</button></div>
       <div class="ch-msg" id="ch-action-msg"></div>
       <div><button type="button" class="ch-btn danger" id="ch-delete-btn">Supprimer ce client</button></div>
     </div>`;
@@ -9769,7 +9855,8 @@ function renderChallengeDetail(host, c, pc, msgData) {
   const setConvMsg = (txt, ok) => { convStatus.textContent = txt; convStatus.className = 'ch-msg ' + (ok ? 'ok' : 'err'); };
   const convEl = host.querySelector('#ch-conv'); if (convEl) convEl.scrollTop = convEl.scrollHeight; // fil déroulé en bas
 
-  host.querySelector('#ch-msg-form').addEventListener('submit', async (e) => {
+  const msgForm = host.querySelector('#ch-msg-form'); // absent si le coach n'est pas attribué
+  if (msgForm) msgForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     const btn = f.querySelector('button');
@@ -9800,5 +9887,17 @@ function renderChallengeDetail(host, c, pc, msgData) {
       setMsg('Compte débloqué. Le client peut retaper son code.', true);
       openChallengeClient(host, email); // recharge la fiche -> l'encart bloqué disparaît
     } catch (err) { unlockBtn.disabled = false; setMsg(err.message || 'Déblocage impossible.', false); }
+  });
+  // Réinitialiser le PIN (code oublié) : le code est effacé, le client en choisit
+  // un nouveau à sa prochaine connexion. Autorisé côté serveur pour coach et admin.
+  const resetPinBtn = host.querySelector('#ch-resetpin-btn');
+  if (resetPinBtn) resetPinBtn.addEventListener('click', async () => {
+    if (!confirm(`Réinitialiser le code PIN de ${c.prenom || name} ? Son code actuel ne fonctionnera plus : il en choisira un nouveau à sa prochaine connexion.`)) return;
+    resetPinBtn.disabled = true; setMsg('Réinitialisation…', true);
+    try {
+      await nutriApi(`/clients/${encodeURIComponent(email)}/reset-pin`, { method: 'POST' });
+      setMsg('Code PIN réinitialisé. Le client choisira un nouveau code à sa prochaine connexion.', true);
+      resetPinBtn.disabled = false;
+    } catch (err) { resetPinBtn.disabled = false; setMsg(err.message || 'Réinitialisation impossible.', false); }
   });
 }

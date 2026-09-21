@@ -884,6 +884,8 @@
         <button type="button" class="profil-row profil-admin hidden" id="btnPlatsPhotos"><svg class="ic pr-lime"><use href="#ic-camera"/></svg>Photos des plats<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" id="btnInviteClient"><svg class="ic pr-lime"><use href="#ic-send"/></svg>Inviter un client<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <button type="button" class="profil-row profil-coach hidden" data-go="btnClientsAdmin"><svg class="ic pr-lime"><use href="#ic-users"/></svg>Clients inscrits<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
+        <!-- ADMIN uniquement (profil-admin) : les routes /api/admin/coach-access* exigent aussi le rôle admin côté serveur. -->
+        <button type="button" class="profil-row profil-admin hidden" id="btnCoachesAdmin"><svg class="ic pr-lime"><use href="#ic-shield"/></svg>Gestion des coachs<span class="pr-arrow"><svg class="ic"><use href="#ic-arrow-right"/></svg></span></button>
         <!-- ⚠️ profil-COACH et non profil-admin : ce tableau est l'outil de suivi
              du coach (alertes « aucun suivi depuis N jours », adhérence faible,
              demande d'aide en attente). Il était réservé au super-admin, donc
@@ -1444,6 +1446,17 @@
     </div>
   </div>
 
+  <div id="coachesAdminPanel" class="panel hidden">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h2><svg class="ic"><use href="#ic-shield"/></svg> Gestion des coachs</h2>
+        <button class="modal-close" id="coachesAdminClose" aria-label="Fermer"><svg class="ic"><use href="#ic-x"/></svg></button>
+      </div>
+      <p class="panel-sub">Invite un coach : il reçoit un lien personnel pour créer son mot de passe, puis se connecte sur l'espace coach avec son email. Tu peux désactiver son accès à tout moment.</p>
+      <div id="coachesAdminBody"></div>
+    </div>
+  </div>
+
   <div id="demoAdminPanel" class="panel hidden">
     <div class="panel-inner">
       <div class="panel-head">
@@ -1585,6 +1598,6 @@
   <script src="avatar.js?v=8"></script>
   <script src="coursesCatalogue.js?v=5"></script>
   <script src="coursesEngine.js?v=5"></script>
-  <script src="app.js?v=225"></script>
+  <script src="app.js?v=227"></script>
 </body>
 </html>
