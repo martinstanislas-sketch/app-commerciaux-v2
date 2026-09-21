@@ -3158,6 +3158,9 @@ function init() {
 
   // Clients inscrits (admin principal)
   $('#btnClientsAdmin').addEventListener('click', openClientsAdmin);
+  $('#btnCoachesAdmin').addEventListener('click', openCoachesAdmin);
+  $('#coachesAdminClose').addEventListener('click', closeCoachesAdmin);
+  $('#coachesAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'coachesAdminPanel') closeCoachesAdmin(); });
   $('#clientsAdminClose').addEventListener('click', closeClientsAdmin);
   $('#clientsAdminPanel').addEventListener('click', (e) => { if (e.target.id === 'clientsAdminPanel') closeClientsAdmin(); });
   setupClientsAdminAccess();
@@ -9837,6 +9840,97 @@ async function saveClientCoaches(cm) {
 function setupClientsAdminAccess() {
   if (!isMainAdmin()) return;
   const card = $('#btnClientsAdmin'); if (card) card.classList.remove('hidden');
+}
+
+// ---------- Gestion des coachs (administrateur) ----------
+// Invitation (nom + email) -> lien personnel à copier (ou email si Brevo est
+// configuré) ; liste des coachs avec leur accès ; révocation / réactivation.
+// Tout est vérifié côté serveur (requireAdmin) : ce panneau n'est qu'un affichage.
+function openCoachesAdmin() { $('#coachesAdminPanel').classList.remove('hidden'); renderCoachesAdmin(); }
+function closeCoachesAdmin() { $('#coachesAdminPanel').classList.add('hidden'); }
+async function coachAdminCall(path, method, body) {
+  const res = await fetch(apiUrl(path), { method: method || 'GET', headers: nutriAuthHeaders(body ? { 'Content-Type': 'application/json' } : undefined), body: body ? JSON.stringify(body) : undefined });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d.ok) throw new Error(d.error || 'Action impossible.');
+  return d;
+}
+async function renderCoachesAdmin(lastInvite) {
+  const body = $('#coachesAdminBody');
+  if (!lastInvite) body.innerHTML = '<p class="panel-sub">Chargement…</p>';
+  let d;
+  try { d = await coachAdminCall('/api/admin/coach-access'); } catch (e) { body.innerHTML = '<p class="help-empty">Lecture impossible.</p>'; return; }
+  const fmt = (s) => { const dt = new Date(s); return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }); };
+  const sansCompte = d.coaches.filter((c) => !c.hasPassword);
+  const pill = (txt, ok) => `<span style="display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;background:${ok ? 'rgba(52,199,89,.16)' : 'rgba(255,69,58,.14)'};color:${ok ? '#2E9E55' : '#D93A30'};">${txt}</span>`;
+  const coachRows = d.coaches.map((c) => `
+    <div class="coach-acc-row" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid rgba(127,127,127,.18);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;">${escapeHtml(c.name)}${c.studio ? ` <span style="font-weight:400;opacity:.65;">· ${escapeHtml(c.studio)}</span>` : ''}</div>
+        <div style="font-size:12.5px;opacity:.75;overflow-wrap:anywhere;">${c.hasPassword ? escapeHtml(c.email) : 'Pas encore de compte : à inviter'}${c.lastLoginAt ? ' · dernière connexion ' + fmt(c.lastLoginAt) : ''}</div>
+      </div>
+      ${pill(c.access ? 'Actif' : 'Désactivé', c.access)}
+      <button type="button" class="btn btn-outline" data-coach-acc="${c.id}" data-allow="${c.access ? '0' : '1'}" data-name="${escapeHtml(c.name)}" style="padding:6px 12px;font-size:13px;">${c.access ? 'Désactiver' : 'Réactiver'}</button>
+    </div>`).join('');
+  const pending = d.invites.filter((i) => i.status === 'en_attente');
+  const inviteRows = pending.map((i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid rgba(127,127,127,.18);">
+      <div style="flex:1;min-width:0;"><strong>${escapeHtml(i.name)}</strong> <span style="opacity:.75;overflow-wrap:anywhere;">${escapeHtml(i.email)}</span>
+        <div style="font-size:12px;opacity:.65;">Envoyée le ${fmt(i.createdAt)} · expire le ${fmt(i.expiresAt)}</div></div>
+      <button type="button" class="btn btn-outline" data-cancel-inv="${i.id}" style="padding:6px 12px;font-size:13px;">Annuler</button>
+    </div>`).join('');
+  let result = '';
+  if (lastInvite) {
+    const mail = 'mailto:' + encodeURIComponent(lastInvite.email) + '?subject=' + encodeURIComponent('Ton accès coach Protocole 42')
+      + '&body=' + encodeURIComponent('Bonjour ' + lastInvite.name + ',\n\nVoici ton lien personnel pour créer ton accès coach au Protocole 42 (valable 7 jours) :\n' + lastInvite.url + '\n\nÀ bientôt !');
+    result = `
+      <div style="margin:12px 0 4px;padding:12px;border-radius:12px;background:rgba(52,199,89,.10);">
+        <div style="font-weight:700;margin-bottom:6px;">Invitation créée pour ${escapeHtml(lastInvite.name)}</div>
+        <div style="font-size:13px;margin-bottom:8px;">${lastInvite.emailSent ? 'Email envoyé à ' + escapeHtml(lastInvite.email) + '. Tu peux aussi copier le lien :' : (lastInvite.emailConfigured ? 'L’envoi de l’email a échoué : copie le lien et transmets-le au coach.' : 'Envoi automatique non configuré : copie le lien et transmets-le au coach.')}</div>
+        <div class="demo-admin-code"><input type="text" id="coachInvUrl" value="${escapeHtml(lastInvite.url)}" readonly><button type="button" class="link-copy" id="coachInvCopy">Copier</button></div>
+        <a class="btn btn-outline" href="${mail}" style="display:inline-block;margin-top:8px;padding:6px 12px;font-size:13px;">Ouvrir un email pré-rempli</a>
+      </div>`;
+  }
+  body.innerHTML = `
+    <h3 style="margin:4px 0 8px;font-size:16px;">Inviter un coach</h3>
+    <form id="coachInvForm" autocomplete="off">
+      <label class="field"><span>Nom du coach</span><input type="text" id="coachInvName" maxlength="80" required></label>
+      <label class="field"><span>Adresse email</span><input type="email" id="coachInvEmail" maxlength="160" required></label>
+      ${sansCompte.length ? `<label class="field"><span>Coach existant (facultatif)</span>
+        <select id="coachInvLink"><option value="">— Nouveau coach —</option>${sansCompte.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}${c.studio ? ' · ' + escapeHtml(c.studio) : ''}</option>`).join('')}</select></label>` : ''}
+      <p id="coachInvErr" class="help-empty" style="color:#D93A30;display:none;margin:4px 0;"></p>
+      <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:4px;"><svg class="ic"><use href="#ic-send"/></svg> Générer l’invitation</button>
+    </form>
+    ${result}
+    ${pending.length ? `<h3 style="margin:18px 0 4px;font-size:16px;">Invitations en attente</h3>${inviteRows}` : ''}
+    <h3 style="margin:18px 0 4px;font-size:16px;">Coachs (${d.coaches.length})</h3>
+    ${coachRows || '<p class="help-empty">Aucun coach pour le moment.</p>'}`;
+
+  // Choisir un coach existant pré-remplit son nom (le compte se rattache à sa fiche).
+  const link = $('#coachInvLink');
+  if (link) link.addEventListener('change', () => { const o = link.options[link.selectedIndex]; if (link.value) $('#coachInvName').value = o.textContent.split(' · ')[0]; });
+  const copy = $('#coachInvCopy');
+  if (copy) copy.addEventListener('click', () => { try { navigator.clipboard.writeText($('#coachInvUrl').value); copy.textContent = 'Copié ✓'; } catch (_) { $('#coachInvUrl').select(); } });
+  $('#coachInvForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#coachInvErr'); err.style.display = 'none';
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      const r = await coachAdminCall('/api/admin/coach-access/invite', 'POST', { name: $('#coachInvName').value, email: $('#coachInvEmail').value, coachId: link && link.value ? Number(link.value) : undefined });
+      await renderCoachesAdmin(r);
+    } catch (ex) { err.textContent = ex.message; err.style.display = 'block'; btn.disabled = false; }
+  });
+  body.querySelectorAll('[data-coach-acc]').forEach((b) => b.addEventListener('click', async () => {
+    const allow = b.dataset.allow === '1';
+    if (!allow && !confirm('Désactiver l’accès de ' + b.dataset.name + ' ? Il sera déconnecté immédiatement et ne pourra plus se connecter.')) return;
+    b.disabled = true;
+    try { await coachAdminCall('/api/admin/coach-access/' + b.dataset.coachAcc + '/' + (allow ? 'restore' : 'revoke'), 'POST'); showToast(allow ? 'Accès réactivé.' : 'Accès désactivé.', { icon: 'check' }); renderCoachesAdmin(); }
+    catch (ex) { b.disabled = false; showToast(ex.message, { icon: 'info' }); }
+  }));
+  body.querySelectorAll('[data-cancel-inv]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await coachAdminCall('/api/admin/coach-invites/' + b.dataset.cancelInv, 'DELETE'); renderCoachesAdmin(); }
+    catch (ex) { b.disabled = false; showToast(ex.message, { icon: 'info' }); }
+  }));
 }
 
 // ---------- Google Agenda ----------

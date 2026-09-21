@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,900&family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20260718c">
+  <link rel="stylesheet" href="style.css?v=20260921a">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -21,23 +21,47 @@
       <img class="login-logo" src="/logo-mc.png?v=1" alt="My Coach" width="256" height="256">
       <h2 class="login-title">Coach</h2>
       <p class="login-subtitle">Suivi Quotidien</p>
-      <form id="login-form">
-        <input type="password" id="login-pin" pattern="[a-zA-Z0-9]*" maxlength="6" placeholder="Ton code coach" autocomplete="off" required>
+      <!-- Coachs : compte individuel email + mot de passe (créé via invitation). -->
+      <form id="coach-login-form" class="login-form-email">
+        <input type="email" id="coach-login-email" placeholder="Ton email" autocomplete="username" required>
+        <input type="password" id="coach-login-password" placeholder="Ton mot de passe" autocomplete="current-password" required>
+        <div id="coach-login-error" class="login-error hidden">Email ou mot de passe incorrect</div>
+        <button type="submit" class="btn-primary">Se connecter</button>
+      </form>
+      <!-- Code d'accès ADMINISTRATEUR (et comptes spéciaux academy/direction).
+           Les coachs n'ont plus de code : email + mot de passe uniquement. -->
+      <form id="login-form" class="hidden">
+        <input type="password" id="login-pin" pattern="[a-zA-Z0-9]*" maxlength="6" placeholder="Code administrateur" autocomplete="off" required>
         <div id="login-error" class="login-error hidden">Code incorrect</div>
         <button type="submit" class="btn-primary">Se connecter</button>
       </form>
+      <button type="button" id="login-switch" class="login-switch">Accès administrateur</button>
     </div>
   </div>
 
-  <!-- CLUB SELECT OVERLAY -->
-  <div id="club-select-overlay" class="login-overlay hidden">
-    <div class="login-card club-select-card">
-      <div class="club-select-icon">📍</div>
-      <h2 class="club-select-title">Ton studio aujourd’hui</h2>
-      <p class="club-select-subtitle">Sélectionne le club sur lequel tu travailles</p>
-      <div id="club-select-grid" class="club-select-grid"></div>
+  <!-- INVITATION COACH : lien reçu de l'administrateur (#invitation=…) -->
+  <div id="invite-overlay" class="login-overlay hidden">
+    <div class="login-card">
+      <img class="login-logo" src="/logo-mc.png?v=1" alt="My Coach" width="256" height="256">
+      <h2 class="login-title">Coach</h2>
+      <p class="login-subtitle">Protocole 42</p>
+      <div id="invite-loading" class="login-note">Vérification de ton invitation…</div>
+      <form id="invite-form" class="login-form-email hidden">
+        <p class="login-note" id="invite-hello"></p>
+        <input type="email" id="invite-email" readonly tabindex="-1" aria-label="Email du compte">
+        <input type="password" id="invite-password" placeholder="Choisis un mot de passe" autocomplete="new-password" required minlength="8">
+        <input type="password" id="invite-password2" placeholder="Confirme le mot de passe" autocomplete="new-password" required minlength="8">
+        <p class="login-hint">8 caractères minimum, avec au moins une lettre et un chiffre.</p>
+        <div id="invite-error" class="login-error hidden"></div>
+        <button type="submit" class="btn-primary">Créer mon accès</button>
+      </form>
+      <div id="invite-invalid" class="hidden">
+        <div id="invite-invalid-msg" class="login-error"></div>
+        <button type="button" id="invite-to-login" class="login-switch">Aller à la connexion</button>
+      </div>
     </div>
   </div>
+
 
 
   <header>
@@ -63,10 +87,6 @@
         <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg></span>
         <span class="tab-label">Messagerie</span>
       </button>
-      <button class="tab-btn tab-btn-academy2" data-tab="academy">
-        <span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
-        <span class="tab-label">Academy</span>
-      </button>
       <button class="tab-btn active" data-tab="dashboard">
         <span class="tab-icon">📐</span>
         <span class="tab-label">RH</span>
@@ -83,17 +103,9 @@
         <span class="tab-icon">💬</span>
         <span class="tab-label">Team</span>
       </button>
-      <button class="tab-btn tab-btn-academy" data-tab="ressources">
-        <span class="tab-icon">🎓</span>
-        <span class="tab-label">Academy</span>
-      </button>
       <button class="tab-btn tab-btn-module" data-tab="module">
         <span class="tab-icon">📦</span>
         <span class="tab-label">Module</span>
-      </button>
-      <button class="tab-btn tab-btn-validation" data-tab="validation">
-        <span class="tab-icon">🎓</span>
-        <span class="tab-label">ACADEMY</span>
       </button>
       <button class="tab-btn tab-btn-calendrier" data-tab="calendrier">
         <span class="tab-icon">🏠</span>
@@ -157,11 +169,6 @@
     <!-- MESSAGERIE (Coach) — fusion Groupes (murs collectifs) + Privé (conversations) -->
     <section id="tab-messagerie" class="tab-content">
       <div id="messagerie-container"></div>
-    </section>
-
-    <!-- ACADEMY (Coach) — vitrine ceinture + badges du coach connecté -->
-    <section id="tab-academy" class="tab-content">
-      <div id="academy-container"></div>
     </section>
 
     <!-- DASHBOARD (Admin) -->
@@ -405,24 +412,6 @@
       </div>
     </div>
 
-    <!-- VALIDATION -->
-    <section id="tab-validation" class="tab-content">
-      <div class="val-container">
-        <div class="val-header">
-          <h2 id="val-section-title">🎓 ACADEMY</h2>
-          <p class="val-subtitle" id="val-section-subtitle">Ton parcours de formations</p>
-        </div>
-        <!-- Pending validations panel (admin only) -->
-        <div id="val-pending-panel" class="hidden"></div>
-        <div id="val-admin-coach-select" class="val-coach-select hidden"></div>
-        <!-- Studio progress (coach leader / admin) -->
-        <div id="val-studio-progress" class="hidden"></div>
-        <div id="val-list" class="val-list"></div>
-        <!-- Academy intégrée (coach / coach leader uniquement) -->
-        <div id="val-aca-section"></div>
-      </div>
-    </section>
-
 
     <!-- REMARQUES (Admin) -->
     <section id="tab-notes" class="tab-content">
@@ -635,6 +624,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260730a"></script>
+  <script src="app.js?v=20260921b"></script>
 </body>
 </html>

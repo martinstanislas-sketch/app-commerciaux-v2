@@ -19,19 +19,25 @@
 
 const path = require('path');
 
-function generatePinFromName(name, existingPins) {
-  const base = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
-  if (!existingPins.includes(base)) return base;
-  for (let i = 1; i < 100; i++) {
-    const candidate = base.slice(0, 3) + i;
-    if (!existingPins.includes(candidate)) return candidate;
-  }
-  return base + Math.floor(Math.random() * 1000);
-}
 
 module.exports = function mountCoachRoutes(app, getDb, sessions, mw) {
   const { requireAuth, requireAdmin } = mw;
   const crypto = require('crypto');
+
+  // Academy + Validations retirées de l'espace coach : un compte COACH n'accède
+  // plus à ces API, même en saisissant l'URL. Les autres rôles (admin, academy,
+  // director) gardent leurs droits habituels, vérifiés ensuite par chaque route.
+  // Monté AVANT les routes ci-dessous : l'ordre d'enregistrement fait foi.
+  const ACADEMY_API = ['/api/coach/formations', '/api/coach/quiz', '/api/coach/badges', '/api/coach/ressources', '/api/coach/academy'];
+  const ROLES_COACH = ['coach', 'coach-leader', 'coach_leader'];
+  // Ancien code PIN coach : plus utilisé pour se connecter, jamais renvoyé par l'API.
+  const sansPin = (c) => { if (c) delete c.pin; return c; };
+  app.use(ACADEMY_API, requireAuth, (req, res, next) => {
+    if (ROLES_COACH.includes(req.session && req.session.role)) {
+      return res.status(403).json({ error: 'L’Academy n’est pas disponible dans l’espace coach.' });
+    }
+    next();
+  });
 
   // Helpers réutilisés depuis APP COACH ----------------------------
   function ensureMonthlyData(month) {
@@ -43,7 +49,6 @@ module.exports = function mountCoachRoutes(app, getDb, sessions, mw) {
       insert.run(coach.id, month);
     }
   }
-  function generatePin(name, existingPins) { return generatePinFromName(name, existingPins); }
   function getCurrentMonth() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
   function getMonthRange(month) {
     const firstDay = month + '-01';
@@ -135,7 +140,7 @@ module.exports = function mountCoachRoutes(app, getDb, sessions, mw) {
 app.get('/api/coach/coaches', requireAuth, (req, res) => {
   const db = getDb();
   const coaches = db.prepare('SELECT * FROM coaches WHERE archived = 0 ORDER BY id').all();
-  res.json(coaches);
+  res.json(coaches.map(sansPin));
 });
 
 // ─── POST /api/coaches (admin only) ─────────────────────────
@@ -150,21 +155,20 @@ app.post('/api/coach/coaches', requireAuth, requireAdmin, (req, res) => {
   const existing = db.prepare('SELECT id FROM coaches WHERE LOWER(name) = LOWER(?)').get(trimmedName);
   if (existing) return res.status(409).json({ error: 'Ce nom existe déjà' });
 
-  const allPins = db.prepare('SELECT pin FROM coaches WHERE pin IS NOT NULL').all().map(r => r.pin);
-  const pin = generatePin(trimmedName, allPins);
-
-  const result = db.prepare('INSERT INTO coaches (name, pin, studio, start_month, is_leader) VALUES (?, ?, ?, ?, ?)').run(
-    trimmedName, pin, studio || '', start_month || null, is_leader ? 1 : 0
+  // Plus de code PIN : le coach se connectera par email + mot de passe
+  // (invitation depuis Protocole 42 > Profil > Gestion des coachs).
+  const result = db.prepare('INSERT INTO coaches (name, studio, start_month, is_leader) VALUES (?, ?, ?, ?)').run(
+    trimmedName, studio || '', start_month || null, is_leader ? 1 : 0
   );
   const newCoach = db.prepare('SELECT * FROM coaches WHERE id = ?').get(result.lastInsertRowid);
-  res.status(201).json(newCoach);
+  res.status(201).json(sansPin(newCoach));
 });
 
 // ─── PATCH /api/coaches/:id (admin — update coach) ──────────
 app.patch('/api/coach/coaches/:id', requireAuth, requireAdmin, (req, res) => {
   const db = getDb();
   const coachId = parseInt(req.params.id);
-  const { is_leader, in_accompagnement, studio, name, pin, role } = req.body;
+  const { is_leader, in_accompagnement, studio, name, role } = req.body;
 
   const coach = db.prepare('SELECT * FROM coaches WHERE id = ?').get(coachId);
   if (!coach) return res.status(404).json({ error: 'Coach introuvable' });
@@ -188,13 +192,6 @@ app.patch('/api/coach/coaches/:id', requireAuth, requireAdmin, (req, res) => {
     sets.push('name = ?');
     params.push(name.trim());
   }
-  if (pin !== undefined && pin.trim()) {
-    // Check PIN uniqueness
-    const existing = db.prepare('SELECT id FROM coaches WHERE pin = ? AND id != ?').get(pin.trim().toLowerCase(), coachId);
-    if (existing) return res.status(409).json({ error: 'Ce PIN est déjà utilisé' });
-    sets.push('pin = ?');
-    params.push(pin.trim().toLowerCase());
-  }
   if (role !== undefined && ['coach', 'admin'].includes(role)) {
     sets.push('role = ?');
     params.push(role);
@@ -203,19 +200,14 @@ app.patch('/api/coach/coaches/:id', requireAuth, requireAdmin, (req, res) => {
   if (sets.length > 0) {
     params.push(coachId);
     db.prepare(`UPDATE coaches SET ${sets.join(', ')} WHERE id = ?`).run(...params);
-
-    // Update active sessions for this coach
-    for (const [token, session] of sessions.entries()) {
-      if (session.coach_id === coachId) {
-        const updated = db.prepare('SELECT * FROM coaches WHERE id = ?').get(coachId);
-        session.name = updated.name;
-        session.role = updated.role;
-      }
-    }
+    // (L'ancienne boucle de mise à jour des sessions appelait sessions.entries(),
+    // absent du magasin de sessions : la route plantait après l'écriture. Elle
+    // recopiait aussi coaches.role dans la session. Supprimée : la session d'un
+    // coach est toujours 'coach'/'coach-leader', posée à la connexion par mot de passe.)
   }
 
   const updated = db.prepare('SELECT * FROM coaches WHERE id = ?').get(coachId);
-  res.json(updated);
+  res.json(sansPin(updated));
 });
 
 // ─── DELETE /api/coaches/:id (admin only — soft delete) ─────

@@ -71,6 +71,16 @@ const sessions = (() => {
       toDel.forEach((tok) => this.delete(tok));
       return toDel.length;
     },
+    // Invalide toutes les sessions d'un coach (révocation de son accès).
+    purgeCoach(coachId) {
+      ensure();
+      const id = Number(coachId);
+      if (!id) return 0;
+      const toDel = [];
+      for (const [tok, data] of cache.entries()) { if (data && Number(data.coach_id) === id) toDel.push(tok); }
+      toDel.forEach((tok) => this.delete(tok));
+      return toDel.length;
+    },
   };
 })();
 
@@ -603,25 +613,54 @@ function requireNutritionUse(req, res, next) {
   return res.status(403).json({ error: 'Accès réservé au module nutrition' });
 }
 
+// ─── Accès coach Protocole 42 (comptes, invitations, révocation) ─────────────
+// Toute la logique vit dans nutrition-app/lib/coachAccess.js (testée). Les tables
+// sont créées ici, au chargement, comme les autres tables du module.
+const coachAccessLib = require('./nutrition-app/lib/coachAccess');
+try { coachAccessLib.ensureTables(getDb()); } catch (e) { console.error('coach_accounts :', e && e.message); }
+const coachAccess = coachAccessLib.createCoachAccess({ getDb });
+// Tout coach autorisé voit tous les clients (un seul studio). Cf. COACH_CLIENT_SCOPE.
+const COACH_SEES_ALL_CLIENTS = coachAccessLib.COACH_CLIENT_SCOPE === 'all';
+// Tout coach autorisé accède à la messagerie privée de tous les clients. Cf. COACH_MESSAGING_SCOPE.
+const COACH_MESSAGES_ALL_CLIENTS = coachAccessLib.COACH_MESSAGING_SCOPE === 'all';
+// Fin de la connexion coach par PIN : les sessions coach ouvertes avec l'ancien
+// code (sans `auth: 'password'`) sont supprimées au démarrage. Idempotent.
+try {
+  const n = getDb().prepare(`DELETE FROM sessions WHERE json_extract(data, '$.role') IN ('coach', 'coach-leader')
+    AND COALESCE(json_extract(data, '$.auth'), '') <> 'password'`).run().changes;
+  if (n) console.log('Sessions coach par PIN fermées : ' + n);
+} catch (_) { /* table sessions pas encore créée : rien à fermer */ }
+// Session coach encore autorisée ? Relu en base à chaque requête : un coach
+// révoqué ou archivé est coupé immédiatement. Seules les sessions ouvertes par
+// email + mot de passe comptent. En cas d'erreur : refus.
+function coachSessionAllowed(s) {
+  if (!s || !(s.role === 'coach' || s.role === 'coach-leader') || !s.coach_id) return false;
+  if (s.auth !== 'password') return false;
+  try { return coachAccess.hasAccess(s.coach_id); } catch (_) { return false; }
+}
+
 // Coach sportif OU admin (pour les vues coach de la nutrition). Expose le
-// périmètre dans req.nutritionScope : { isAdmin, coachId } -> les requêtes
-// filtrent ensuite par coachId (un coach ne voit QUE ses clients ; admin = tout).
+// périmètre dans req.nutritionScope : { isAdmin, coachId, allClients } -> les
+// requêtes filtrent ensuite via les helpers de périmètre (coachSeesClient,
+// clientEmailsForCoach, coachLegacyScope) qui appliquent COACH_SEES_ALL_CLIENTS.
 function requireCoachOrAdmin(req, res, next) {
   const s = req.session;
   if (!s) return res.status(401).json({ error: 'Non connecté' });
-  if (s.role === 'admin') { req.nutritionScope = { isAdmin: true, coachId: null }; return next(); }
+  if (s.role === 'admin') { req.nutritionScope = { isAdmin: true, coachId: null, allClients: true }; return next(); }
   if ((s.role === 'coach' || s.role === 'coach-leader') && s.coach_id) {
-    req.nutritionScope = { isAdmin: false, coachId: s.coach_id };
+    if (!coachSessionAllowed(s)) return res.status(403).json({ error: 'Ton accès coach a été désactivé.' });
+    req.nutritionScope = { isAdmin: false, coachId: s.coach_id, allClients: COACH_SEES_ALL_CLIENTS };
     return next();
   }
   return res.status(403).json({ error: 'Accès réservé aux coachs et administrateurs' });
 }
 
-// Scope SQL des vues legacy par coach. Admin -> aucune restriction. Coach -> filtre
-// sur les emails de SES clients (via client_email rempli sur les tables historiques) ;
-// un coach sans client (ou des lignes sans email résolu) ne voit rien (1=0).
+// Scope SQL des vues legacy par coach. Admin -> aucune restriction. Coach -> tous
+// les clients (COACH_SEES_ALL_CLIENTS), sinon filtre sur les emails de SES clients
+// (via client_email rempli sur les tables historiques) ; un coach sans client (ou
+// des lignes sans email résolu) ne voit rien (1=0).
 function coachLegacyScope(sc, col) {
-  if (sc.isAdmin) return { where: '', and: '', params: [] };
+  if (sc.isAdmin || sc.allClients) return { where: '', and: '', params: [] };
   // Multi-coach : clients suivis en tant que référent OU coach supplémentaire.
   const set = new Set();
   try { getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(sc.coachId).forEach((r) => set.add(r.email)); } catch (_) { /* ignore */ }
@@ -2234,6 +2273,8 @@ try {
     const s = req.session || {};
     if (s.role === 'admin') return { ok: true, role: 'admin', id: 0 };
     if ((s.role === 'coach' || s.role === 'coach-leader') && s.coach_id) {
+      // Ces routes n'ont que requireAuth : la révocation doit être vérifiée ici aussi.
+      if (!coachSessionAllowed(s)) return { ok: false };
       if (coachSeesClient(s.coach_id, email)) return { ok: true, role: 'coach', id: s.coach_id };
       return { ok: false };
     }
@@ -2509,19 +2550,46 @@ try {
     } catch (_) { /* table absente */ }
     return [...ids];
   }
-  function coachSeesClient(coachId, email) {
+  // Trois notions distinctes :
+  //  - ATTRIBUÉ  (coachAssignedToClient / clientEmailsAssignedToCoach) : référent ou
+  //    coach supplémentaire. Sert à tracer l'admin non attribué ('super_admin' +
+  //    audit) et aux notifications push du référent.
+  //  - VOIT      (coachSeesClient / clientEmailsForCoach) : accès aux données de
+  //    suivi. Tous les clients quand COACH_SEES_ALL_CLIENTS, sinon = attribué.
+  //  - ÉCRIT     (coachMessagesClient / clientEmailsMessagedByCoach) : accès à la
+  //    MESSAGERIE PRIVÉE. Tous les clients quand COACH_MESSAGES_ALL_CLIENTS
+  //    (boîte partagée entre coachs), sinon = attribué.
+  function coachAssignedToClient(coachId, email) {
     return !!coachId && !!email && coachIdsForClient(email).includes(coachId);
   }
-  // Emails des clients qu'un coach suit (référent OU coach supplémentaire).
-  function clientEmailsForCoach(coachId) {
+  function clientEmailsAssignedToCoach(coachId) {
     const s = new Set();
     try { getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(coachId).forEach((r) => s.add(r.email)); } catch (_) { /* ignore */ }
     try { getDb().prepare('SELECT client_email FROM nutrition_client_coaches WHERE coach_id = ?').all(coachId).forEach((r) => s.add(r.client_email)); } catch (_) { /* ignore */ }
     return [...s].filter(Boolean);
   }
+  function coachSeesClient(coachId, email) {
+    if (!coachId || !email) return false;
+    if (COACH_SEES_ALL_CLIENTS) {
+      try { return !!getDb().prepare('SELECT 1 FROM nutrition_clients WHERE email = ?').get(email); } catch (_) { return false; }
+    }
+    return coachAssignedToClient(coachId, email);
+  }
+  function clientEmailsForCoach(coachId) {
+    if (COACH_SEES_ALL_CLIENTS) {
+      try { return getDb().prepare('SELECT email FROM nutrition_clients').all().map((r) => r.email).filter(Boolean); } catch (_) { return []; }
+    }
+    return clientEmailsAssignedToCoach(coachId);
+  }
+  function coachMessagesClient(coachId, email) {
+    return COACH_MESSAGES_ALL_CLIENTS ? coachSeesClient(coachId, email) : coachAssignedToClient(coachId, email);
+  }
+  function clientEmailsMessagedByCoach(coachId) {
+    return COACH_MESSAGES_ALL_CLIENTS ? clientEmailsForCoach(coachId) : clientEmailsAssignedToCoach(coachId);
+  }
   // Fragment SQL "client_email IN (...)" scopé à un coach (ou pas de restriction pour l'admin).
   function coachEmailsInClause(sc, col) {
-    if (sc.isAdmin) return { clause: '', params: [] };
+    if (sc.isAdmin || sc.allClients) return { clause: '', params: [] };
     const emails = clientEmailsForCoach(sc.coachId);
     if (!emails.length) return { clause: ' AND 1=0', params: [] };
     return { clause: ' AND ' + col + ' IN (' + emails.map(() => '?').join(',') + ')', params: emails };
@@ -2588,8 +2656,9 @@ try {
       if (sc.isAdmin) {
         rows = getDb().prepare(base + ' ORDER BY c.last_message_at DESC').all();
       } else {
-        // Fil partagé : le coach voit les conversations de TOUS ses clients (référent + supplémentaires).
-        const emails = clientEmailsForCoach(sc.coachId);
+        // Fil partagé : le coach voit les conversations des clients dont il a la messagerie
+        // (tous les clients si COACH_MESSAGES_ALL_CLIENTS, sinon référent + supplémentaires).
+        const emails = clientEmailsMessagedByCoach(sc.coachId);
         rows = emails.length
           ? getDb().prepare(base + ' WHERE c.client_email IN (' + emails.map(() => '?').join(',') + ') ORDER BY c.last_message_at DESC').all(...emails)
           : [];
@@ -2616,7 +2685,7 @@ try {
       const sc = req.nutritionScope;
       const conv = getDb().prepare('SELECT id, client_email, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
       if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
-      if (!sc.isAdmin && !coachSeesClient(sc.coachId, conv.client_email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      if (!sc.isAdmin && !coachMessagesClient(sc.coachId, conv.client_email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
       // Super_admin : par défaut supervision = on voit la FORME de l'échange (qui, quand)
       // mais PAS le contenu. Le contenu n'est révélé qu'en mode support EXPLICITE
       // (?support=1), tracé dans le journal d'audit.
@@ -2642,8 +2711,8 @@ try {
       const sc = req.nutritionScope;
       const conv = getDb().prepare('SELECT id, client_email, coach_id FROM nutrition_conversations WHERE id = ?').get(Number(req.params.id));
       if (!conv) return res.status(404).json({ ok: false, error: 'Conversation introuvable.' });
-      const coachIsAssigned = coachSeesClient(sc.coachId, conv.client_email);
-      if (!sc.isAdmin && !coachIsAssigned) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      const coachIsAssigned = coachAssignedToClient(sc.coachId, conv.client_email);
+      if (!sc.isAdmin && !coachMessagesClient(sc.coachId, conv.client_email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
       const msg = String((req.body || {}).message || '').slice(0, 2000).trim();
       if (!msg) return res.status(400).json({ ok: false, error: 'Message vide.' });
       const now = new Date().toISOString();
@@ -2670,7 +2739,7 @@ try {
       if (!email) return res.status(400).json({ ok: false, error: 'Client manquant.' });
       const cli = getDb().prepare('SELECT coach_id FROM nutrition_clients WHERE email = ?').get(email);
       if (!cli) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
-      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
+      if (!sc.isAdmin && !coachMessagesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Hors de votre périmètre.' });
       // Fil PARTAGÉ : la conversation est toujours celle du référent du client (coach_id),
       // quel que soit le coach qui l'ouvre. Tous les coachs attribués y accèdent.
       const coachId = cli.coach_id;
@@ -2707,8 +2776,8 @@ try {
       let messages = 0;
       if (s.role === 'coach' || s.role === 'coach-leader') {
         if (s.coach_id) {
-          // Fil partagé : messages non lus des clients suivis (référent OU supplémentaire).
-          const emails = clientEmailsForCoach(s.coach_id);
+          // Fil partagé : messages non lus des clients dont le coach a la messagerie.
+          const emails = clientEmailsMessagedByCoach(s.coach_id);
           if (emails.length) {
             const r = getDb().prepare(`SELECT COUNT(*) AS n FROM nutrition_messages m
               JOIN nutrition_conversations c ON c.id = m.conversation_id
@@ -3245,6 +3314,71 @@ try {
       res.json({ ok: true });
     } catch (e) { console.error('coach/invites DELETE :', e); res.status(500).json({ ok: false, error: 'Suppression impossible.' }); }
   });
+  // ---- Gestion des coachs (ADMIN uniquement) ----
+  // Invitation -> le coach choisit son mot de passe sur /coach/ -> compte 'coach'.
+  // Le lien porte le jeton dans le FRAGMENT (#) : il n'est jamais envoyé au
+  // serveur par le navigateur, donc absent des logs d'accès et des en-têtes Referer.
+  function coachInviteEmailContent(coachName, url) {
+    const subject = 'Ton accès coach Protocole 42';
+    const html = ''
+      + '<div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;color:#1F2430;">'
+      + '<h1 style="font-size:20px;margin:18px 0;">Protocole 42 · Espace coach</h1>'
+      + '<p style="font-size:15px;line-height:1.6;">Bonjour ' + escHtml(coachName) + ',</p>'
+      + '<p style="font-size:15px;line-height:1.6;">Tu es invité(e) à rejoindre l’espace coach du Protocole 42. Clique sur le bouton pour choisir ton mot de passe :</p>'
+      + '<p style="text-align:center;margin:26px 0;"><a href="' + escHtml(url) + '" style="background:#1F2430;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;">Créer mon accès</a></p>'
+      + '<p style="font-size:13px;color:#6B7280;line-height:1.5;">Ce lien est personnel, valable 7 jours et utilisable une seule fois.</p>'
+      + '</div>';
+    const text = 'Bonjour ' + coachName + ',\n\nTu es invité(e) à rejoindre l’espace coach du Protocole 42.\nChoisis ton mot de passe ici : ' + url + '\n\nLien personnel, valable 7 jours, utilisable une seule fois.';
+    return { subject, html, text };
+  }
+  app.get('/nutrition/api/admin/coach-access', requireAuth, requireAdmin, (req, res) => {
+    try { res.json({ ok: true, ...coachAccess.listForAdmin() }); }
+    catch (e) { console.error('coach-access GET :', e); res.status(500).json({ ok: false, error: 'Lecture impossible.' }); }
+  });
+  app.post('/nutrition/api/admin/coach-access/invite', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const b = req.body || {};
+      // Aucun champ « rôle » n'est lu : une invitation crée toujours un coach.
+      const r = coachAccess.createInvite({ name: b.name, email: b.email, coachId: b.coachId, createdBy: req.session.name });
+      if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error });
+      const url = publicBaseUrl(req) + '/coach/#invitation=' + r.token;
+      let emailSent = false, emailError = '';
+      if (process.env.BREVO_API_KEY) {
+        try {
+          const content = coachInviteEmailContent(r.name, url);
+          await sendViaBrevo({ to: r.email, subject: content.subject, html: content.html, text: content.text });
+          emailSent = true;
+        } catch (e) {
+          emailError = String((e && e.message) || '').slice(0, 220);
+          console.warn('Invitation coach (Brevo) non envoyée :', emailError);
+        }
+      }
+      res.json({ ok: true, id: r.id, url, name: r.name, email: r.email, expiresAt: r.expiresAt, emailSent, emailConfigured: !!process.env.BREVO_API_KEY, emailError });
+    } catch (e) { console.error('coach-access invite :', e); res.status(500).json({ ok: false, error: 'Invitation impossible.' }); }
+  });
+  app.post('/nutrition/api/admin/coach-access/:id/revoke', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const r = coachAccess.setAccess(req.params.id, false);
+      if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error });
+      const coupees = sessions.purgeCoach(req.params.id); // déconnexion immédiate
+      res.json({ ok: true, sessionsClosed: coupees });
+    } catch (e) { console.error('coach-access revoke :', e); res.status(500).json({ ok: false, error: 'Révocation impossible.' }); }
+  });
+  app.post('/nutrition/api/admin/coach-access/:id/restore', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const r = coachAccess.setAccess(req.params.id, true);
+      if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error });
+      res.json({ ok: true });
+    } catch (e) { console.error('coach-access restore :', e); res.status(500).json({ ok: false, error: 'Réactivation impossible.' }); }
+  });
+  app.delete('/nutrition/api/admin/coach-invites/:id', requireAuth, requireAdmin, (req, res) => {
+    try {
+      const r = coachAccess.cancelInvite(req.params.id);
+      if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error });
+      res.json({ ok: true });
+    } catch (e) { console.error('coach-invites DELETE :', e); res.status(500).json({ ok: false, error: 'Annulation impossible.' }); }
+  });
+
   // PUBLIC : valider un jeton pour pré-remplir la page de connexion. Ne révèle que ce
   // que le coach a saisi (email/prénom pré-remplis) — nécessaire à l'onboarding.
   app.get('/nutrition/api/invites/:token', (req, res) => {
@@ -3506,11 +3640,14 @@ try {
   });
 
   // Réinitialise le code PIN d'un client (support). Le client en définit un nouveau
-  // à sa prochaine connexion. Admin uniquement.
-  app.post('/nutrition/api/clients/:email/reset-pin', requireAuth, requireAdmin, (req, res) => {
+  // à sa prochaine connexion. Admin OU coach (compte email actif, client dans son
+  // périmètre) ; un client n'y a jamais accès (requireCoachOrAdmin le refuse).
+  app.post('/nutrition/api/clients/:email/reset-pin', requireAuth, requireCoachOrAdmin, (req, res) => {
     try {
       const email = String(req.params.email || '').trim();
       if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
+      const sc = req.nutritionScope;
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Client non attribué.' });
       // On vide le PIN (le client en repose un) ET on lève le verrou anti-force-
       // brute : sans ça, un compte réinitialisé resterait marqué bloqué.
       const upd = getDb().prepare("UPDATE nutrition_clients SET pin_hash = '', pin_fails = 0, pin_locked = 0, updated_at = ? WHERE email = ?").run(new Date().toISOString(), email);
@@ -3527,13 +3664,8 @@ try {
       const email = String(req.params.email || '').trim().toLowerCase();
       if (!email) return res.status(400).json({ ok: false, error: 'Email manquant.' });
       const sc = req.nutritionScope;
-      if (!sc.isAdmin) {
-        // Le client doit être rattaché à ce coach (référent ou coach supplémentaire).
-        const emails = new Set();
-        try { getDb().prepare('SELECT email FROM nutrition_clients WHERE coach_id = ?').all(sc.coachId).forEach((r) => emails.add(String(r.email).toLowerCase())); } catch (_) { /* ignore */ }
-        try { getDb().prepare('SELECT client_email FROM nutrition_client_coaches WHERE coach_id = ?').all(sc.coachId).forEach((r) => emails.add(String(r.client_email).toLowerCase())); } catch (_) { /* ignore */ }
-        if (!emails.has(email)) return res.status(403).json({ ok: false, error: 'Ce client n’est pas dans ton groupe.' });
-      }
+      // Même périmètre que la fiche client (tous les clients si COACH_SEES_ALL_CLIENTS).
+      if (!sc.isAdmin && !coachSeesClient(sc.coachId, email)) return res.status(403).json({ ok: false, error: 'Ce client n’est pas dans ton groupe.' });
       const n = clientAuth.unlockPin(email);
       if (!n) return res.status(404).json({ ok: false, error: 'Client introuvable.' });
       res.json({ ok: true });
@@ -3547,7 +3679,7 @@ try {
       const order = " ORDER BY datetime(CASE WHEN updated_at != '' THEN updated_at ELSE created_at END) DESC";
       const cols = 'SELECT email, prenom, nom, data, coach_id, created_at, updated_at FROM nutrition_clients';
       let rows;
-      if (sc.isAdmin) {
+      if (sc.isAdmin || sc.allClients) {
         rows = getDb().prepare(cols + order).all();
       } else {
         const emails = clientEmailsForCoach(sc.coachId); // référent + supplémentaires
@@ -3918,6 +4050,8 @@ try {
           objectif, hasPlan, planJours, savedAt, startDate,
           profil: profilPublic, pesees, adherence, adhScore, adhDays,
           help, scansCount, ville, challengeNo, pinLocked: !!row.pin_locked,
+          // Messagerie privée : selon COACH_MESSAGES_ALL_CLIENTS (admin = support audité).
+          canMessage: sc.isAdmin || coachMessagesClient(sc.coachId, email),
         },
       });
     } catch (e) {
@@ -4178,6 +4312,77 @@ function getDateRangeFromWeeks(weekStarts) {
 
 // ─── Auth Routes ────────────────────────────────────────────
 
+// ─── Connexion COACH par email + mot de passe (comptes Protocole 42) ─────────
+// Limiteur mémoire : trop d'échecs pour un même email ou une même adresse IP ->
+// attente de 15 min. Suffisant pour un seul process (Railway) ; à déplacer en
+// base le jour où l'app tournera sur plusieurs instances.
+const coachLoginFails = new Map(); // clé -> { n, until }
+const COACH_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+function clientIp(req) {
+  return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
+}
+function coachLoginBlocked(keys) {
+  const t = Date.now();
+  return keys.some(([k, max]) => { const e = coachLoginFails.get(k); return e && e.until > t && e.n >= max; });
+}
+function coachLoginFailed(keys) {
+  const t = Date.now();
+  keys.forEach(([k]) => {
+    const e = coachLoginFails.get(k);
+    if (!e || e.until <= t) coachLoginFails.set(k, { n: 1, until: t + COACH_LOGIN_WINDOW_MS });
+    else e.n += 1;
+  });
+  if (coachLoginFails.size > 5000) { for (const [k, e] of coachLoginFails) if (e.until <= t) coachLoginFails.delete(k); }
+}
+// Session d'un coach à compte : même forme que la session PIN (coach_id, rôle
+// coach/coach-leader) pour que tout l'existant fonctionne à l'identique.
+// `auth: 'password'` permet au front de sauter le choix du studio.
+function openCoachSession(coach) {
+  const token = crypto.randomUUID();
+  const role = coach.isLeader ? 'coach-leader' : 'coach';
+  const sess = { role, name: coach.name, sales_rep_id: null, coach_id: coach.id, is_leader: coach.isLeader, studio: coach.studio, auth: 'password', coach_email: coach.email };
+  sessions.set(token, sess);
+  return { token, ...sess };
+}
+app.post('/api/auth/coach-login', (req, res) => {
+  try {
+    const b = req.body || {};
+    const email = String(b.email || '').trim().toLowerCase();
+    const keys = [['e:' + email, 8], ['ip:' + clientIp(req), 30]];
+    if (coachLoginBlocked(keys)) return res.status(429).json({ error: 'Trop de tentatives. Réessaie dans 15 minutes.' });
+    const r = coachAccess.login({ email, password: b.password });
+    if (!r.ok) {
+      if (r.status === 401) coachLoginFailed(keys);
+      return res.status(r.status).json({ error: r.error });
+    }
+    keys.forEach(([k]) => coachLoginFails.delete(k));
+    res.json(openCoachSession(r.coach));
+  } catch (e) { console.error('coach-login :', e); res.status(500).json({ error: 'Connexion impossible.' }); }
+});
+// Invitation coach : lecture (nom + email imposé) puis acceptation (mot de passe).
+// POST et non GET : le jeton reste hors des URL de requête et des logs.
+app.post('/api/auth/coach-invite/check', (req, res) => {
+  try {
+    const r = coachAccess.checkInvite((req.body || {}).token);
+    if (!r.ok) return res.status(400).json({ ok: false, error: r.error });
+    res.json({ ok: true, name: r.name, email: r.email });
+  } catch (e) { console.error('coach-invite check :', e); res.status(500).json({ ok: false, error: 'Vérification impossible.' }); }
+});
+app.post('/api/auth/coach-invite/accept', (req, res) => {
+  try {
+    const b = req.body || {};
+    const keys = [['ip:' + clientIp(req), 30]];
+    if (coachLoginBlocked(keys)) return res.status(429).json({ ok: false, error: 'Trop de tentatives. Réessaie dans 15 minutes.' });
+    // Seuls le jeton et le mot de passe sont lus : ni email, ni nom, ni rôle.
+    const r = coachAccess.acceptInvite({ token: b.token, password: b.password });
+    if (!r.ok) {
+      if (/invalide/.test(r.error || '')) coachLoginFailed(keys);
+      return res.status(r.status).json({ ok: false, error: r.error });
+    }
+    res.json({ ok: true, ...openCoachSession(r.coach) });
+  } catch (e) { console.error('coach-invite accept :', e); res.status(500).json({ ok: false, error: 'Création du compte impossible.' }); }
+});
+
 app.post('/api/auth/login', (req, res) => {
   const { pin } = req.body;
   if (!pin || typeof pin !== 'string' || !pin.trim()) {
@@ -4259,24 +4464,8 @@ app.post('/api/auth/login', (req, res) => {
     return res.json({ token, role: 'coach_leader', name: cl.name, coach_leader_id: cl.id, studio: cl.studio, can_view_history: canViewHistory, coach_slot: coachSlot, sales_rep_id: null });
   }
 
-  // Check coach PIN (table coaches)
-  const coach = db.prepare('SELECT id, name, role, studio, is_leader FROM coaches WHERE pin = ? AND archived = 0').get(pin.trim());
-  if (coach) {
-    const token = crypto.randomUUID();
-    const role = coach.is_leader ? 'coach-leader' : (coach.role || 'coach');
-    sessions.set(token, {
-      role,
-      name: coach.name,
-      sales_rep_id: null,
-      coach_id: coach.id,
-      is_leader: !!coach.is_leader,
-      studio: coach.studio
-    });
-    return res.json({
-      token, role, name: coach.name, sales_rep_id: null,
-      coach_id: coach.id, is_leader: !!coach.is_leader, studio: coach.studio
-    });
-  }
+  // (Les coachs ne se connectent plus par PIN : uniquement email + mot de passe,
+  //  via /api/auth/coach-login. L'ancienne colonne coaches.pin n'ouvre plus rien.)
 
   // Check special role PINs from env (academy, director)
   const academyPin = process.env.ACADEMY_PIN;
@@ -4368,10 +4557,8 @@ app.post('/api/auth/change-pin', requireAuth, (req, res) => {
   } else if (['commercial', 'phoneur'].includes(role) && session.sales_rep_id) {
     table = 'sales_reps'; idCol = session.sales_rep_id;
     currentRow = db.prepare('SELECT pin FROM sales_reps WHERE id = ? AND archived = 0').get(idCol);
-  } else if (['coach', 'coach-leader'].includes(role) && session.coach_id) {
-    table = 'coaches'; idCol = session.coach_id;
-    currentRow = db.prepare('SELECT pin FROM coaches WHERE id = ? AND archived = 0').get(idCol);
   } else if (role === 'coach_leader' && session.coach_leader_id) {
+    // (Les coachs 'coach'/'coach-leader' n'ont plus de code : ils ont un mot de passe.)
     table = 'coach_leaders'; idCol = session.coach_leader_id;
     currentRow = db.prepare('SELECT pin FROM coach_leaders WHERE id = ? AND archived = 0').get(idCol);
   } else {
@@ -4389,17 +4576,14 @@ app.post('/api/auth/change-pin', requireAuth, (req, res) => {
     return res.status(409).json({ error: 'Ce code est déjà utilisé' });
   }
   const takenSr = db.prepare('SELECT id FROM sales_reps WHERE pin = ? AND archived = 0' + (table === 'sales_reps' ? ' AND id != ?' : '')).get(...(table === 'sales_reps' ? [next, idCol] : [next]));
-  const takenC  = db.prepare('SELECT id FROM coaches WHERE pin = ? AND archived = 0'    + (table === 'coaches'    ? ' AND id != ?' : '')).get(...(table === 'coaches'    ? [next, idCol] : [next]));
   const takenCl = db.prepare('SELECT id FROM coach_leaders WHERE pin = ? AND archived = 0' + (table === 'coach_leaders' ? ' AND id != ?' : '')).get(...(table === 'coach_leaders' ? [next, idCol] : [next]));
-  if (takenSr || takenC || takenCl) return res.status(409).json({ error: 'Ce code est déjà utilisé' });
+  if (takenSr || takenCl) return res.status(409).json({ error: 'Ce code est déjà utilisé' });
 
   // Update
   if (table === 'admin') {
     db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)').run('admin_pin', next);
   } else if (table === 'sales_reps') {
     db.prepare('UPDATE sales_reps SET pin = ? WHERE id = ?').run(next, idCol);
-  } else if (table === 'coaches') {
-    db.prepare('UPDATE coaches SET pin = ? WHERE id = ?').run(next, idCol);
   } else if (table === 'coach_leaders') {
     db.prepare('UPDATE coach_leaders SET pin = ? WHERE id = ?').run(next, idCol);
   }
@@ -10393,8 +10577,7 @@ app.post('/api/coach-leaders', requireAuth, requireAdmin, (req, res) => {
   if (!pin || pin.length < 4) return res.status(400).json({ error: 'PIN requis (4 caractères minimum)' });
   if (!studio) return res.status(400).json({ error: 'Studio requis' });
   const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ?`).get(pin)
-    || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(pin)
-    || db.prepare(`SELECT id FROM coaches WHERE pin = ?`).get(pin);
+    || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(pin);
   if (taken) return res.status(409).json({ error: 'PIN déjà utilisé par un autre compte' });
   try {
     const info = db.prepare(`
@@ -10422,10 +10605,9 @@ app.put('/api/coach-leaders/:id', requireAuth, requireAdmin, (req, res) => {
   if (req.body.pin !== undefined) {
     const v = String(req.body.pin).trim();
     if (!v || v.length < 4) return res.status(400).json({ error: 'PIN trop court' });
-    // Unicité : check sur coach_leaders (autres) + sales_reps + coaches
+    // Unicité : check sur coach_leaders (autres) + sales_reps (les coachs n'ont plus de code)
     const taken = db.prepare(`SELECT id FROM coach_leaders WHERE pin = ? AND id != ?`).get(v, id)
-      || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(v)
-      || db.prepare(`SELECT id FROM coaches WHERE pin = ?`).get(v);
+      || db.prepare(`SELECT id FROM sales_reps WHERE pin = ?`).get(v);
     if (taken) return res.status(409).json({ error: 'PIN déjà utilisé par un autre compte' });
     fields.push('pin = ?'); values.push(v);
   }

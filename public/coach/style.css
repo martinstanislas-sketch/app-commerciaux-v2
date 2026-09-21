@@ -162,6 +162,19 @@ body {
 .login-card .btn-primary { width: 100%; padding: 14px; font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
 .login-error { color: var(--danger); font-size: .85rem; margin-bottom: .75rem; font-weight: 600; }
 .login-error.hidden { display: none; }
+/* Connexion email + mot de passe / invitation coach : texte lisible (pas
+   d'espacement large ni de centrage « code PIN »). */
+.login-form-email input { font-size: 1rem; letter-spacing: normal; text-align: left; }
+.login-form-email input[readonly] { color: var(--text-secondary); cursor: default; }
+.login-card form.hidden, .login-card .hidden { display: none; }
+.login-switch {
+  margin-top: 14px; background: none; border: none; padding: 6px;
+  color: var(--text-secondary); font-family: inherit; font-size: .8rem;
+  text-decoration: underline; cursor: pointer;
+}
+.login-switch:hover { color: var(--text); }
+.login-note { color: var(--text-secondary); font-size: .9rem; line-height: 1.5; margin-bottom: 14px; }
+.login-hint { color: var(--text-muted); font-size: .75rem; margin: -4px 0 12px; text-align: left; }
 
 /* Club / Studio select overlay */
 .club-select-card {
@@ -271,10 +284,6 @@ nav::-webkit-scrollbar { display: none; }
 .tab-btn-academy { color: rgba(245,158,11,.6); }
 .tab-btn-academy:hover { color: #f59e0b; border-bottom-color: rgba(245,158,11,.4); }
 .tab-btn-academy.active { color: #f59e0b; border-bottom-color: #f59e0b; }
-/* Validation tab */
-.tab-btn-validation { color: rgba(16,185,129,.6); }
-.tab-btn-validation:hover { color: #10b981; border-bottom-color: rgba(16,185,129,.4); }
-.tab-btn-validation.active { color: #10b981; border-bottom-color: #10b981; }
 .user-info { margin-left: auto; display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: .85rem; }
 .user-info.hidden { display: none; }
 .btn-logout {
@@ -1595,7 +1604,6 @@ textarea.data-input { resize: vertical; min-height: 52px; line-height: 1.5; font
 }
 
 /* ─── Nav dot indicator for new formations ──────────────── */
-.tab-btn-validation { position: relative; }
 .tab-btn-module     { position: relative; }
 .tab-has-new::after {
   content: ''; position: absolute; top: 4px; right: 4px;
