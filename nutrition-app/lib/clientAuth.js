@@ -182,9 +182,14 @@ function createClientAuth({ getDb, defaultCoachId }) {
         const coachId = (inviteRow && inviteRow.coach_id) || (typeof defaultCoachId === 'function' ? defaultCoachId() : null);
         getDb().prepare('INSERT INTO nutrition_clients (email, prenom, nom, data, pin_hash, coach_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)').run(email, prenom, nom, null, ph, coachId, now, now);
         // Rattachement au groupe porté par le code -> communauté + classements corrects.
-        if (groupe) {
+        // Idem pour une invitation RATTACHÉE à un groupe (générée depuis /coach/) : le
+        // client arrive directement dans ce groupe. Invitation sans groupe = inchangé.
+        const groupeInvite = (inviteRow && String(inviteRow.ville || '').trim() && Number(inviteRow.challenge_no) > 0)
+          ? { ville: String(inviteRow.ville).trim(), challenge_no: Number(inviteRow.challenge_no) } : null;
+        const groupeFinal = groupe || groupeInvite;
+        if (groupeFinal) {
           getDb().prepare('INSERT INTO nutrition_client_meta (client_email, ville, challenge_no, updated_at) VALUES (?,?,?,?) ON CONFLICT(client_email) DO UPDATE SET ville = excluded.ville, challenge_no = excluded.challenge_no, updated_at = excluded.updated_at')
-            .run(email, groupe.ville, groupe.challenge_no, now);
+            .run(email, groupeFinal.ville, groupeFinal.challenge_no, now);
         }
         if (inviteRow) getDb().prepare('UPDATE nutrition_invites SET used_at = ?, used_email = ? WHERE id = ?').run(now, email, inviteRow.id);
       }
