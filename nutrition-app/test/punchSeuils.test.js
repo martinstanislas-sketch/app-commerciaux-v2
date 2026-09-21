@@ -149,15 +149,20 @@ test('source PARCOURS : valider une étape passe par addPunch et évalue les seu
   const { engine, db, email } = makeEngine();
   engine.pathStatsRow(email);
   engine.addPunch(email, 60, 'amorce');
-  // Verrou temporel : l'étape 0 ne crédite du Punch que faite « à temps ». On cale
-  // donc la date de début sur aujourd'hui (jour courant 0 -> étape 0 pile à l'heure).
+  // Verrou temporel : le parcours doit avoir démarré pour valider l'étape 0. On
+  // cale la date de début sur aujourd'hui (J1).
   const cp = require('../lib/challengePath');
   db.prepare('UPDATE nutrition_clients SET data=? WHERE email=?').run(JSON.stringify({ startDate: cp.pathParisYmd() }), email);
   // L'étape 0 vaut 80 Punch : le total passe à 140, et tout ce qui est en
   // dessous doit être débloqué — quels que soient les seuils de la table.
+  // L'étape 0 se lit dans les DONNÉES de préparation : pesée de départ (coach),
+  // mensurations, 3 photos de départ, un post au Groupe.
+  db.exec(`CREATE TABLE nutrition_parcours_mensurations (id INTEGER PRIMARY KEY AUTOINCREMENT, client_email TEXT, date TEXT, taille REAL);
+    CREATE TABLE nutrition_community_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT, kind TEXT DEFAULT 'message', message TEXT);`);
+  db.prepare("INSERT INTO nutrition_parcours_pesees (client_email, type, date) VALUES (?,'depart',?)").run(email, cp.pathParisYmd());
+  db.prepare("INSERT INTO nutrition_parcours_mensurations (client_email, date, taille) VALUES (?,?,80)").run(email, cp.pathParisYmd());
   ['face', 'profil', 'dos'].forEach((t) => db.prepare("INSERT INTO nutrition_parcours_photos (client_email, jalon, type, data, mime, auteur_role, created_at) VALUES (?,'depart',?,'x','image/jpeg','client','')").run(email, t));
-  engine.awardClientEvent(email, 'photo', 'x');
-  engine.awardClientEvent(email, 'mensurations', 'x');
+  db.prepare("INSERT INTO nutrition_community_messages (email, kind, message) VALUES (?,'message','Salut')").run(email);
   engine.awardClientEvent(email, 'groupe', 'x');
   assert.equal(punchDe(db, email), 140, '60 + 80 (étape Commencer)');
   const acquis = engine.unlockedThresholds(email);
