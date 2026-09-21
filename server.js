@@ -757,7 +757,7 @@ function buildPlanEvents(plan, scope, planId, dinerTard) {
 
 // Chemin du challenge : moteur gamifié 42 jours (module dédié, testable).
 const {
-  ensureChallengePathSchema, awardClientEvent, awardSeanceBonus, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds, pathStartYmd,
+  ensureChallengePathSchema, awardClientEvent, validerCommencer, awardSeanceBonus, recordEbookOpen, recordDayWin, challengePublicState, unlockedThresholds, pathStartYmd,
   assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier, punchProgression,
   declarerMissionBonus, missionsBonusDeclarees, deciderMissionBonus,
 } = require('./nutrition-app/lib/challengePath')({ getDb });
@@ -930,7 +930,13 @@ try {
     try {
       const email = (req.session && req.session.email) || '';
       if (!email) return res.status(403).json({ ok: false });
-      res.json({ ok: true, state: challengePublicState(email) });
+      // ÉTAPE 0 « Commencer » : si le challenge a démarré et que les 4 préparations
+      // (pesée coach, mensurations, 3 photos, 1er post au Groupe) sont réunies, on la
+      // valide ICI — J1 se valide ainsi tout seul, sans action du client. Seule
+      // écriture de cette route, idempotente (80 Punch une seule fois) ; avant J1 elle
+      // ne fait rien.
+      const reward = validerCommencer(email);
+      res.json({ ok: true, reward, state: challengePublicState(email) });
     } catch (e) { console.error('challenge state :', e); res.status(500).json({ ok: false }); }
   });
   // SÉRIE 🔥 : le client a renseigné au moins 2 repas de SA journée -> le jour est

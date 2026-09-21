@@ -5129,17 +5129,14 @@ async function renderChallenge() {
   if (!st) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">Parcours indisponible pour le moment.</div>'; wireParcoursSegment(); return; }
   if (!st.enabled) { view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">🔒 Le Parcours du challenge arrive bientôt pour ton groupe.</div>'; wireParcoursSegment(); return; }
   if (!st.started) {
-    // Cohorte datée : on annonce le jour J plutôt qu'un vague « à ta 1re pesée ».
-    let msg = '✨ Ton parcours démarrera à ta première pesée officielle.';
-    if (st.startsOn) {
-      const d = new Date(st.startsOn + 'T12:00:00Z');
-      if (!isNaN(d.getTime())) {
-        msg = '🗓️ Ton challenge démarre le <b>' + mcpEsc(d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }))
-          + '</b>.<br>Ton parcours s\'ouvrira ce jour-là — prépare-toi !';
-      }
-    }
-    view.innerHTML = parcoursSegmentHTML() + '<div class="mcpath-empty">' + msg + '</div>';
-    wireParcoursSegment(); return;
+    // AVANT J1 : la date, la checklist « Prépare ton challenge » (état RÉEL, lu
+    // côté serveur), puis le VRAI parcours du client en aperçu atténué et inerte.
+    view.innerHTML = parcoursSegmentHTML() + challengeAvantJ1HTML(st);
+    wireParcoursSegment();
+    wireChallengeAvantJ1();
+    ascRevelation(); // les chapitres se posent (sinon ils restent invisibles) ; AUCUN clic câblé
+    state._challengeLoaded = true;
+    return;
   }
   // Où se tient l'avatar AVANT la repeinte : s'il change d'étape, il ira à sa
   // nouvelle place au lieu d'y réapparaître (cf. ascAvatarDeplacer).
@@ -5162,6 +5159,82 @@ async function renderChallenge() {
     if (fetables.length) { const n = fetables[fetables.length - 1]; rewardToast({ title: n.title, punch: n.punchAwarded, milestone: n.milestone, final: n.type === 'final' }); }
   }
   state._challengeLoaded = true;
+}
+
+// ============================================================================
+//  AVANT J1 — « PRÉPARE TON CHALLENGE »
+//  Tant que le groupe n'a pas démarré, rien ne se valide (le serveur y veille :
+//  awardClientEvent refuse, les séances sont refusées, les étapes sont
+//  'timelock'). Le client voit :
+//   1. la date réelle du départ ;
+//   2. la checklist des 4 préparations — ce sont EXACTEMENT les conditions de
+//      l'étape 0 « Commencer », lues côté serveur (st.preparation) : jamais un
+//      état local. À J1, l'étape 0 se valide toute seule si tout est prêt ;
+//   3. son VRAI parcours (mêmes en-tête et sentier qu'après le départ, avec
+//      l'état renvoyé par l'API), atténué et inerte : on le découvre, on ne
+//      peut pas encore y toucher.
+//  ⚠️ La pesée de départ est faite PAR LE COACH : sa ligne n'est pas cliquable
+//  et aucun formulaire de poids n'est proposé au client.
+// ============================================================================
+function challengeDateLongue(ymdStr) {
+  if (!ymdStr) return '';
+  const d = new Date(ymdStr + 'T12:00:00Z');
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+}
+function challengeAvantJ1HTML(st) {
+  const p = st.preparation || {};
+  const ph = p.photos || { fait: 0, requis: 3, ok: false };
+  const quand = challengeDateLongue(st.startsOn);
+  // Sans date de groupe, c'est la pesée officielle (avec le coach) qui lance le parcours.
+  const intro = quand
+    ? `<h2 class="mcprep-h">Ton Challenge démarre le <b>${mcpEsc(quand)}</b></h2>
+       <p class="mcprep-p">Ton programme complet se débloquera à cette date.</p>`
+    : `<h2 class="mcprep-h">Ton Challenge démarrera à ta <b>première pesée officielle</b></h2>
+       <p class="mcprep-p">Ton programme complet se débloquera ce jour-là, avec ton coach.</p>`;
+  // Une ligne : pastille ✓ si c'est fait (style terminé), sinon ○ et, si le client peut
+  // agir lui-même, un bouton qui l'emmène pile au bon endroit.
+  const ligne = (cle, ok, label, sous, cliquable) => {
+    const ic = `<span class="mcpath-sub-ic">${ok ? '✓' : '○'}</span>`;
+    const txt = `<span class="mcpath-sub-l">${mcpEsc(label)}${sous ? `<span class="mcpath-sub-n">${mcpEsc(sous)}</span>` : ''}</span>`;
+    if (ok) return `<div class="mcpath-sub done">${ic}${txt}</div>`;
+    if (!cliquable) return `<div class="mcpath-sub mcpath-sub-fixe" aria-disabled="true">${ic}${txt}</div>`;
+    return `<button type="button" class="mcpath-sub" data-prep="${cle}">${ic}${txt}<span class="mcpath-sub-go">›</span></button>`;
+  };
+  const faits = [p.pesee, p.mensurations, ph.ok, p.groupe].filter(Boolean).length;
+  const lignes = ligne('pesee', !!p.pesee, 'Mesure / pesée de départ', p.pesee ? 'Faite avec ton coach' : 'Réalisée avec ton coach, au studio', false)
+    + ligne('mensurations', !!p.mensurations, 'Mensurations de départ', '', true)
+    + ligne('photos', !!ph.ok, 'Photos de départ', `${ph.fait}/${ph.requis} photos (face, profil, dos)`, true)
+    + ligne('groupe', !!p.groupe, 'Premier message dans le Groupe', '', true);
+  const pied = faits === 4
+    ? 'Tout est prêt ! Ton étape « Commencer » sera validée automatiquement le jour du départ.'
+    : 'Ces préparations valident ton étape « Commencer » dès le jour du départ.';
+  const aVenir = quand ? 'Se débloque le ' + quand : 'Se débloque à ta première pesée officielle';
+  // Le vrai parcours, avec l'état réel : toutes ses étapes sont 'timelock'. Pas de
+  // mission flottante (fixe à l'écran, elle échapperait à l'atténuation).
+  return `<section class="mcprep" aria-label="Avant le départ">
+      <div class="mcprep-date">${intro}</div>
+      <div class="mcprep-card">
+        <div class="mcprep-card-top"><p class="mcprep-titre">Prépare ton challenge</p><span class="mcprep-compte">${faits}/4</span></div>
+        <div class="mcpath-flow">${lignes}</div>
+        <p class="mcpath-flow-hint">${mcpEsc(pied)}</p>
+      </div>
+    </section>
+    <section class="mcprep-apercu" aria-label="Aperçu de ton parcours — pas encore débloqué">
+      <p class="mcprep-apercu-l">🔒 Ton parcours · ${mcpEsc(aVenir)}</p>
+      <div class="mcprep-apercu-c" inert aria-disabled="true">
+        ${challengeHeaderHTML(st)}
+        <div class="asc-body">${challengeRailHTML(st)}${challengePathHTML(st)}</div>
+      </div>
+    </section>`;
+}
+function wireChallengeAvantJ1() {
+  $$('#view-parcours [data-prep]').forEach((b) => b.addEventListener('click', () => {
+    const k = b.dataset.prep;
+    if (k === 'mensurations') ouvrirParcoursSur('mensurations', 'debut');
+    else if (k === 'photos') ouvrirParcoursSur('photos', 'debut');
+    else if (k === 'groupe') setTab('communaute');
+  }));
 }
 
 // ============================================================================
@@ -5266,7 +5339,9 @@ const ASC_WEEK_ART = { 1: '🌱', 2: '🔥', 3: '⛰️', 4: '⚡', 5: '🧭', 6
 function ascProchainJalon(st) {
   const nodes = st.nodes || [];
   const iAct = nodes.findIndex((n) => n.status === 'active');
-  const from = iAct >= 0 ? iAct : nodes.length; // plus d'étape active -> plus rien à viser
+  // Avant J1 aucune étape n'est « active » (toutes 'timelock') : on vise depuis le
+  // début, sinon l'aperçu annoncerait « Tout est franchi » à qui n'a rien commencé.
+  const from = iAct >= 0 ? iAct : (st.started ? nodes.length : 0); // plus d'étape active -> plus rien à viser
   const i = nodes.findIndex((n, k) => k >= from && n.milestone && n.status !== 'done');
   return i < 0 ? null : { node: nodes[i], reste: i - from };
 }
@@ -5312,7 +5387,7 @@ function challengeHeaderHTML(st) {
       <div class="asc-head-row">
         ${ascMassifSVG()}
         <div class="asc-head-txt">
-          <p class="asc-kicker">Jour ${st.day} · Semaine ${semaine}/6</p>
+          <p class="asc-kicker">${st.started ? `Jour ${st.day} · Semaine ${semaine}/6` : 'Avant le départ · Semaine 1/6'}</p>
           <h2 class="asc-titre">${mcpEsc(titre)}</h2>
         </div>
         <b class="asc-pct">${pct}<span>%</span></b>
@@ -6153,7 +6228,10 @@ function challengeActionLabel(n) {
 
 // --- Étapes composites : sous-étapes du `flow` (ordre libre) ----------------
 // Chaque sous-étape mène à l'écran qui produit le vrai événement de validation.
+// Une entrée SANS `go` n'est pas cliquable : la pesée de départ est saisie par le
+// coach (fiche client), le client n'a rien à faire lui-même.
 const MCPATH_FLOW = {
+  pesee: { label: 'Pesée de départ — réalisée avec ton coach', go: '' },
   photos: { label: 'Ajouter tes photos', go: 'mesures' },
   mensurations: { label: 'Saisir tes mensurations', go: 'mesures' },
   groupe: { label: 'Te présenter au groupe', go: 'communaute' },
@@ -6204,6 +6282,12 @@ function challengeFlowHTML(n) {
     // avec 2 photos déjà envoyées ressemble à un bug.
     let compteur = '';
     if (s === 'photos' && n.photos && !ok) compteur = `<span class="mcpath-sub-n">${n.photos.fait}/${n.photos.requis} photos ajoutées</span>`;
+    // Sans destination (la pesée, faite avec le coach) : une ligne d'information,
+    // pas un bouton — rien à cliquer, rien à saisir pour le client.
+    if (!f.go) {
+      return `<div class="mcpath-sub${ok ? ' done' : ' mcpath-sub-fixe'}" aria-disabled="true">
+      <span class="mcpath-sub-ic">${ok ? '✓' : '○'}</span><span class="mcpath-sub-l">${mcpEsc(f.label)}</span></div>`;
+    }
     return `<button type="button" class="mcpath-sub${ok ? ' done' : ''}" data-sub="${mcpEsc(s)}"${ok ? ' disabled' : ''}>
       <span class="mcpath-sub-ic">${ok ? '✓' : '○'}</span><span class="mcpath-sub-l">${mcpEsc(f.label)}${compteur}</span>${ok ? '' : '<span class="mcpath-sub-go">›</span>'}</button>`;
   }).join('');

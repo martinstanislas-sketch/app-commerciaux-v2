@@ -25,6 +25,9 @@
 //      et non plus par l'écran d'analyse d'assiette (event 'plate').
 // v5 : l'étape 27 accepte AUSSI une réponse à un membre ('groupe_reponse').
 // v6 : « ebook » devient « guide » dans les libellés (titre + bouton), rien d'autre.
+// (Pas de v7 pour l'étape 0 pilotée par les données : ni son titre, ni son
+//  événement, ni son jalon ne changent en base — seuls `flow` et `action`, qui
+//  ne sont pas stockés dans path_nodes, bougent.)
 const punchSeuils = require('./punchSeuils');
 const cadeaux = require('./cadeaux');
 
@@ -63,15 +66,18 @@ const MISSIONS_BONUS = {
 // semaines : S1 0–7 (8 étapes), puis 7 par semaine.
 //   `event`  = l'événement réel de l'app qui valide l'étape (cœur du moteur).
 //   `action` = le libellé du bouton présenté au client.
-//   `flow`   = sous-étapes des étapes COMPOSITES (0/21/41) : donnée exposée pour
-//              la Phase 2. En attendant, l'étape se valide dès la 1re sous-étape
-//              (event 'photo') pour ne jamais geler le parcours.
+//   `flow`   = sous-étapes des étapes COMPOSITES (0/21/41), toutes exigées, ordre
+//              libre. 21/41 : cochées par les événements (user_node_flow). 0 : lues
+//              dans les données de préparation (cf. preparationEtat).
 //   `jalon`  = debut | mi | fin -> ces étapes + le bilan final sont les ★ dorés.
 // Plus aucune étape « pesée » : la pesée reste saisie par le coach dans Mon
 // Parcours et continue d'ancrer la date de départ (cf. pathStartYmd).
 const CHALLENGE_PATH_NODES = [
   // S1 — Lancement (index 0–7)
-  { day: 0, week: 1, type: 'commencer', event: 'photo', title: "Commencer", action: "Photos + mensurations + présente-toi au groupe", punch: 80, milestone: 1, jalon: 'debut', flow: ['photos', 'mensurations', 'groupe'] },
+  // Étape 0 : PAS validée par un événement mais par les DONNÉES de préparation
+  // (cf. preparationEtat / validerCommencer) — les mêmes que la checklist « Prépare
+  // ton challenge » affichée avant J1. `event` reste 'photo' (inchangé en base).
+  { day: 0, week: 1, type: 'commencer', event: 'photo', title: "Commencer", action: "Pesée avec ton coach + mensurations + photos + présente-toi au groupe", punch: 80, milestone: 1, jalon: 'debut', flow: ['pesee', 'mensurations', 'photos', 'groupe'] },
   { day: 1, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
   { day: 2, week: 1, type: 'ebook', event: 'ebook', title: "Découvre ton guide", action: "Ouvrir mon guide", punch: 15, milestone: 0 },
   { day: 3, week: 1, type: 'seance', event: 'seance', title: "Séance", action: "Valider la séance", punch: 25, milestone: 0 },
@@ -196,7 +202,9 @@ function streakAfterOpen(streak, last, today) {
 }
 // Sous-étape d'un flow -> événement réel de l'app qui la satisfait.
 // Ordre LIBRE : le client peut poster au groupe avant de faire ses photos.
-const FLOW_STEP_EVENT = { photos: 'photo', mensurations: 'mensurations', groupe: 'groupe' };
+// 'pesee' n'existe que dans le flow de l'étape 0 : la pesée de départ est saisie
+// PAR LE COACH (fiche client), le client ne la fait jamais lui-même.
+const FLOW_STEP_EVENT = { pesee: 'pesee', photos: 'photo', mensurations: 'mensurations', groupe: 'groupe' };
 
 // ⚠️ Le Chemin nomme ses jalons debut/mi/fin, Mon Parcours les nomme depart/s3/s6.
 // Les photos sont rangées sous les SECONDS : sans cette traduction, on compterait 0.
@@ -320,7 +328,8 @@ const CHALLENGE_SCHEMA_SQL = `
     seen_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (client_email, week)
   );
-  -- Sous-étapes des étapes COMPOSITES (0/21/41). L'étape ne passe au vert que
+  -- Sous-étapes des étapes COMPOSITES (21/41 ; l'étape 0 se lit dans les données
+  -- de préparation, cf. preparationEtat). L'étape ne passe au vert que
   -- lorsque TOUTES les sous-étapes de son flow sont faites, dans l'ordre libre.
   CREATE TABLE IF NOT EXISTS user_node_flow (
     client_email TEXT NOT NULL,
@@ -790,6 +799,10 @@ function createChallengeEngine({ getDb }) {
       // (identique pour tout le groupe). Une étape future reste verrouillée.
       const jc0 = jourCourant0(email);
       if (!etapeDeverrouillee(activeDay, jc0)) return null; // étape à venir -> bloquée
+      // ÉTAPE 0 « Commencer » : pilotée par les DONNÉES, pas par l'événement reçu.
+      // Quel que soit l'événement (pesée du coach, mensurations, photo, post…), on
+      // regarde simplement si les 4 préparations sont réunies (cf. validerCommencer).
+      if (activeDay === 0) return validerCommencer(email);
       const node = CHALLENGE_PATH_NODES.find((n) => n.day === activeDay);
       if (!node) return null;
       if (node.flow && node.flow.length) {
@@ -834,6 +847,51 @@ function createChallengeEngine({ getDb }) {
       return { day: activeDay, title: node.title, punch: node.punch, milestone: !!node.milestone, final: node.type === 'final', nextDay: pathActiveDay(email), aTemps: true };
     } catch (e) { console.error('awardClientEvent:', e && e.message); return null; }
   }
+  // --- PRÉPARATION DU CHALLENGE = ÉTAPE 0 « COMMENCER » ---------------------
+  // Les 4 conditions sont lues dans les VRAIES données, jamais dans un état
+  // mémorisé à part : la checklist « Prépare ton challenge » (avant J1) et
+  // l'étape 0 (après) regardent la même chose — rien en doublon, rien à refaire.
+  //   · pesée de départ : saisie par le COACH (nutrition_parcours_pesees 'depart') ;
+  //   · mensurations : au moins une ligne ;
+  //   · photos de départ : les 3 prises exigées (face/profil/dos, jalon 'depart') ;
+  //   · groupe : au moins un post du client (message ou partage) au Groupe.
+  // LECTURE PURE : n'écrit rien. Une table absente compte comme « pas fait ».
+  function preparationEtat(email) {
+    const existe = (sql) => { try { return !!getDb().prepare(sql).get(email); } catch (_) { return false; } };
+    const pesee = existe("SELECT 1 FROM nutrition_parcours_pesees WHERE client_email=? AND type='depart'");
+    const mensurations = existe('SELECT 1 FROM nutrition_parcours_mensurations WHERE client_email=? LIMIT 1');
+    const fait = photosFaites(email, 'debut');
+    const photos = { fait, requis: PHOTOS_REQUISES.length, ok: fait >= PHOTOS_REQUISES.length };
+    const groupe = existe("SELECT 1 FROM nutrition_community_messages WHERE email=? AND kind IN ('message','partage') LIMIT 1");
+    // Sous-étapes faites, dans l'ordre du flow de l'étape 0 : c'est aussi son flowDone.
+    const faits = { pesee, mensurations, photos: photos.ok, groupe };
+    const flowFait = CHALLENGE_PATH_NODES[0].flow.filter((s) => faits[s]);
+    return { pesee, mensurations, photos, groupe, flowFait, complet: flowFait.length === CHALLENGE_PATH_NODES[0].flow.length };
+  }
+  // Valide l'étape 0 si — et seulement si — le challenge a démarré, qu'elle n'est
+  // pas déjà faite et que les 4 préparations sont réunies. 80 Punch UNE SEULE FOIS :
+  // l'INSERT OR IGNORE sur la PK (email, 0) tranche, et le Punch ne part que si
+  // la ligne vient d'être insérée (deux appels simultanés -> un seul crédit).
+  // ⚠️ AUCUNE pénalité de ponctualité ici, contrairement aux autres étapes : la
+  // préparation se fait AVANT J1, où rien ne peut être validé. Complétée à J1 ou
+  // plus tard, elle vaut toujours ses 80 Punch.
+  // Appelée par awardClientEvent (étape active = 0) et par la route d'état (J1 se
+  // valide alors tout seul, sans action du client). Idempotente.
+  function validerCommencer(email) {
+    try {
+      if (!email || !pathFeatureEnabled()) return null;
+      if (pathCurrentDay(email) <= 0) return null;      // avant J1 : rien ne se valide
+      if (pathDoneDays(email).has(0)) return null;      // déjà faite
+      if (!preparationEtat(email).complet) return null; // il en manque encore
+      const node = CHALLENGE_PATH_NODES[0];
+      const ins = getDb().prepare("INSERT OR IGNORE INTO user_node_progress (client_email, node_day, completed_at, punch_awarded, ref_id) VALUES (?,?,?,?,?)")
+        .run(email, 0, new Date().toISOString(), node.punch, 'preparation');
+      if (ins.changes === 0) return null; // course entre deux appels : déjà crédité
+      addPunch(email, node.punch, 'etape:0'); // point de passage unique, déblocages évalués
+      return { day: 0, title: node.title, punch: node.punch, milestone: !!node.milestone, final: false, nextDay: pathActiveDay(email), aTemps: true };
+    } catch (e) { console.error('validerCommencer:', e && e.message); return null; }
+  }
+
   // État public du Chemin pour le client courant (consommé par l'onglet front).
   function challengePublicState(email) {
     const enabled = pathFeatureEnabled();
@@ -854,6 +912,9 @@ function createChallengeEngine({ getDb }) {
     const jc0 = day > 0 ? day - 1 : -1;
     const punchDe = new Map();
     try { getDb().prepare("SELECT node_day, punch_awarded FROM user_node_progress WHERE client_email=? AND completed_at!=''").all(email).forEach((r) => punchDe.set(r.node_day, r.punch_awarded || 0)); } catch (_) { /* table absente en test */ }
+    // Préparation (= étape 0) : lue une fois, sert au flow de l'étape 0 ET à la
+    // checklist « Prépare ton challenge » affichée avant J1.
+    const prep = preparationEtat(email);
     const statutNoeud = (nd) => {
       if (done.has(nd)) return 'done';
       if (nd > jc0) return 'timelock';       // étape future -> « Disponible le jour X »
@@ -868,7 +929,7 @@ function createChallengeEngine({ getDb }) {
       // Étapes composites (Commencer / Points mi-parcours et final) : `flow` liste les
       // sous-étapes et `flowDone` celles déjà faites -> le front affiche les ✓.
       jalon: n.jalon || '', flow: n.flow || null,
-      flowDone: n.flow ? [...flowDone(email, n.day)] : null,
+      flowDone: n.flow ? (n.day === 0 ? prep.flowFait.slice() : [...flowDone(email, n.day)]) : null,
       // Compteur des photos exigées -> le front affiche « 2/3 photos ajoutées »
       // et le client comprend pourquoi sa sous-étape n'est pas encore cochée.
       photos: (n.flow || []).includes('photos') ? { fait: photosFaites(email, n.jalon), requis: PHOTOS_REQUISES.length } : null,
@@ -878,6 +939,8 @@ function createChallengeEngine({ getDb }) {
     }));
     return {
       enabled, started, day, activeDay, startsOn, totalDays: CHALLENGE_PATH_NODES.length,
+      // Checklist « Prépare ton challenge » : l'état RÉEL des 4 préparations.
+      preparation: { pesee: prep.pesee, mensurations: prep.mensurations, photos: prep.photos, groupe: prep.groupe, complet: prep.complet },
       stats: { punch: s.punch || 0, streak: streakVu, streakBest: s.streak_best || 0 },
       // Déblocages : ce qui est acquis + le prochain à viser (« encore X Punch »).
       unlocks: [...unlockedThresholds(email)],
@@ -1087,7 +1150,7 @@ function createChallengeEngine({ getDb }) {
   }
 
   return {
-    ensureChallengePathSchema, awardClientEvent, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
+    ensureChallengePathSchema, awardClientEvent, preparationEtat, validerCommencer, recordEbookOpen, recordDayWin, dayWon, challengePublicState,
     pathFeatureEnabled, pathCurrentDay, jourCourant0, pathActiveDay, pathStartYmd, cohortStartYmd, reconcileStreak,
     pathStatsRow, pathDoneDays, flowDone, addPunch, evaluateUnlocks, unlockedThresholds, punchProgression,
     assurerCadeaux, bonsDe, bonParCode, retirerBon, setUnlockNotifier,

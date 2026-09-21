@@ -3754,6 +3754,32 @@ body.is-demo #navRestart { display: none !important; }
 .mcpath-sub.done { background: var(--sage-soft); border-color: var(--sage); color: var(--sage-on-soft); cursor: default; }
 .mcpath-sub.done .mcpath-sub-ic { background: var(--sage); color: #fff; }
 .mcpath-flow-hint { margin: 4px 0 16px; color: var(--text-soft); font: 400 12.5px/1.4 var(--font); text-align: center; }
+/* Ligne d'information, pas un bouton (la pesée : faite avec le coach). */
+.mcpath-sub.mcpath-sub-fixe { cursor: default; border-style: dashed; }
+.mcpath-sub.mcpath-sub-fixe:hover { border-color: var(--border-c); background: var(--surface-soft); }
+
+/* --- AVANT J1 : « Prépare ton challenge » + parcours en aperçu ------------- */
+/* ⚠️ Enfants de flex (#view-parcours est en colonne) : width:100% + marges auto,
+   comme .asc-head/.asc-body au-delà de 1140px, sinon la colonne du sentier
+   s'effondre (son contenu est en absolu). */
+.mcprep, .mcprep-apercu { width: 100%; max-width: 1080px; margin-left: auto; margin-right: auto; }
+.mcprep { display: flex; flex-direction: column; gap: 12px; }
+.mcprep-date { padding: 18px 18px 16px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+.mcprep-h { margin: 0; font: 700 21px/1.25 var(--font); letter-spacing: -.02em; color: var(--text-c); }
+.mcprep-h b { color: var(--blue-on-soft); }
+.mcprep-p { margin: 6px 0 0; font: 400 14.5px/1.45 var(--font); color: var(--text-muted-c); }
+.mcprep-card { padding: 16px 16px 4px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+.mcprep-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.mcprep-titre { margin: 0; font: 700 12px/1 var(--font); letter-spacing: .09em; text-transform: uppercase; color: var(--text-c); }
+.mcprep-compte { font: 700 12.5px/1 var(--font); color: var(--blue-on-soft); background: var(--blue-soft); padding: 5px 9px; border-radius: var(--pill); }
+.mcprep-card .mcpath-flow-hint { margin-bottom: 12px; }
+/* L'aperçu : fond blanc, parcours réel atténué, « pas encore débloqué ».
+   inert (HTML) + pointer-events:none (CSS) : rien ne se clique, rien ne prend
+   le focus — les étapes restent LISIBLES, c'est tout ce qu'on veut. */
+.mcprep-apercu { position: relative; padding: 14px 0 6px; border: 1px solid var(--border-c); border-radius: var(--r-xl); background: #fff; }
+.mcprep-apercu-l { margin: 0 14px 12px; text-align: center; font: 700 12px/1.3 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted-c); }
+.mcprep-apercu-c { display: flex; flex-direction: column; gap: 16px; opacity: .62; filter: grayscale(.3); pointer-events: none; user-select: none; }
+.mcprep-apercu-c .asc-head { box-shadow: none; }
 .mcpath-sheet-btn { width: 100%; border: 0; background: var(--blue-c); color: #fff; font: 700 16px/1 var(--font); padding: 15px; border-radius: var(--r); cursor: pointer; box-shadow: var(--shadow-green); }
 .mcpath-sheet-btn:hover { background: var(--blue-hover); }
 .mcpath-sheet-close { width: 100%; border: 0; background: transparent; color: var(--text-soft); font: 600 14px/1 var(--font); padding: 14px; margin-top: 4px; cursor: pointer; }
