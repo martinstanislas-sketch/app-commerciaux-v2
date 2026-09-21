@@ -9595,8 +9595,10 @@ function openGroupComposer(ville, no) {
   });
 }
 
-// Modale « Inviter un client » : génère un lien d'invitation (email facultatif) + partage.
-function openInvitePanel() {
+// Modale « Inviter un client » : le coach choisit le GROUPE (obligatoire) + un email
+// facultatif. Le lien généré rattache le client à ce groupe dès son inscription ;
+// la modale affiche ensuite le lien ET le code du challenge (lu côté serveur).
+async function openInvitePanel() {
   document.querySelectorAll('.ch-modal').forEach((m) => m.remove());
   const modal = document.createElement('div');
   modal.className = 'ch-modal';
@@ -9604,50 +9606,71 @@ function openInvitePanel() {
     <div class="ch-modal-card">
       <button type="button" class="ch-modal-close" aria-label="Fermer">×</button>
       <h3>Inviter un client</h3>
-      <p class="sub">Génère un lien d'invitation. Le client crée son espace et choisit son code PIN. Lien valable 21 jours.</p>
-      <form class="ch-form" id="ch-inv-form" style="flex-direction:column;align-items:stretch">
-        <label>Prénom (facultatif)<input type="text" name="prenom" placeholder="Ex. Marie"></label>
-        <label>Email (facultatif)<input type="email" name="email" placeholder="Ex. marie@email.com"></label>
-        <button type="submit" class="ch-btn" style="align-self:flex-start">Générer le lien</button>
-      </form>
-      <div id="ch-inv-result"></div>
-      <div class="ch-msg" id="ch-inv-msg"></div>
+      <div id="ch-inv-body"><div class="ch-loading">Chargement des groupes…</div></div>
     </div>`;
   document.body.appendChild(modal);
   const close = () => modal.remove();
   modal.querySelector('.ch-modal-close').addEventListener('click', close);
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-  const msg = modal.querySelector('#ch-inv-msg');
-  modal.querySelector('#ch-inv-form').addEventListener('submit', async (e) => {
+  const card = modal.querySelector('.ch-modal-card');
+  const bodyEl = modal.querySelector('#ch-inv-body');
+  // Registre à jour (un groupe vient peut-être d'être créé) ; seuls les groupes au
+  // code ACTIF peuvent recevoir une invitation (le serveur le revérifie).
+  await chLoadCodes();
+  if (!modal.isConnected) return;
+  const groupes = _chGroups.filter((g) => g.actif && String(g.code || '').trim() && String(g.ville || '').trim() && Number(g.challengeNo) > 0)
+    .sort((a, b) => String(a.ville).localeCompare(String(b.ville)) || (b.challengeNo - a.challengeNo));
+  if (!groupes.length) {
+    bodyEl.innerHTML = `
+      <p class="sub">Aucun groupe actif pour le moment. Crée d'abord un groupe : tu pourras ensuite y inviter tes clients.</p>
+      <button type="button" class="ch-btn" id="ch-inv-newgroup">+ Créer un groupe</button>`;
+    bodyEl.querySelector('#ch-inv-newgroup').addEventListener('click', () => openCreateGroupPanel());
+    return;
+  }
+  const lbl = 'display:block;margin-top:14px;font-size:12px;font-weight:650;color:var(--mc-text-muted)';
+  bodyEl.innerHTML = `
+    <p class="sub">Le client crée son espace avec ce lien et rejoint automatiquement le groupe choisi.</p>
+    <form class="ch-form" id="ch-inv-form" style="flex-direction:column;align-items:stretch">
+      <label>Groupe<select name="groupe" required>
+        <option value="">Choisis un groupe…</option>
+        ${groupes.map((g, i) => `<option value="${i}">${chEsc(g.ville)} · Challenge n°${Number(g.challengeNo)}</option>`).join('')}
+      </select></label>
+      <label>Email (facultatif)<input type="email" name="email" placeholder="Ex. marie@email.com"></label>
+      <p class="ch-muted" style="margin:-4px 0 0;font-size:12px">Si tu le renseignes, le lien ne fonctionnera que pour cette adresse.</p>
+      <button type="submit" class="ch-btn" style="align-self:flex-start">Générer le lien</button>
+    </form>
+    <div class="ch-msg" id="ch-inv-msg"></div>`;
+  const msg = bodyEl.querySelector('#ch-inv-msg');
+  bodyEl.querySelector('#ch-inv-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const f = e.target; const btn = f.querySelector('button');
-    const body = { prenom: f.prenom.value.trim(), email: f.email.value.trim() };
+    const f = e.target; const btn = f.querySelector('button[type="submit"]');
+    const g = groupes[Number(f.groupe.value)];
+    if (f.groupe.value === '' || !g) { msg.textContent = 'Choisis le groupe du client.'; msg.className = 'ch-msg err'; return; }
+    const body = { email: f.email.value.trim(), ville: g.ville, challengeNo: g.challengeNo };
     btn.disabled = true; msg.textContent = 'Génération…'; msg.className = 'ch-msg';
     try {
       const r = await nutriApi('/coach/invites', { method: 'POST', body });
-      const url = r.url;
-      const waText = encodeURIComponent(`Salut${body.prenom ? ' ' + body.prenom : ''} ! Voici ton accès à Protocole 42 : ${url}`);
-      const mailSub = encodeURIComponent('Ton accès Protocole 42');
-      const mailBody = encodeURIComponent(`Bonjour${body.prenom ? ' ' + body.prenom : ''},\n\nVoici ton lien pour créer ton espace : ${url}\n\nÀ bientôt !`);
-      modal.querySelector('#ch-inv-result').innerHTML = `
-        <div class="ch-link-box">
-          <input type="text" readonly value="${chEsc(url)}" id="ch-inv-url">
-          <button type="button" class="ch-btn" id="ch-inv-copy">Copier</button>
+      card.innerHTML = `
+        <button type="button" class="ch-modal-close" aria-label="Fermer">×</button>
+        <h3>Invitation prête</h3>
+        <span style="${lbl}">Lien d'invitation</span>
+        <div class="ch-link-box" style="margin-top:6px">
+          <input type="text" readonly value="${chEsc(r.url)}" id="ch-inv-url" aria-label="Lien d'invitation">
+          <button type="button" class="ch-btn" data-copy="ch-inv-url">Copier</button>
         </div>
-        <div class="ch-share-row">
-          <a class="ch-share-wa" href="https://wa.me/?text=${waText}" target="_blank" rel="noopener">Partager sur WhatsApp</a>
-          <a class="ch-share-mail" href="mailto:${encodeURIComponent(body.email)}?subject=${mailSub}&body=${mailBody}">Par email</a>
-        </div>`;
-      msg.textContent = r.emailSent ? 'Email envoyé au client ✓' : 'Lien prêt — partage-le au client.';
-      msg.className = 'ch-msg ok';
-      const copyBtn = modal.querySelector('#ch-inv-copy');
-      copyBtn.addEventListener('click', () => {
-        const inp = modal.querySelector('#ch-inv-url'); inp.select();
+        <span style="${lbl}">Code Challenge</span>
+        <div class="ch-link-box" style="margin-top:6px">
+          <input type="text" readonly value="${chEsc(r.code || '')}" id="ch-inv-code" aria-label="Code Challenge" style="font-weight:700;letter-spacing:.08em">
+          <button type="button" class="ch-btn" data-copy="ch-inv-code">Copier</button>
+        </div>
+        <p class="sub" style="margin:14px 0 0">Lien valable 21 jours.</p>`;
+      card.querySelector('.ch-modal-close').addEventListener('click', close);
+      card.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => {
+        const inp = card.querySelector('#' + b.dataset.copy); inp.select();
         try { navigator.clipboard.writeText(inp.value); } catch (_) { try { document.execCommand('copy'); } catch (__) {} }
-        copyBtn.textContent = 'Copié ✓';
-      });
-    } catch (err) { msg.textContent = err.message || 'Erreur.'; msg.className = 'ch-msg err'; }
-    btn.disabled = false;
+        b.textContent = 'Copié ✓';
+      }));
+    } catch (err) { msg.textContent = err.message || 'Erreur.'; msg.className = 'ch-msg err'; btn.disabled = false; }
   });
 }
 

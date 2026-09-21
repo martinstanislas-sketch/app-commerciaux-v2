@@ -527,6 +527,17 @@ function ensureNutritionHelpTable() {
       getDb().exec("ALTER TABLE nutrition_access_codes ADD COLUMN start_date TEXT NOT NULL DEFAULT ''");
     }
   } catch (e) { console.error('Migration nutrition_access_codes.start_date :', e && e.message); }
+  // Migration : invitation client RATTACHÉE à un groupe (ville + n° de challenge).
+  // Vide / 0 = invitation historique sans groupe (le client arrive « Sans groupe »).
+  try {
+    const invCols = getDb().prepare('PRAGMA table_info(nutrition_invites)').all();
+    if (invCols.length && !invCols.some((c) => c.name === 'ville')) {
+      getDb().exec("ALTER TABLE nutrition_invites ADD COLUMN ville TEXT NOT NULL DEFAULT ''");
+    }
+    if (invCols.length && !invCols.some((c) => c.name === 'challenge_no')) {
+      getDb().exec('ALTER TABLE nutrition_invites ADD COLUMN challenge_no INTEGER NOT NULL DEFAULT 0');
+    }
+  } catch (e) { console.error('Migration nutrition_invites.ville/challenge_no :', e && e.message); }
   // Migration : cloisonnement de la Communauté par groupe (ville + n° de challenge).
   try {
     const cmCols = getDb().prepare('PRAGMA table_info(nutrition_community_messages)').all();
@@ -3255,14 +3266,26 @@ try {
       if (email && email.indexOf('@') < 1) return res.status(400).json({ ok: false, error: 'Email invalide.' });
       const prenom = String(b.prenom || '').trim().slice(0, 80);
       const nom = String(b.nom || '').trim().slice(0, 80);
+      // Groupe (facultatif, rétro-compat) : ville + n° de challenge. S'il est fourni,
+      // il doit exister avec un code ACTIF ; le client inscrit par ce lien y sera placé.
+      const villeIn = String(b.ville || '').trim().slice(0, 80);
+      const noIn = Number(b.challengeNo);
+      let groupe = null;
+      if (villeIn || b.challengeNo != null && b.challengeNo !== '') {
+        if (!villeIn || !Number.isInteger(noIn) || noIn < 1) return res.status(400).json({ ok: false, error: 'Groupe invalide.' });
+        const g = getDb().prepare('SELECT ville, challenge_no, code, actif FROM nutrition_access_codes WHERE LOWER(TRIM(ville)) = LOWER(?) AND challenge_no = ?').get(villeIn, noIn);
+        if (!g) return res.status(400).json({ ok: false, error: 'Ce groupe n\'existe pas.' });
+        if (!g.actif || !String(g.code || '').trim()) return res.status(400).json({ ok: false, error: 'Le code de ce groupe est désactivé : réactive-le avant d\'inviter.' });
+        groupe = { ville: String(g.ville).trim(), challengeNo: Number(g.challenge_no), code: String(g.code).trim() };
+      }
       const sc = req.nutritionScope || {};
       const coachId = sc.isAdmin ? (b.coachId ? Number(b.coachId) : null) : sc.coachId;
       const coachName = String((req.session && req.session.name) || '').slice(0, 80);
       const token = crypto.randomBytes(16).toString('hex');
       const now = new Date().toISOString();
       const expires = new Date(Date.now() + 21 * 24 * 3600 * 1000).toISOString(); // 21 jours
-      getDb().prepare('INSERT INTO nutrition_invites (token, email, prenom, nom, coach_id, coach_name, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)')
-        .run(token, email, prenom, nom, coachId || null, coachName, now, expires);
+      getDb().prepare('INSERT INTO nutrition_invites (token, email, prenom, nom, coach_id, coach_name, created_at, expires_at, ville, challenge_no) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(token, email, prenom, nom, coachId || null, coachName, now, expires, groupe ? groupe.ville : '', groupe ? groupe.challengeNo : 0);
       const base = publicBaseUrl(req);
       const url = base + '/nutrition/?inv=' + token;
       // Envoi automatique de l'email si un destinataire est fourni ET que le SMTP est
@@ -3283,7 +3306,10 @@ try {
           console.warn('Invitation email (Brevo) non envoyé :', msg);
         }
       }
-      res.json({ ok: true, token, url, email, prenom, nom, expiresAt: expires, emailSent, emailError, emailErrorMsg });
+      res.json({
+        ok: true, token, url, email, prenom, nom, expiresAt: expires, emailSent, emailError, emailErrorMsg,
+        ville: groupe ? groupe.ville : '', challengeNo: groupe ? groupe.challengeNo : 0, code: groupe ? groupe.code : '',
+      });
     } catch (e) { console.error('coach/invites POST :', e); res.status(500).json({ ok: false, error: 'Création impossible.' }); }
   });
   // Coach/admin : lister ses invitations (en attente + utilisées).

@@ -28,7 +28,8 @@ function makeAuth() {
     CREATE TABLE nutrition_access_codes (ville TEXT, challenge_no INTEGER, code TEXT, actif INTEGER DEFAULT 1, updated_at TEXT DEFAULT '', PRIMARY KEY (ville, challenge_no));
     CREATE TABLE nutrition_invites (
       id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, email TEXT DEFAULT '', prenom TEXT DEFAULT '', nom TEXT DEFAULT '',
-      coach_id INTEGER, coach_name TEXT DEFAULT '', created_at TEXT DEFAULT '', expires_at TEXT DEFAULT '', used_at TEXT DEFAULT '', used_email TEXT DEFAULT ''
+      coach_id INTEGER, coach_name TEXT DEFAULT '', created_at TEXT DEFAULT '', expires_at TEXT DEFAULT '', used_at TEXT DEFAULT '', used_email TEXT DEFAULT '',
+      ville TEXT NOT NULL DEFAULT '', challenge_no INTEGER NOT NULL DEFAULT 0
     );
   `);
   const auth = createClientAuth({ getDb: () => db, defaultCoachId: () => 42 });
@@ -216,6 +217,27 @@ test('loginClient : invitation sans coach -> coach par défaut', () => {
   db.prepare("INSERT INTO nutrition_invites (token,email,coach_id) VALUES ('t2','',NULL)").run();
   auth.loginClient({ email: 'y@a.fr', prenom: 'Y', nom: 'Y', pin: '1234', invite: 't2' });
   assert.equal(db.prepare("SELECT coach_id FROM nutrition_clients WHERE email='y@a.fr'").get().coach_id, 42);
+});
+
+test('loginClient : invitation RATTACHÉE à un groupe -> client placé dans ce groupe', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_invites (token,email,coach_id,ville,challenge_no) VALUES ('tg','',7,'Lille',2)").run();
+  const r = auth.loginClient({ email: 'grp@a.fr', prenom: 'G', nom: 'R', pin: '1234', invite: 'tg' });
+  assert.equal(r.ok, true);
+  assert.deepEqual(
+    { ...db.prepare("SELECT ville, challenge_no FROM nutrition_client_meta WHERE client_email='grp@a.fr'").get() },
+    { ville: 'Lille', challenge_no: 2 });
+  assert.equal(db.prepare("SELECT coach_id FROM nutrition_clients WHERE email='grp@a.fr'").get().coach_id, 7);
+  assert.equal(db.prepare("SELECT used_email FROM nutrition_invites WHERE token='tg'").get().used_email, 'grp@a.fr');
+});
+
+test('loginClient : invitation SANS groupe -> comportement inchangé (aucun groupe posé)', () => {
+  const { db, auth } = makeAuth();
+  db.prepare("INSERT INTO nutrition_invites (token,email,coach_id) VALUES ('tn','',7)").run();
+  const r = auth.loginClient({ email: 'sg@a.fr', prenom: 'S', nom: 'G', pin: '1234', invite: 'tn' });
+  assert.equal(r.ok, true);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM nutrition_client_meta WHERE client_email='sg@a.fr'").get().n, 0);
+  assert.equal(db.prepare("SELECT coach_id FROM nutrition_clients WHERE email='sg@a.fr'").get().coach_id, 7);
 });
 
 // --- AUTO-INSCRIPTION par code du challenge (le code est la porte d'entrée) ---
