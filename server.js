@@ -2048,12 +2048,9 @@ try {
     let clients = [];
     try { clients = db.prepare('SELECT email, prenom, nom, created_at FROM nutrition_clients').all(); } catch (_) { return; }
     const byEmail = {}; clients.forEach((c) => { if (c.email) byEmail[c.email] = c; });
-    // 1) Bienvenue (membres inscrits < 30 j) — une fois par membre.
-    const since30 = new Date(now.getTime() - 30 * 864e5).toISOString();
-    for (const c of clients) {
-      if (!c.email || !c.created_at || c.created_at < since30) continue;
-      insertEvent(db, { type: 'welcome', email: c.email, name: prenomDe(c), emoji: '👋', text: `Bienvenue à ${prenomDe(c)} dans le groupe`, dedup: 'welcome:' + c.email, when: c.created_at, groupKey: clientGroupKey(c.email) });
-    }
+    // 1) (Supprimé) « Bienvenue à X dans le groupe » : c'était le seul moment créé
+    //    par la simple connexion d'un client (à la lecture du fil). Une connexion
+    //    ne publie plus rien ; les moments ci-dessous viennent d'actions réelles.
     // 2) Séries de jours validés d'affilée (paliers).
     const STREAK_MILESTONES = [3, 5, 7, 10, 14, 21, 30];
     try {
