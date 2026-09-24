@@ -22378,3 +22378,131 @@ tr.rec2-ligne-transforme td { font-style: italic; }
 .rec2-ref-texte { min-width: 240px; font-weight: 500; }
 .rec2-ref-table tr.is-silence td { color: var(--r2-text-3); }
 .rec2-ref-table tr.is-alerte .rec2-ref-id { color: #FBBF24; }
+
+/* ═══ RECAP 2 — lisibilité : textes secondaires, boutons, filtres, liens ══════
+   Sur le fond navy, les gris (#A9B7CF, #7687A6, blancs à 50-65 %) et les
+   tailles de 10,5-11,5 px se lisaient mal, surtout sur mobile. Même style,
+   même hiérarchie — portée par la taille et la graisse plutôt que par le gris :
+   textes secondaires en blanc franc, un cran plus grands et plus appuyés.
+   Placé en dernier pour l'emporter à spécificité égale sur les règles d'avant. */
+.rec2-wrap {
+  --r2-text: #FFFFFF; --r2-text-2: #F1F5FB; --r2-text-3: #DCE4F0;
+  --r2-line-2: rgba(255,255,255,.24);
+  --r2-lien: #A9C9F8; --r2-lien-hover: #DCEAFD;
+}
+
+/* Bandeau de titre et filtres */
+.rec2-sub { font-size: 14px; font-weight: 500; color: var(--r2-text-2); }
+.rec2-head .rec2-mois { font-size: 12px; font-weight: 650; color: var(--r2-text-2); }
+.rec2-head .rec2-mois input,
+.rec2-head .rec2-commercial select { font-size: 14px; font-weight: 500; color: #fff; border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.07); }
+.rec2-head .rec2-mois input:hover,
+.rec2-head .rec2-commercial select:hover { border-color: rgba(255,255,255,.45); }
+.rec2-ref-btn { font-size: 13px; font-weight: 600; color: var(--r2-text-2); border-color: rgba(255,255,255,.3); }
+.rec2-info { font-size: 14px; font-weight: 500; }
+
+/* Ligne de fraîcheur et contrôles à vérifier */
+.rec2-barre .rec2-meta { font-size: 13px; font-weight: 500; color: var(--r2-text-2); }
+.rec2-barre .rec2-meta b { color: #fff; font-weight: 650; }
+.rec2-barre .rec2-meta-src { color: var(--r2-text-3); }
+.rec2-meta-sep { color: rgba(255,255,255,.55); }
+.rec2-alertes-btn { font-size: 13px; font-weight: 600; }
+.rec2-barre .rec2-alertes-btn { font-size: 13px; }
+.rec2-alertes-liste { font-size: 13.5px; }
+.rec2-vide-s { font-size: 13.5px; }
+
+/* En-tête de studio */
+.rec2-studio-ca { font-size: 12.5px; }
+.rec2-studio-ca-lbl { font-size: 12px; font-weight: 650; color: var(--r2-text-2); }
+.rec2-vni-chip { font-size: 13px; }
+.rec2-copier-msg { font-size: 12.5px; }
+
+/* Cartes KPI : libellé, sous-texte et « Voir le détail » */
+.rec2-card-lbl { font-size: 14px; font-weight: 650; color: var(--r2-text-2); }
+.rec2-card-sub { font-size: 13.5px; font-weight: 500; }
+.rec2-card-hint { margin-top: 6px; font-size: 13px; font-weight: 650; color: var(--r2-lien); }
+.rec2-card:hover .rec2-card-hint, .rec2-card.is-open .rec2-card-hint { color: var(--r2-lien-hover); text-decoration: underline; text-underline-offset: 3px; }
+.rec2-card.is-na { opacity: .85; }
+.rec2-card-div, .rec2-card-resil { font-size: 13px; }
+
+/* Boutons secondaires (et ceux de la barre du haut sur cet onglet) */
+.rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok,
+body:has(#tab-recap2.active) .btn-change-pin, body:has(#tab-recap2.active) .btn-logout {
+  height: 32px; font-size: 13px; color: var(--r2-text-2); border-color: rgba(255,255,255,.3);
+}
+.rec2-btn-ok { color: #fff; border-color: var(--r2-accent); }
+.rec2-com-refs { font-size: 13.5px; font-weight: 550; color: var(--r2-text-2); border-color: rgba(255,255,255,.3); }
+
+/* Puces de filtre */
+.rec2-chip { font-size: 13px; font-weight: 550; color: var(--r2-text-2); border-color: rgba(255,255,255,.3); }
+.rec2-chip[disabled] { opacity: .55; }
+
+/* Détail et tableaux */
+.rec2-det-head { font-size: 14px; }
+.rec2-table { font-size: 14px; }
+.rec2-table th { font-size: 12px; color: var(--r2-text-2); }
+.rec2-etat { font-size: 12.5px; }
+.rec2-det-date { font-size: 12.5px; }
+.rec2-det-note { font-size: 13px; }
+.rec2-ligne-annul td { opacity: .85; }
+tr.rec2-ligne-transforme { opacity: .78; }
+.rec2-lien-ico { opacity: 1; }
+.rec2-decale { font-size: 11.5px; }
+.rec2-ctl-box { border-color: rgba(255,255,255,.5); }
+.rec2-ctl-box:hover:not([disabled]) { border-color: rgba(255,255,255,.75); }
+
+/* Remarques, rapprochements, statuts sous le client */
+.rec2-note-ajout { font-size: 12px; color: var(--r2-text-3); opacity: .8; }
+.rec2-note-voir { font-size: 12.5px; }
+.rec2-note-zone { font-size: 13.5px; }
+.rec2-note-confirm { font-size: 12.5px; }
+.rec2-piste { font-size: 13px; }
+.rec2-prop-qui { font-size: 13.5px; }
+.rec2-prop-pourquoi, .rec2-div-qui, .rec2-valid-auto, .rec2-resil-lbl,
+.rec2-resil-err, .rec2-resil-source, .rec2-nr-indic { font-size: 12.5px; }
+.rec2-resil-date, .rec2-resil-q { font-size: 13.5px; }
+.rec2-com-det { font-size: 13.5px; }
+.rec2-com-studios { font-size: 13px; }
+.rec2-com-studio { font-size: 13.5px; }
+.rec2-conseil { font-size: 12.5px; }
+.rec2-conseil-marque { font-size: 11.5px; }
+.rec2-histo, .rec2-reint-lignes, .rec2-nr-fin, .rec2-nr-suggest, .rec2-nr-com-info { font-size: 12px; }
+
+/* Non-reconduits : commercial responsable et indicateurs */
+.rec2-nr-com-sel { height: 30px; font-size: 13px; }
+.rec2-nr-kpis-titre { font-size: 13px; }
+.rec2-nr-kpi span { font-size: 12px; color: var(--r2-text-2); }
+.rec2-nr-kpi b { font-size: 16px; }
+
+/* Contrôle opérationnel automatique */
+.rec2-auto { font-size: 12px; }
+.rec2-auto-val { font-size: 11.5px; }
+.rec2-auto-val.is-a_verifier { color: #F6AD55; border-color: #F6AD55; }
+.rec2-force { font-size: 11.5px; border-color: rgba(255,255,255,.3); }
+.rec2-verif-sel { font-size: 12px; color: var(--r2-text); border-color: rgba(255,255,255,.3); }
+.rec2-auto-alerte { font-size: 12px; color: #FCA5A5; }
+.rec2-auto-attrib { font-size: 12px; }
+
+/* Référentiel des remarques */
+.rec2-ref-f { font-size: 12.5px; color: var(--r2-text-2); }
+.rec2-ref-f select { font-size: 13px; }
+.rec2-ref-table { font-size: 13px; }
+
+/* Barre du haut sur cet onglet : onglets inactifs lisibles */
+body:has(#tab-recap2.active) #main-nav .tab-btn { color: rgba(255,255,255,.86); }
+@media (max-width: 900px) {
+  body:has(#tab-recap2.active) .bottom-nav-label { color: rgba(255,255,255,.84); }
+  body:has(#tab-recap2.active) .bottom-nav-item.active .bottom-nav-label { color: var(--r2-lien, #A9C9F8); }
+}
+
+/* Mobile : champs à 16 px (sinon iOS zoome au toucher), cibles plus hautes. */
+@media (max-width: 640px) {
+  .rec2-head .rec2-mois input, .rec2-head .rec2-commercial select,
+  .rec2-note-zone, .rec2-nr-com-sel, .rec2-resil-date { font-size: 16px; }
+  .rec2-head .rec2-mois input, .rec2-head .rec2-commercial select { height: 40px; }
+  .rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok, .rec2-chip,
+  .rec2-ref-btn, .rec2-alertes-btn, .rec2-com-refs { min-height: 36px; }
+  .rec2-nr-com-sel { height: 36px; }
+  .rec2-card-sub { font-size: 14px; }
+  .rec2-sub { font-size: 14.5px; }
+}
