@@ -21805,16 +21805,15 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
    partagée, donc aucune régression possible sur l'écran d'origine. Les jetons
    de couleur sont redéclarés localement, pour la même raison. */
 .rec2-wrap {
-  /* Palette My Coach : Saphir #0F52BA (accent), Navy #04173B (surfaces).
-     Le saphir pur manque de contraste en TEXTE sur navy : les liens et les
-     éléments cliquables écrits utilisent le saphir éclairci #7FAEF2. */
-  --r2-bg: #020E26; --r2-surface: #04173B; --r2-surface-2: #072151;
-  --r2-line: rgba(255,255,255,.09); --r2-line-2: rgba(255,255,255,.16);
-  --r2-text: #EDEFF3; --r2-text-2: #A9B7CF; --r2-text-3: #7687A6;
-  --r2-accent: #0F52BA; --r2-accent-soft: rgba(15,82,186,.28);
-  --r2-accent-hover: #1A63D6; --r2-accent-ligne: #3D7BDB; --r2-focus: #5B94EE;
-  --r2-lien: #7FAEF2; --r2-lien-hover: #B5D0F8;
-  --r2-green: #34D399; --r2-red: #F87171;
+  /* Thème clair, palette My Coach : Saphir #0F52BA (accent, liens), fond
+     blanc, cartes gris-bleu très clair, textes ardoise foncée (≥ 7:1). */
+  --r2-bg: #FFFFFF; --r2-surface: #F7F9FC; --r2-surface-2: #EEF3FA;
+  --r2-line: #E2E8F0; --r2-line-2: #C5D0DE;
+  --r2-text: #0F172A; --r2-text-2: #334155; --r2-text-3: #475569;
+  --r2-accent: #0F52BA; --r2-accent-soft: rgba(15,82,186,.10);
+  --r2-accent-hover: #0B4499; --r2-accent-ligne: #0F52BA; --r2-focus: #0F52BA;
+  --r2-lien: #0F52BA; --r2-lien-hover: #0B3C85;
+  --r2-green: #047857; --r2-red: #B91C1C;
   background: var(--r2-bg); color: var(--r2-text); border-radius: 20px;
   padding: 16px 22px 24px; margin-top: 6px; -webkit-font-smoothing: antialiased;
 }
@@ -21837,7 +21836,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-studio-tete .rec2-studio-nom { margin: 0; }
 .rec2-studio-ca { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; color: var(--r2-text-3); white-space: nowrap; }
 .rec2-studio-ca b { font-weight: 700; letter-spacing: .02em; color: var(--r2-text); font-variant-numeric: tabular-nums; }
-.rec2-studio-ca-partiel { font-style: normal; letter-spacing: .02em; color: #fb923c; }
+.rec2-studio-ca-partiel { font-style: normal; letter-spacing: .02em; color: #C2410C; }
 .rec2-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 640px) { .rec2-cards { grid-template-columns: 1fr; } }
 
@@ -21949,7 +21948,7 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 
 /* Rapprochement proposé : un statut de plein droit, avec de quoi décider sans
    quitter l'écran. Volontairement distinct d'une certitude. */
-.rec2-etat.is-prop { background: rgba(251,191,36,.16); color: #fbbf24; }
+.rec2-etat.is-prop { background: #FEF3C7; color: #92400E; }
 .rec2-etat.is-valide { background: rgba(52,211,153,.14); color: var(--r2-green); }
 .rec2-prop { display: inline-block; text-align: left; max-width: 340px; }
 .rec2-prop-qui { margin-top: 4px; font-size: 12.5px; }
@@ -21963,15 +21962,15 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Site Deciplus divergent : une ANOMALIE à corriger, sur une vente qui reste
    « Retrouvée » et compte dans le taux. Orange — distinct du jaune « proposé »
    (une incertitude) et du rouge « à vérifier » (un manque). */
-.rec2-etat.is-div { background: rgba(251,146,60,.16); color: #fb923c; text-transform: uppercase; letter-spacing: .03em; }
+.rec2-etat.is-div { background: rgba(251,146,60,.16); color: #C2410C; text-transform: uppercase; letter-spacing: .03em; }
 .rec2-div { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; margin-top: 6px; }
 .rec2-div-qui { font-size: 11.5px; color: var(--r2-text-2); }
 .rec2-div-qui b { color: var(--r2-text); font-weight: 650; }
-.rec2-ligne-div td:first-child { box-shadow: inset 3px 0 0 #fb923c; }
-.rec2-chip.rec2-chip-div { border-color: rgba(251,146,60,.55); color: #fb923c; }
-.rec2-chip.rec2-chip-div.is-on { background: rgba(251,146,60,.16); border-color: #fb923c; }
-.rec2-card-div { display: block; margin-top: 4px; font-size: 12px; font-weight: 650; color: #fb923c; }
-.rec2-com-det.rec2-com-det-div, .rec2-com-det.rec2-com-det-div b { color: #fb923c; }
+.rec2-ligne-div td:first-child { box-shadow: inset 3px 0 0 #EA580C; }
+.rec2-chip.rec2-chip-div { border-color: rgba(234,88,12,.5); color: #C2410C; }
+.rec2-chip.rec2-chip-div.is-on { background: rgba(251,146,60,.16); border-color: #C2410C; }
+.rec2-card-div { display: block; margin-top: 4px; font-size: 12px; font-weight: 650; color: #C2410C; }
+.rec2-com-det.rec2-com-det-div, .rec2-com-det.rec2-com-det-div b { color: #C2410C; }
 /* Prises de référence (Vendor) : un compteur cliquable dans la ligne des stats du commercial. */
 .rec2-com-refs { font: inherit; font-size: 12.5px; background: transparent; border: 1px solid var(--r2-line-2); border-radius: 999px; padding: 2px 10px; color: var(--r2-text-2); cursor: pointer; }
 .rec2-com-refs:hover, .rec2-com-refs[aria-expanded="true"] { border-color: var(--r2-accent); color: var(--r2-text); }
@@ -21989,18 +21988,18 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-ctl-na { color: var(--r2-text-3); }
 /* Suivi des non-reconduits : une couleur par statut (exclusifs). */
 .rec2-nr-box.is-sous_controle { accent-color: var(--r2-green); }
-.rec2-nr-box.is-resilie { accent-color: #a78bfa; }
-.rec2-nr-box.is-a_creuser { accent-color: #fbbf24; }
+.rec2-nr-box.is-resilie { accent-color: #7C3AED; }
+.rec2-nr-box.is-a_creuser { accent-color: #D97706; }
 /* Remarques par personne : discrètes tant qu'elles sont vides. */
 .rec2-note { margin-top: 3px; }
 .rec2-note-ajout { border: 0; background: transparent; padding: 0; font: inherit; font-size: 11px; color: var(--r2-text-3); cursor: pointer; opacity: .55; }
 .rec2-table tr:hover .rec2-note-ajout, .rec2-note-ajout:focus-visible { opacity: 1; }
 .rec2-note-ajout:hover { color: var(--r2-text); text-decoration: underline; }
-.rec2-note-voir { display: inline-flex; gap: 5px; align-items: baseline; max-width: 100%; border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.08); color: var(--r2-text-2); font: inherit; font-size: 11.5px; line-height: 1.35; text-align: left; border-radius: 6px; padding: 2px 7px; cursor: pointer; }
+.rec2-note-voir { display: inline-flex; gap: 5px; align-items: baseline; max-width: 100%; border: 1px solid #FCD34D; background: #FFFBEB; color: var(--r2-text-2); font: inherit; font-size: 11.5px; line-height: 1.35; text-align: left; border-radius: 6px; padding: 2px 7px; cursor: pointer; }
 .rec2-note-voir span { white-space: normal; overflow-wrap: anywhere; }
-.rec2-note-voir:hover { border-color: #fbbf24; color: var(--r2-text); }
+.rec2-note-voir:hover { border-color: #D97706; color: var(--r2-text); }
 .rec2-note-edit { margin-top: 6px; display: grid; gap: 6px; min-width: 240px; max-width: 460px; }
-.rec2-note-zone { width: 100%; box-sizing: border-box; resize: vertical; min-height: 52px; font: inherit; font-size: 12.5px; color: var(--r2-text); background: var(--r2-bg, #0b0d12); border: 1px solid var(--r2-line-2); border-radius: 6px; padding: 6px 8px; }
+.rec2-note-zone { width: 100%; box-sizing: border-box; resize: vertical; min-height: 52px; font: inherit; font-size: 12.5px; color: var(--r2-text); background: var(--r2-bg, #fff); border: 1px solid var(--r2-line-2); border-radius: 6px; padding: 6px 8px; }
 .rec2-note-zone:focus { outline: none; border-color: var(--r2-accent); }
 /* Copier les remarques du club : à droite du nom du studio. */
 .rec2-copier { display: inline-flex; align-items: baseline; gap: 8px; margin-left: auto; }
@@ -22009,9 +22008,9 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 .rec2-copier-msg { font-size: 11.5px; color: var(--r2-text-3); }
 .rec2-copier-msg.is-ok { color: var(--r2-green); }
 /* VNI : compteur discret dans l'en-tête du studio. */
-.rec2-vni-chip { border: 1px solid rgba(96,165,250,.45); background: rgba(96,165,250,.08); color: var(--r2-text-2); font: inherit; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
-.rec2-vni-chip:hover, .rec2-vni-chip.is-on { border-color: #60a5fa; color: var(--r2-text); background: rgba(96,165,250,.16); }
-.rec2-vni-indispo { font-size: 11.5px; color: #fb923c; cursor: help; }
+.rec2-vni-chip { border: 1px solid rgba(15,82,186,.45); background: rgba(15,82,186,.07); color: var(--r2-text-2); font: inherit; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 3px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.rec2-vni-chip:hover, .rec2-vni-chip.is-on { border-color: var(--r2-accent); color: var(--r2-text); background: rgba(15,82,186,.14); }
+.rec2-vni-indispo { font-size: 11.5px; color: #C2410C; cursor: help; }
 /* Deux colonnes de plus : sur écran étroit, le tableau défile dans son cadre
    plutôt que d'élargir la page. */
 .rec2-detail { overflow-x: auto; }
@@ -22027,87 +22026,63 @@ table.psv-tbl tbody tr:hover { background: var(--primary-ghost); }
 /* Résiliation manuelle : une INFORMATION (ni anomalie rouge, ni succès vert).
    La vente reste « Retrouvée » — le badge s'ajoute, il ne remplace rien. */
 .rec2-resil { display: flex; justify-content: flex-end; margin-top: 6px; }
-.rec2-etat.is-resil { background: rgba(167,139,250,.16); color: #a78bfa; }
-.rec2-card-resil { display: block; margin-top: 4px; font-size: 12px; font-weight: 600; color: #a78bfa; }
+.rec2-etat.is-resil { background: #EDE9FE; color: #6D28D9; }
+.rec2-card-resil { display: block; margin-top: 4px; font-size: 12px; font-weight: 600; color: #6D28D9; }
 .rec2-table td.rec2-resil-edit { width: auto; min-width: 190px; text-align: left; white-space: normal; }
 .rec2-resil-lbl { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--r2-text-2); }
-.rec2-resil-date { font: inherit; font-size: 12.5px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text); color-scheme: dark; }
+.rec2-resil-date { font: inherit; font-size: 12.5px; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text); color-scheme: light; }
 .rec2-resil-q { font-size: 12.5px; color: var(--r2-text); }
 .rec2-resil-err { margin-top: 4px; font-size: 11.5px; color: var(--r2-red); }
 /* Annulée dans Fitness Booster mais résiliée en réalité : la source reste dite,
    en second, et la ligne n'est plus barrée (la vente a existé). */
 .rec2-resil-source { margin-top: 4px; font-size: 11.5px; color: var(--r2-text-3); }
 
-/* ═══ RECAP 2 — haut d'écran sombre : barre de navigation + bandeau de titre ══
-   Uniquement quand l'onglet RECAP 2 est affiché (`:has(#tab-recap2.active)`) :
-   les autres onglets gardent leur barre claire. Aucune règle de mise en page
-   de la barre n'est changée (hauteur, sticky, ordre), seulement ses couleurs. */
-body:has(#tab-recap2.active) { background: #010816; }
-body:has(#tab-recap2.active) > header {
-  background: rgba(1, 8, 22, .9);
-  border-bottom-color: rgba(255,255,255,.08);
-  height: auto; min-height: 54px; padding-block: 6px;
-}
-body:has(#tab-recap2.active) > header h1 {
-  background: linear-gradient(135deg, #7FAEF2, #B5D0F8);
-  -webkit-background-clip: text; background-clip: text;
-}
-body:has(#tab-recap2.active) #main-nav { background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
-body:has(#tab-recap2.active) #main-nav .tab-btn { color: rgba(237,239,243,.62); }
-body:has(#tab-recap2.active) #main-nav .tab-btn:hover { background: rgba(255,255,255,.06); color: #EDEFF3; }
-body:has(#tab-recap2.active) #main-nav .tab-btn.active {
-  background: rgba(15,82,186,.35); color: #fff;
-  box-shadow: inset 0 0 0 1px #3D7BDB;
-}
-body:has(#tab-recap2.active) .user-info #user-name { color: #EDEFF3; }
-body:has(#tab-recap2.active) .user-role-badge.admin { background: rgba(251,191,36,.12); color: #FCD34D; }
+/* ═══ RECAP 2 — barre du haut ════════════════════════════════════════════════
+   Elle garde le thème clair de l'app. Seule la hauteur devient automatique :
+   sur cet onglet la ligne utilisateur passe sous les onglets et ne doit pas
+   déborder sur le contenu. « Code » et « Sortir » un cran plus foncés. */
+body:has(#tab-recap2.active) > header { height: auto; min-height: 54px; padding-block: 6px; }
 body:has(#tab-recap2.active) .btn-change-pin,
-body:has(#tab-recap2.active) .btn-logout { border-color: rgba(255,255,255,.12); color: rgba(237,239,243,.62); }
-body:has(#tab-recap2.active) .btn-change-pin:hover { background: rgba(15,82,186,.22); border-color: #3D7BDB; color: #fff; }
-body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.12); border-color: rgba(248,113,113,.4); color: #FCA5A5; }
-@media (max-width: 900px) {
-  body:has(#tab-recap2.active) .bottom-nav { background: rgba(1,8,22,.96); border-top-color: rgba(255,255,255,.08); box-shadow: none; }
-  body:has(#tab-recap2.active) .bottom-nav-label { color: rgba(237,239,243,.55); }
-  body:has(#tab-recap2.active) .bottom-nav-item.active .bottom-nav-label { color: #7FAEF2; }
-  body:has(#tab-recap2.active) .bottom-nav-item:active { background: rgba(255,255,255,.06); }
-}
+body:has(#tab-recap2.active) .btn-logout { color: #475569; border-color: #94A3B8; }
+body:has(#tab-recap2.active) .btn-change-pin:hover,
+body:has(#tab-recap2.active) .btn-logout:hover { color: #0F172A; border-color: #475569; }
 
-/* Bandeau de titre : une surface sombre teintée d'accent, filtres intégrés. */
+/* Bandeau de titre : une surface claire teintée d'accent, filtres intégrés. */
 .rec2-head {
   align-items: flex-end; gap: 14px 24px;
   padding: 18px 20px; margin-bottom: 18px;
-  background: linear-gradient(120deg, rgba(15,82,186,.35) 0%, rgba(15,82,186,.10) 50%, rgba(255,255,255,.01) 100%), var(--r2-surface);
-  border: 1px solid rgba(255,255,255,.08); border-radius: 14px;
+  background: linear-gradient(120deg, rgba(15,82,186,.10) 0%, rgba(15,82,186,.04) 50%, rgba(15,82,186,0) 100%), var(--r2-surface);
+  border: 1px solid rgba(15,23,42,.12); border-radius: 14px;
 }
-.rec2-title { font-size: 22px; font-weight: 750; color: #fff; letter-spacing: -.02em; line-height: 1.2; }
-.rec2-sub { margin-top: 4px; color: rgba(237,239,243,.65); }
+.rec2-title { font-size: 22px; font-weight: 750; color: var(--r2-text); letter-spacing: -.02em; line-height: 1.2; }
+.rec2-sub { margin-top: 4px; color: #334155; }
 .rec2-filtres { align-items: flex-end; }
-.rec2-head .rec2-mois { color: rgba(237,239,243,.5); }
+.rec2-head .rec2-mois { color: #475569; }
 .rec2-head .rec2-mois input,
 .rec2-head .rec2-commercial select {
-  background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12);
-  color: #EDEFF3; color-scheme: dark; cursor: pointer;
+  background: rgba(15,23,42,.04); border-color: rgba(15,23,42,.12);
+  color: var(--r2-text); color-scheme: light; cursor: pointer;
   transition: border-color .15s, background-color .15s;
 }
 .rec2-head .rec2-mois input:hover,
-.rec2-head .rec2-commercial select:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.22); }
+.rec2-head .rec2-commercial select:hover { background: rgba(15,23,42,.06); border-color: rgba(15,23,42,.24); }
 
 /* ═══ RECAP 2 — ligne compacte : fraîcheur des données · contrôles à vérifier ═ */
 .rec2-barre { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 0 2px 14px; }
-.rec2-barre .rec2-meta { margin: 0; gap: 2px 8px; font-size: 12px; color: rgba(237,239,243,.5); min-width: 0; }
-.rec2-barre .rec2-meta b { color: rgba(237,239,243,.72); font-weight: 600; }
-.rec2-barre .rec2-meta-src { color: rgba(237,239,243,.5); }
-.rec2-meta-sep { color: rgba(237,239,243,.3); }
+.rec2-barre .rec2-meta { margin: 0; gap: 2px 8px; font-size: 12px; color: #475569; min-width: 0; }
+.rec2-barre .rec2-meta b { color: #334155; font-weight: 600; }
+.rec2-barre .rec2-meta-src { color: #475569; }
+.rec2-meta-sep { color: #475569; }
 .rec2-barre .rec2-alertes { margin: 0 0 0 auto; }
 .rec2-barre .rec2-alertes-btn {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12.5px; font-weight: 600; padding: 6px 13px;
-  background: rgba(251,191,36,.10); border-color: rgba(251,191,36,.45); color: #FCD34D;
+  background: #FFFBEB; border-color: #F59E0B; color: #92400E;
   transition: background-color .15s, border-color .15s, color .15s;
 }
 .rec2-barre .rec2-alertes-btn:hover,
-.rec2-barre .rec2-alertes-btn[aria-expanded="true"] { background: rgba(251,191,36,.17); border-color: rgba(251,191,36,.75); color: #FDE68A; }
-.rec2-alertes-ico { color: #FBBF24; }
+.rec2-barre .rec2-alertes-btn[aria-expanded="true"] { background: #FEF3C7; border-color: #D97706; color: #78350F; }
+.rec2-alertes-ico { color: #D97706; }
 .rec2-barre + .rec2-alertes-liste { margin: -4px 0 16px; }
 /* Plus de trait entre la ligne et le premier studio. */
 .rec2-barre + .rec2-studio, .rec2-barre + .rec2-alertes-liste + .rec2-studio { border-top: 0; padding-top: 4px; }
@@ -22124,7 +22099,7 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 @media (min-width: 901px) {
   body:has(#tab-recap2.active) { overflow-x: clip; }
   .rec2-studio-tete { position: sticky; top: var(--rec2-haut, 0px); z-index: 6; }
-  .rec2-studio-tete.is-colle { box-shadow: 0 1px 0 rgba(255,255,255,.09), 0 10px 18px -10px rgba(0,0,0,.75); }
+  .rec2-studio-tete.is-colle { box-shadow: 0 1px 0 rgba(15,23,42,.12), 0 10px 18px -10px rgba(15,23,42,.12); }
 }
 .rec2-studio-tete {
   align-items: center; column-gap: 14px; row-gap: 8px;
@@ -22132,18 +22107,18 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
   background: var(--r2-bg);
   transition: box-shadow .15s ease;
 }
-.rec2-studio-tete .rec2-studio-nom { font-size: 20px; font-weight: 750; letter-spacing: -.015em; line-height: 1.2; color: #fff; }
-.rec2-studio-ca { display: inline-flex; align-items: baseline; gap: 8px; padding-left: 14px; border-left: 1px solid rgba(255,255,255,.1); letter-spacing: 0; }
+.rec2-studio-tete .rec2-studio-nom { font-size: 20px; font-weight: 750; letter-spacing: -.015em; line-height: 1.2; color: var(--r2-text); }
+.rec2-studio-ca { display: inline-flex; align-items: baseline; gap: 8px; padding-left: 14px; border-left: 1px solid rgba(15,23,42,.12); letter-spacing: 0; }
 .rec2-studio-ca-lbl { font-size: 10.5px; font-weight: 650; letter-spacing: .08em; color: var(--r2-text-3); }
-.rec2-studio-ca b { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: #EDEFF3; font-variant-numeric: tabular-nums; }
+.rec2-studio-ca b { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: var(--r2-text); font-variant-numeric: tabular-nums; }
 .rec2-vni-chip {
   display: inline-flex; align-items: center; gap: 5px;
-  color: var(--r2-lien); background: rgba(15,82,186,.18); border-color: rgba(61,123,219,.55);
+  color: var(--r2-lien); background: rgba(15,82,186,.07); border-color: rgba(15,82,186,.45);
   font-size: 12px; font-weight: 650; padding: 4px 10px 4px 11px;
   transition: background-color .15s, border-color .15s, color .15s;
 }
 .rec2-vni-chip::after { content: '›'; font-size: 15px; line-height: 1; transition: transform .15s ease; }
-.rec2-vni-chip:hover, .rec2-vni-chip.is-on { color: #fff; background: rgba(15,82,186,.4); border-color: var(--r2-accent-ligne); }
+.rec2-vni-chip:hover, .rec2-vni-chip.is-on { color: var(--r2-lien-hover); background: rgba(15,82,186,.14); border-color: var(--r2-accent-ligne); }
 .rec2-vni-chip:hover::after { transform: translateX(2px); }
 .rec2-vni-chip.is-on::after { transform: rotate(90deg); }
 @media (max-width: 768px) {
@@ -22153,7 +22128,7 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 
 /* ═══ RECAP 2 — puces de filtre : survol des puces actives, puces à 0 en retrait ═ */
 .rec2-chip { transition: background-color .15s, border-color .15s, color .15s, opacity .15s; }
-.rec2-chip:not([disabled]):not(.is-on):hover { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.3); color: var(--r2-text); }
+.rec2-chip:not([disabled]):not(.is-on):hover { background: rgba(15,23,42,.04); border-color: rgba(15,23,42,.24); color: var(--r2-text); }
 .rec2-chip[disabled] { opacity: .4; cursor: default; border-color: var(--r2-line); }
 .rec2-chip[disabled] b { color: var(--r2-text-2); }
 
@@ -22163,7 +22138,7 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 .rec2-table th { padding: 8px 8px 7px; }
 .rec2-table th.rec2-num { text-align: right; }
 .rec2-table tbody tr td { transition: background-color .12s; }
-.rec2-table tbody tr:hover td { background: rgba(255,255,255,.035); }
+.rec2-table tbody tr:hover td { background: rgba(15,23,42,.04); }
 /* Colonnes à la taille de leur contenu : le client ne prend plus la moitié. */
 .rec2-table-nr { width: auto; min-width: min(100%, 620px); }
 .rec2-table-nr td:first-child, .rec2-table-nr th:first-child { min-width: 220px; padding-right: 28px; }
@@ -22189,17 +22164,17 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 .rec2-ctl-box {
   --c: var(--r2-green);
   appearance: none; -webkit-appearance: none; display: inline-grid; place-content: center;
-  width: 16px; height: 16px; border: 1.5px solid rgba(255,255,255,.26); border-radius: 4px;
+  width: 16px; height: 16px; border: 1.5px solid rgba(15,23,42,.24); border-radius: 4px;
   background: transparent; transition: background-color .12s, border-color .12s;
 }
-.rec2-ctl-box::after { content: ''; width: 8px; height: 4px; border-left: 2px solid var(--r2-bg); border-bottom: 2px solid var(--r2-bg); transform: translateY(-1px) rotate(-45deg); opacity: 0; }
-.rec2-ctl-box:hover:not([disabled]) { border-color: rgba(255,255,255,.5); background: rgba(255,255,255,.05); }
+.rec2-ctl-box::after { content: ''; width: 8px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: translateY(-1px) rotate(-45deg); opacity: 0; }
+.rec2-ctl-box:hover:not([disabled]) { border-color: rgba(15,23,42,.40); background: rgba(15,23,42,.04); }
 .rec2-ctl-box:checked { background: var(--c); border-color: var(--c); }
 .rec2-ctl-box:checked::after { opacity: 1; }
 .rec2-ctl-box:checked:hover:not([disabled]) { background: var(--c); filter: brightness(1.1); }
 .rec2-nr-box.is-sous_controle { --c: var(--r2-green); }
-.rec2-nr-box.is-resilie { --c: #a78bfa; }
-.rec2-nr-box.is-a_creuser { --c: #fbbf24; }
+.rec2-nr-box.is-resilie { --c: #7C3AED; }
+.rec2-nr-box.is-a_creuser { --c: #D97706; }
 /* « encaissé le … mois suivant » : une précision, pas une anomalie. */
 .rec2-decale { font-family: Inter, -apple-system, sans-serif; font-size: 10.5px; font-weight: 600; color: var(--r2-text-2); border: 1px solid var(--r2-line-2); border-radius: 999px; padding: 0 6px; cursor: help; }
 /* En-tête de colonnes collant, sous l'en-tête du studio. Il faut que le détail
@@ -22216,18 +22191,18 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 /* ═══ RECAP 2 — cohérence visuelle ═══════════════════════════════════════════
    Trois rayons : 16 px le panneau · 12 px les blocs (bandeau, cartes, détails)
    · 8 px tout ce qui est petit (boutons, champs, puces, badges).
-   Trois niveaux : page #010816 · panneau #020E26 · carte #04173B, bordures à
-   8-10 % de blanc.
+   Trois niveaux : page (fond de l'app) · panneau blanc · carte #F7F9FC,
+   bordures #E2E8F0.
    Deux boutons : primaire (fond accent) et secondaire (contour). Exceptions
    assumées : « Coaching » (bascule vers une autre application), la puce ambre
    des contrôles à vérifier (une alerte), les puces de filtre et « X VNI ».
    Petites capitales espacées réservées aux en-têtes de tableau et aux libellés
    fonctionnels (filtres, libellé du CA). */
-.rec2-wrap { border-radius: 16px; border: 1px solid rgba(255,255,255,.06); }
+.rec2-wrap { border-radius: 16px; border: 1px solid var(--r2-line); box-shadow: 0 1px 3px rgba(15,23,42,.06), 0 8px 24px -12px rgba(15,23,42,.10); }
 .rec2-head, .rec2-card, .rec2-detail, .rec2-com, .rec2-vide, .rec2-alertes-liste { border-radius: 12px; }
-.rec2-card { border-color: rgba(255,255,255,.09); }
-.rec2-detail { border-color: rgba(255,255,255,.10); }
-.rec2-studio { border-top-color: rgba(255,255,255,.08); }
+.rec2-card { border-color: rgba(15,23,42,.12); }
+.rec2-detail { border-color: rgba(15,23,42,.12); }
+.rec2-studio { border-top-color: rgba(15,23,42,.12); }
 .rec2-chip, .rec2-alertes-btn, .rec2-vni-chip, .rec2-com-refs, .rec2-etat, .rec2-decale, .rec2-note-voir,
 .rec2-note-zone, .rec2-resil-date, .rec2-head .rec2-mois input, .rec2-head .rec2-commercial select { border-radius: 8px; }
 
@@ -22239,18 +22214,16 @@ body:has(#tab-recap2.active) .btn-logout:hover { background: rgba(248,113,113,.1
 .rec2-etat.is-div { text-transform: none; letter-spacing: 0; }
 
 /* Boutons : secondaire… */
-.rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok,
-body:has(#tab-recap2.active) .btn-change-pin, body:has(#tab-recap2.active) .btn-logout {
+.rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 30px; padding: 0 12px; box-sizing: border-box;
   font: inherit; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap;
   border-radius: 8px; cursor: pointer;
-  background: transparent; border: 1px solid rgba(255,255,255,.14); color: rgba(237,239,243,.72);
+  background: transparent; border: 1px solid rgba(15,23,42,.12); color: #334155;
   transition: background-color .15s, border-color .15s, color .15s;
 }
-.rec2-det-x:hover, .rec2-copier-btn:hover, .rec2-btn-non:hover,
-body:has(#tab-recap2.active) .btn-change-pin:hover, body:has(#tab-recap2.active) .btn-logout:hover {
-  background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.28); color: #fff;
+.rec2-det-x:hover, .rec2-copier-btn:hover, .rec2-btn-non:hover {
+  background: rgba(15,23,42,.04); border-color: rgba(15,23,42,.4); color: var(--r2-text);
 }
 /* … et primaire. */
 .rec2-btn-ok { background: var(--r2-accent); border-color: var(--r2-accent); color: #fff; }
@@ -22265,7 +22238,7 @@ body:has(#tab-recap2.active) .btn-change-pin:hover, body:has(#tab-recap2.active)
 .rec2-wrap :is(button, a, input, select, textarea, summary):focus-visible,
 body:has(#tab-recap2.active) > header :is(button, a):focus-visible,
 body:has(#tab-recap2.active) .bottom-nav button:focus-visible {
-  outline: 2px solid #5B94EE; outline-offset: 2px;
+  outline: 2px solid var(--r2-focus, #0F52BA); outline-offset: 2px;
 }
 .rec2-ctl-box:focus-visible { outline-offset: 3px; }
 /* Pression : une réponse brève et identique pour tout ce qui se clique. */
@@ -22286,17 +22259,16 @@ body:has(#tab-recap2.active) .bottom-nav button:focus-visible {
 .rec2-head .rec2-mois input:focus, .rec2-head .rec2-commercial select:focus, .rec2-note-zone:focus { border-color: var(--r2-accent-ligne); }
 .rec2-com-refs:hover, .rec2-com-refs[aria-expanded="true"] { border-color: var(--r2-accent-ligne); }
 .rec2-lien-fiche:focus-visible, .rec2-lien-rech:focus-visible { outline-color: var(--r2-focus); }
-html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même au rebond du défilement */
 
 /* ═══ RECAP 2 — commercial responsable d'un non-reconduit ════════════════════ */
 .rec2-nr-com { white-space: nowrap; }
 .rec2-nr-com-sel {
   height: 28px; max-width: 170px; padding: 0 6px; box-sizing: border-box; cursor: pointer;
-  font: inherit; font-size: 12px; color: var(--r2-text); color-scheme: dark;
-  background: rgba(255,255,255,.04); border: 1px solid var(--r2-line-2); border-radius: 8px;
+  font: inherit; font-size: 12px; color: var(--r2-text); color-scheme: light;
+  background: rgba(15,23,42,.04); border: 1px solid var(--r2-line-2); border-radius: 8px;
   transition: border-color .15s, background-color .15s;
 }
-.rec2-nr-com-sel:hover:not([disabled]) { border-color: rgba(255,255,255,.3); background: rgba(255,255,255,.07); }
+.rec2-nr-com-sel:hover:not([disabled]) { border-color: rgba(15,23,42,.24); background: rgba(15,23,42,.04); }
 .rec2-nr-com-sel:focus { outline: none; border-color: var(--r2-accent-ligne); }
 .rec2-nr-com-sel.is-aucun { color: var(--r2-text-3); }
 .rec2-nr-com-sel.is-manuel { border-color: rgba(61,123,219,.55); }
@@ -22310,9 +22282,9 @@ html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même 
 /* RECAP 2 — suivi complet des non-reconduits */
 .rec2-nr-indic { font-size: 11.5px; color: var(--r2-text-2); max-width: 420px; line-height: 1.35; }
 .rec2-nr-fin { font-size: 11px; color: var(--r2-text-3); font-variant-numeric: tabular-nums; }
-.rec2-nr-suggest { font-size: 11px; padding: 1px 8px; border-radius: 8px; border: 1px dashed rgba(16, 185, 129, .6); color: #6ee7b7; }
+.rec2-nr-suggest { font-size: 11px; padding: 1px 8px; border-radius: 8px; border: 1px dashed rgba(4,120,87,.55); color: #047857; }
 .rec2-nr-statut-sel { margin-top: 3px; }
-.rec2-etat.is-susp { background: rgba(245, 158, 11, .14); border-color: rgba(245, 158, 11, .5); color: #fcd34d; }
+.rec2-etat.is-susp { background: rgba(245, 158, 11, .14); border-color: rgba(245, 158, 11, .5); color: #92400E; }
 .rec2-nr-kpis { margin: 4px 0 12px; padding: 10px 12px; border: 1px solid var(--r2-line-2); border-radius: 12px; }
 .rec2-nr-kpis-titre { font-size: 12px; font-weight: 700; color: var(--r2-text); margin-bottom: 8px; }
 .rec2-nr-kpis-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 6px; }
@@ -22320,17 +22292,17 @@ html:has(#tab-recap2.active) { background: #010816; } /* le fond de page, même 
 .rec2-nr-kpi span { font-size: 10.5px; color: var(--r2-text-3); }
 .rec2-nr-kpi b { font-size: 15px; color: var(--r2-text); font-variant-numeric: tabular-nums; }
 .rec2-nr-susp { margin-top: 14px; }
-.rec2-note-confirm { font-size: 11.5px; color: #fca5a5; align-self: center; }
+.rec2-note-confirm { font-size: 11.5px; color: #B91C1C; align-self: center; }
 
 /* RECAP 2 — Challenge Flex des VNI */
 .rec2-flex { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-top: 4px; }
 .rec2-flex .rec2-conseils { margin-top: 1px; }
-.rec2-etat.is-faire { background: rgba(15, 82, 186, .16); border-color: rgba(61, 123, 219, .5); color: #93c5fd; }
+.rec2-etat.is-faire { background: rgba(15, 82, 186, .16); border-color: rgba(61, 123, 219, .5); color: #1D4ED8; }
 tr.rec2-ligne-transforme { opacity: .55; }
 tr.rec2-ligne-transforme td { font-style: italic; }
 
 /* RECAP 2 — vente « à vérifier » validée à la main par un administrateur */
-.rec2-etat.is-verif { background: rgba(16, 122, 87, .18); border-color: rgba(16, 185, 129, .5); color: #6ee7b7; }
+.rec2-etat.is-verif { background: rgba(16, 122, 87, .18); border-color: rgba(16, 185, 129, .5); color: #047857; }
 .rec2-verif { margin-top: 5px; }
 .rec2-verif-sel { font: inherit; font-size: 11px; padding: 2px 4px; border-radius: 6px; max-width: 180px;
   background: transparent; color: var(--r2-text-2); border: 1px solid var(--r2-line-2); }
@@ -22353,10 +22325,10 @@ tr.rec2-ligne-transforme td { font-style: italic; }
 .rec2-auto { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; font-size: 11px; line-height: 1.2; white-space: nowrap; color: var(--r2-text-2); }
 .rec2-auto-val { font-size: 10.5px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--r2-line-2); color: var(--r2-text-2); }
 .rec2-auto-val.is-manuel { border-color: var(--r2-accent); color: var(--r2-text); font-weight: 600; }
-.rec2-auto-val.is-a_verifier { color: #b7791f; border-color: #b7791f; }
+.rec2-auto-val.is-a_verifier { color: #B45309; border-color: #D97706; }
 .rec2-force { font: inherit; font-size: 10.5px; padding: 1px 2px; border-radius: 6px; background: transparent; color: var(--r2-text-2); border: 1px solid var(--r2-line-2); max-width: 92px; }
 .rec2-auto-bloc { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-top: 4px; }
-.rec2-auto-alerte { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: rgba(220, 38, 38, .12); color: #f87171; border: 1px solid rgba(220, 38, 38, .35); }
+.rec2-auto-alerte { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: rgba(220, 38, 38, .12); color: #B91C1C; border: 1px solid rgba(220, 38, 38, .35); }
 .rec2-auto-attrib { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--r2-line-2); color: var(--r2-text-2); }
 
 /* ── RECAP 2 : alertes administrateur (non copiées) et référentiel des remarques ── */
@@ -22377,4 +22349,118 @@ tr.rec2-ligne-transforme td { font-style: italic; }
 .rec2-ref-id { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
 .rec2-ref-texte { min-width: 240px; font-weight: 500; }
 .rec2-ref-table tr.is-silence td { color: var(--r2-text-3); }
-.rec2-ref-table tr.is-alerte .rec2-ref-id { color: #FBBF24; }
+.rec2-ref-table tr.is-alerte .rec2-ref-id { color: #B45309; }
+
+/* ═══ RECAP 2 — lisibilité : textes secondaires, boutons, filtres, liens ══════
+   Les tailles de 10,5-11,5 px se lisaient mal, surtout sur mobile : textes
+   secondaires un cran plus grands et plus appuyés, hiérarchie portée par la
+   taille et la graisse. Les couleurs viennent des jetons --r2-*.
+   Placé en dernier pour l'emporter à spécificité égale sur les règles d'avant. */
+
+/* Bandeau de titre et filtres */
+.rec2-sub { font-size: 14px; font-weight: 500; color: var(--r2-text-2); }
+.rec2-head .rec2-mois { font-size: 12px; font-weight: 650; color: var(--r2-text-2); }
+.rec2-head .rec2-mois input,
+.rec2-head .rec2-commercial select { font-size: 14px; font-weight: 500; color: var(--r2-text); border-color: #8B98AB; background: #fff; }
+.rec2-head .rec2-mois input:hover,
+.rec2-head .rec2-commercial select:hover { border-color: #64748B; }
+.rec2-ref-btn { font-size: 13px; font-weight: 600; color: var(--r2-text-2); border-color: #8B98AB; }
+.rec2-info { font-size: 14px; font-weight: 500; }
+
+/* Ligne de fraîcheur et contrôles à vérifier */
+.rec2-barre .rec2-meta { font-size: 13px; font-weight: 500; color: var(--r2-text-2); }
+.rec2-barre .rec2-meta b { color: var(--r2-text); font-weight: 650; }
+.rec2-barre .rec2-meta-src { color: var(--r2-text-3); }
+.rec2-meta-sep { color: #475569; }
+.rec2-alertes-btn { font-size: 13px; font-weight: 600; }
+.rec2-barre .rec2-alertes-btn { font-size: 13px; }
+.rec2-alertes-liste { font-size: 13.5px; }
+.rec2-vide-s { font-size: 13.5px; }
+
+/* En-tête de studio */
+.rec2-studio-ca { font-size: 12.5px; }
+.rec2-studio-ca-lbl { font-size: 12px; font-weight: 650; color: var(--r2-text-2); }
+.rec2-vni-chip { font-size: 13px; }
+.rec2-copier-msg { font-size: 12.5px; }
+
+/* Cartes KPI : libellé, sous-texte et « Voir le détail » */
+.rec2-card-lbl { font-size: 14px; font-weight: 650; color: var(--r2-text-2); }
+.rec2-card-sub { font-size: 13.5px; font-weight: 500; }
+.rec2-card-hint { margin-top: 6px; font-size: 13px; font-weight: 650; color: var(--r2-lien); }
+.rec2-card:hover .rec2-card-hint, .rec2-card.is-open .rec2-card-hint { color: var(--r2-lien-hover); text-decoration: underline; text-underline-offset: 3px; }
+.rec2-card.is-na { opacity: .85; }
+.rec2-card-div, .rec2-card-resil { font-size: 13px; }
+
+/* Boutons secondaires (et ceux de la barre du haut sur cet onglet) */
+.rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok {
+  height: 32px; font-size: 13px; color: var(--r2-text-2); border-color: #8B98AB;
+}
+.rec2-btn-ok { color: #fff; border-color: var(--r2-accent); }
+.rec2-com-refs { font-size: 13.5px; font-weight: 550; color: var(--r2-text-2); border-color: #8B98AB; }
+
+/* Puces de filtre (contour ≥ 3:1 sur blanc, comme tous les contrôles) */
+.rec2-chip { font-size: 13px; font-weight: 550; color: var(--r2-text-2); border-color: #8B98AB; }
+.rec2-chip[disabled] { opacity: .55; }
+
+/* Détail et tableaux */
+.rec2-det-head { font-size: 14px; }
+.rec2-table { font-size: 14px; }
+.rec2-table th { font-size: 12px; color: var(--r2-text-2); }
+.rec2-etat { font-size: 12.5px; }
+.rec2-det-date { font-size: 12.5px; }
+.rec2-det-note { font-size: 13px; }
+.rec2-ligne-annul td { opacity: .85; }
+tr.rec2-ligne-transforme { opacity: .78; }
+.rec2-lien-ico { opacity: 1; }
+.rec2-decale { font-size: 11.5px; }
+.rec2-ctl-box { border-color: #64748B; }
+.rec2-ctl-box:hover:not([disabled]) { border-color: #334155; }
+
+/* Remarques, rapprochements, statuts sous le client */
+.rec2-note-ajout { font-size: 12px; color: var(--r2-text-3); opacity: .8; }
+.rec2-note-voir { font-size: 12.5px; }
+.rec2-note-zone { font-size: 13.5px; }
+.rec2-note-confirm { font-size: 12.5px; }
+.rec2-piste { font-size: 13px; }
+.rec2-prop-qui { font-size: 13.5px; }
+.rec2-prop-pourquoi, .rec2-div-qui, .rec2-valid-auto, .rec2-resil-lbl,
+.rec2-resil-err, .rec2-resil-source, .rec2-nr-indic { font-size: 12.5px; }
+.rec2-resil-date, .rec2-resil-q { font-size: 13.5px; }
+.rec2-com-det { font-size: 13.5px; }
+.rec2-com-studios { font-size: 13px; }
+.rec2-com-studio { font-size: 13.5px; }
+.rec2-conseil { font-size: 12.5px; }
+.rec2-conseil-marque { font-size: 11.5px; }
+.rec2-histo, .rec2-reint-lignes, .rec2-nr-fin, .rec2-nr-suggest, .rec2-nr-com-info { font-size: 12px; }
+
+/* Non-reconduits : commercial responsable et indicateurs */
+.rec2-nr-com-sel { height: 30px; font-size: 13px; border-color: #8B98AB; background: #fff; }
+.rec2-nr-kpis-titre { font-size: 13px; }
+.rec2-nr-kpi span { font-size: 12px; color: var(--r2-text-2); }
+.rec2-nr-kpi b { font-size: 16px; }
+
+/* Contrôle opérationnel automatique */
+.rec2-auto { font-size: 12px; }
+.rec2-auto-val { font-size: 11.5px; }
+.rec2-auto-val.is-a_verifier { color: #B45309; border-color: #D97706; }
+.rec2-force { font-size: 11.5px; border-color: #8B98AB; }
+.rec2-verif-sel { font-size: 12px; color: var(--r2-text); border-color: #8B98AB; }
+.rec2-auto-alerte { font-size: 12px; color: #B91C1C; }
+.rec2-auto-attrib { font-size: 12px; }
+
+/* Référentiel des remarques */
+.rec2-ref-f { font-size: 12.5px; color: var(--r2-text-2); }
+.rec2-ref-f select { font-size: 13px; }
+.rec2-ref-table { font-size: 13px; }
+
+/* Mobile : champs à 16 px (sinon iOS zoome au toucher), cibles plus hautes. */
+@media (max-width: 640px) {
+  .rec2-head .rec2-mois input, .rec2-head .rec2-commercial select,
+  .rec2-note-zone, .rec2-nr-com-sel, .rec2-resil-date { font-size: 16px; }
+  .rec2-head .rec2-mois input, .rec2-head .rec2-commercial select { height: 40px; }
+  .rec2-det-x, .rec2-copier-btn, .rec2-btn-non, .rec2-btn-ok, .rec2-chip,
+  .rec2-ref-btn, .rec2-alertes-btn, .rec2-com-refs { min-height: 36px; }
+  .rec2-nr-com-sel { height: 36px; }
+  .rec2-card-sub { font-size: 14px; }
+  .rec2-sub { font-size: 14.5px; }
+}
