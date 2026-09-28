@@ -204,6 +204,32 @@ il se fait tuer en plein export. Sur un Mac de 8 Go, fermer les autres
 navigateurs avant de lancer. `CRM_HEADLESS=1 npm run open` allège nettement,
 une fois la session déjà établie dans le profil.
 
+### Lancer l'analyse depuis l'écran : l'agent du Mac
+
+Le bouton **« Lancer l'analyse du mois »** de RECAP 2 ne calcule rien sur le
+serveur : il dépose une demande. `recap2-agent.js`, qui tourne en continu sur
+le Mac, la prend (interrogation toutes les 20 s, appels **sortants** seulement,
+avec `RECAP2_INGEST_KEY`) et enchaîne, en s'arrêtant à la première étape en échec :
+
+1. `recap2.js AAAA-MM` — collecte, contrôles, dépôt ;
+2. `recap2-operationnel.js AAAA-MM --envoyer` — contrôle opérationnel ;
+3. `recap2-nr-controle.js AAAA-MM --envoyer` — contrôle des non-reconduits.
+
+Le Challenge Flex n'en fait pas partie (à la main, comme avant).
+
+Conditions : Mac allumé et hors veille, Chromium ouvert (`npm run open`) avec
+les deux CRM connectés, `.env` renseigné. Sinon l'écran le dit : « agent hors
+ligne », ou l'échec et sa raison — une demande jamais prise expire en 15 min.
+
+```bash
+node recap2-agent.js              # au premier plan, pour essayer
+node recap2-agent.js --une-fois   # une seule interrogation
+# En permanence (démarre à l'ouverture de session, redémarre s'il tombe) :
+cp launchd/fr.mycoach.recap2-agent.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/fr.mycoach.recap2-agent.plist
+tail -f ~/Library/Logs/recap2-agent.log
+```
+
 ### Les deux étapes à la main (toujours disponibles)
 
 ```bash

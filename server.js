@@ -4896,6 +4896,10 @@ function ensureRecap2ReintegrationsSchema() {
 ensureRecap2ReintegrationsSchema();
 // Commercial responsable des non-reconduits, choisi à la main (table dédiée, idempotente).
 require('./lib/recap2NrCommerciaux.js').creerTable(getDb());
+// Registre des dépôts RECAP 2 remplacés (traçabilité des fichiers analysés).
+require('./lib/recap2Fichiers.js').creerTable(getDb());
+// File des analyses lancées depuis l'écran (agent du Mac).
+require('./lib/recap2Analyses.js').creerTable(getDb());
 
 // ─── LEADS (saisie manuelle par club/mois + comparatif N-1) ──────────────────
 function ensureLeadsSchema() {
@@ -5507,6 +5511,10 @@ const Recap2NrStatuts = require('./lib/recap2NrStatuts.js');
 const Recap2NrControles = require('./lib/recap2NrControles.js');
 const Recap2Reintegrations = require('./lib/recap2Reintegrations.js');
 const Recap2NrCommerciaux = require('./lib/recap2NrCommerciaux.js');
+// Les fichiers qui ont servi à l'analyse affichée, et ceux des dépôts remplacés.
+const Recap2Fichiers = require('./lib/recap2Fichiers.js');
+// La file des analyses lancées depuis l'écran et exécutées par l'agent du Mac.
+const Recap2Analyses = require('./lib/recap2Analyses.js');
 const Recap2Metrics = require('./public/recap2-metrics.js');
 const RECAP2_MOIS_RE = Recap2Store.MOIS_RE;
 // Chemin historique : le JSON produit localement par la collecte. Sur le Mac,
@@ -6125,6 +6133,58 @@ app.post('/api/recap2/note', requireAuth, (req, res) => {
   }
 });
 
+// ─── ANALYSE LANCÉE DEPUIS L'ÉCRAN, EXÉCUTÉE PAR L'AGENT DU MAC ─────────────
+//  Le serveur ne collecte pas : il tient la file (lib/recap2Analyses.js).
+//  Le bouton dépose une demande ; l'agent (crm-automation/recap2-agent.js)
+//  la prend, exécute les étapes sur le Mac et rend compte, avec la clé de dépôt.
+//  ⚠️ Déclarées AVANT `POST /api/recap2/:mois`, sinon « analyses » serait lu comme un mois.
+app.post('/api/recap2/analyses', requireAuth, requireAdmin, (req, res) => {
+  const mois = String((req.body && req.body.mois) || '');
+  const qui = (req.session && (req.session.name || req.session.role)) || '';
+  try {
+    const r = Recap2Analyses.demander(getDb(), mois, qui);
+    if (r.erreur) return res.status(r.status).json({ error: r.erreur, analyse: r.analyse || null });
+    console.log('recap2 analyse demandée : ' + mois);
+    res.json({ ok: true, analyse: r.analyse });
+  } catch (e) {
+    console.error('recap2 analyse demandée :', e && e.message);
+    res.status(500).json({ error: 'Demande impossible.' });
+  }
+});
+app.get('/api/recap2/analyses/:mois', requireAuth, requireAdmin, (req, res) => {
+  const mois = String(req.params.mois || '');
+  if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
+  try { res.json(Recap2Analyses.etat(getDb(), mois)); }
+  catch (e) { console.error('recap2 état analyse :', e && e.message); res.status(500).json({ error: 'Lecture impossible.' }); }
+});
+// L'agent : prendre la prochaine demande (et signaler qu'il est vivant).
+app.post('/api/recap2/agent/prendre', (req, res) => {
+  if (!recap2CleAttendue() || !recap2CleValide(req.get('X-Recap2-Key'))) return res.status(401).json({ error: 'Clé de dépôt invalide.' });
+  try {
+    const analyse = Recap2Analyses.prendre(getDb());
+    if (analyse) console.log('recap2 analyse prise par l\'agent : ' + analyse.mois + ' (#' + analyse.id + ')');
+    res.json({ ok: true, analyse });
+  } catch (e) {
+    console.error('recap2 agent prendre :', e && e.message);
+    res.status(500).json({ error: 'File indisponible.' });
+  }
+});
+// L'agent : avancement d'une étape, signe de vie, ou fin de l'analyse.
+app.post('/api/recap2/agent/:id', (req, res) => {
+  if (!recap2CleAttendue() || !recap2CleValide(req.get('X-Recap2-Key'))) return res.status(401).json({ error: 'Clé de dépôt invalide.' });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id invalide' });
+  try {
+    const r = Recap2Analyses.rendreCompte(getDb(), id, req.body);
+    if (r.erreur) return res.status(r.status).json({ error: r.erreur });
+    if (req.body && req.body.fin) console.log('recap2 analyse #' + id + ' ' + r.analyse.statut);
+    res.json({ ok: true, analyse: r.analyse });
+  } catch (e) {
+    console.error('recap2 agent compte rendu :', e && e.message);
+    res.status(500).json({ error: 'Compte rendu impossible.' });
+  }
+});
+
 app.post('/api/recap2/:mois', (req, res) => {
   const mois = String(req.params.mois || '');
   if (!recap2CleAttendue()) {
@@ -6154,12 +6214,19 @@ app.post('/api/recap2/:mois', (req, res) => {
 
   try {
     const propre = Recap2Store.nettoyer(rapport);
+    const recuLe = new Date().toISOString();
+    // Le rapport sur le point d'être remplacé : sa liste de fichiers va au
+    // registre des dépôts (lib/recap2Fichiers.js), sans aucun nom de client.
+    const avant = Recap2Store.lire(mois);
     Recap2Store.ecrire(mois, propre); // .tmp + rename, aucun .bak, aucune écriture SQL
     console.log('recap2 dépôt ' + mois + ' accepté (' + taille + ' octets)');
+    // La traçabilité ne bloque jamais un dépôt : le JSON est déjà écrit.
+    try { Recap2Fichiers.enregistrerDepot(getDb(), mois, propre, recuLe, avant.etat === 'ok' ? avant.rapport : null); }
+    catch (e) { console.error('recap2 registre des dépôts :', e && e.message); }
     // Accusé de réception volontairement muet sur les personnes : des comptes.
     res.json({
       ok: true, mois, m1: propre.m1, genere: propre.genere,
-      studios: Object.keys(propre.studios || {}).length, octets: taille, recuLe: new Date().toISOString(),
+      studios: Object.keys(propre.studios || {}).length, octets: taille, recuLe,
     });
   } catch (e) {
     console.error('recap2 écriture :', e && e.message);
@@ -6331,7 +6398,12 @@ app.get('/api/recap2/:mois', requireAuth, requireAdmin, (req, res) => {
   if (!RECAP2_MOIS_RE.test(mois)) return res.status(400).json({ error: 'mois=AAAA-MM requis' });
   const lu = recap2LireRapport(mois);
   if (lu.erreur) return res.status(lu.erreur.status).json(lu.erreur.corps);
-  return res.json(recap2AvecDecisions(lu.rapport));
+  // Les fichiers analysés : déduits du JSON servi + dépôts remplacés. Un échec
+  // de lecture du registre n'empêche jamais l'affichage des chiffres.
+  let fichiersAnalyses = null;
+  try { fichiersAnalyses = Recap2Fichiers.fichiersAnalyses(getDb(), mois, lu.rapport); }
+  catch (e) { console.error('recap2 fichiers analysés :', e && e.message); }
+  return res.json(Object.assign({}, recap2AvecDecisions(lu.rapport), { fichiersAnalyses }));
 });
 
 const RETENTION_MOIS_RE = /^\d{4}-\d{2}$/; // AAAA-MM

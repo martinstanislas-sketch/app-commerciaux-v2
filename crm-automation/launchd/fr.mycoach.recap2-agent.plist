@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Agent RECAP 2 : démarre à l'ouverture de session et redémarre s'il tombe.
+  Installation (une fois) :
+    cp crm-automation/launchd/fr.mycoach.recap2-agent.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/fr.mycoach.recap2-agent.plist
+  Arrêt définitif :
+    launchctl unload ~/Library/LaunchAgents/fr.mycoach.recap2-agent.plist
+  Journal : ~/Library/Logs/recap2-agent.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>fr.mycoach.recap2-agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/stan/recap2-prod/crm-automation/recap2-agent.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/stan/recap2-prod/crm-automation</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/stan/Library/Logs/recap2-agent.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/stan/Library/Logs/recap2-agent.log</string>
+</dict>
+</plist>

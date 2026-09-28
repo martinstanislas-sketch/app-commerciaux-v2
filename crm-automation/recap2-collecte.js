@@ -63,6 +63,9 @@ const moisPrecedent = (ym) => {
 };
 
 const horodatage = () => new Date().toISOString();
+// Heure d'export d'un CSV (date du fichier sur le disque) : la « date d'import »
+// de la traçabilité RECAP 2. Un CSV réutilisé (--sans-deciplus) garde la sienne.
+const exporteLe = (f) => { try { return fs.statSync(f).mtime.toISOString(); } catch (_) { return null; } };
 const journal = [];
 const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt; journal.push(l); console.log(l); };
 
@@ -179,7 +182,7 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     const enEchec = M.LABELS.filter((st) => !controleStudio[ym][st].ok);
     if (enEchec.length) dire('⚠️ CSV ' + ym + ' — studios en échec de contrôle : ' + enEchec.join(', '));
     rapport.source['deciplus_' + ym] = {
-      fichier: path.basename(fichiers[ym]), periode: p.periode, lignes: p.lignes.length,
+      fichier: path.basename(fichiers[ym]), exporteLe: exporteLe(fichiers[ym]), periode: p.periode, lignes: p.lignes.length,
       totalAnnonce: p.totalAnnonce, conforme: v.ok, problemes: v.problemes,
       avertissements: v.avertissements || [], lignesParStudio: v.lignesParStudio,
       controleParStudio: controleStudio[ym],
@@ -202,7 +205,7 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
       const pv = VENTES.parser(texteV);
       const vv = VENTES.verifier(pv, { moisAttendu: mois });
       rapport.source['deciplus_ventes_' + mois] = {
-        fichier: path.basename(fichierVentes), periode: pv.periode, lignes: pv.lignes.length,
+        fichier: path.basename(fichierVentes), exporteLe: exporteLe(fichierVentes), periode: pv.periode, lignes: pv.lignes.length,
         totalAnnonce: pv.totalAnnonce, conforme: vv.ok, problemes: vv.problemes,
         avertissements: vv.avertissements || [],
       };
@@ -231,20 +234,33 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
     plagesPaiement.push({ periode: rapport.source['deciplus_' + mois].periode, exporteLe: fs.statSync(fichiers[mois]).mtime });
     moisPaiement.push(mois);
   }
+  // Traçabilité : chaque CSV de paiements lu OU écarté, avec son motif.
+  const fichiersPaiementTrace = [];
+  const tracer = (ym, pris, motif) => fichiersPaiementTrace.push({
+    mois: ym, fichier: path.basename(fichiersPaiement[ym]), exporteLe: exporteLe(fichiersPaiement[ym]), pris, motif: String(motif || '').slice(0, 200),
+  });
   for (const ym of Object.keys(fichiersPaiement).sort()) {
     try {
       const p = CSV.parser(fs.readFileSync(fichiersPaiement[ym], 'utf8'));
       const [a, m] = ((p.periode && p.periode.du) || '').split('-');
-      if (a + '-' + m !== ym) { dire('ℹ️ CSV ' + ym + ' (paiements) : période ' + JSON.stringify(p.periode) + ' — ignoré'); continue; }
+      if (a + '-' + m !== ym) {
+        dire('ℹ️ CSV ' + ym + ' (paiements) : période ' + JSON.stringify(p.periode) + ' — ignoré');
+        tracer(ym, false, 'période ' + JSON.stringify(p.periode) + ' au lieu de ' + ym);
+        continue;
+      }
       lignesPaiement.push(...p.lignes);
       plagesPaiement.push({ periode: p.periode, exporteLe: fs.statSync(fichiersPaiement[ym]).mtime });
       moisPaiement.push(ym);
-    } catch (e) { dire('ℹ️ CSV ' + ym + ' (paiements) illisible : ' + e.message); }
+      tracer(ym, true, '');
+    } catch (e) {
+      dire('ℹ️ CSV ' + ym + ' (paiements) illisible : ' + e.message);
+      tracer(ym, false, 'illisible : ' + e.message);
+    }
   }
   const parIdPaiement = PAI.indexerParId(lignesPaiement);
   const couvertPaiement = PAI.couverture(plagesPaiement);
   rapport.source.paiements = {
-    fenetreJours: PAI.JOURS_FENETRE, moisLus: moisPaiement,
+    fenetreJours: PAI.JOURS_FENETRE, moisLus: moisPaiement, fichiers: fichiersPaiementTrace,
     couvertDu: couvertPaiement ? PAI.texte(couvertPaiement.du) : null,
     couvertJusquau: couvertPaiement ? PAI.texte(couvertPaiement.au) : null,
   };
@@ -260,6 +276,8 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   //  Un repère, pas un KPI : un échec ici ne bloque ni le studio ni l'envoi, il
   //  prive seulement CE studio de son chiffre de références (et c'est dit).
   const referencesFB = {};
+  // Traçabilité : heure de la lecture à l'écran des contrats, studio par studio.
+  const lusLeFB = {};
   try {
     const page = pageDe('fitness-booster');
     if (!page) throw new Error('Aucun onglet Fitness Booster ouvert');
@@ -268,7 +286,9 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
         contratsFB[studio] = await REESSAI.avecReessai('Fitness Booster ' + studio, TENTATIVES,
           () => FB.lireStudio(page, studio, mois, dire),
           { remise: () => FB.fermerPanneau(page), journal: dire });
+        lusLeFB[studio] = horodatage();
       } catch (e) {
+        lusLeFB[studio] = horodatage();
         erreurs.push('Fitness Booster / ' + studio + ' : ' + e.message);
         dire('⚠️ FB ' + studio + ' : ' + e.message);
         contratsFB[studio] = { studio, mois, echec: e.message };
@@ -297,7 +317,7 @@ const dire = (txt) => { const l = '[' + horodatage().slice(11, 19) + '] ' + txt;
   }));
   rapport.source.fitnessBooster = Object.fromEntries(Object.entries(contratsFB).map(([s, r]) => [s, {
     club: r.club || null, periodeDetail: r.periodeDetail || null, compteur: r.compteur == null ? null : r.compteur,
-    annulees: r.annulees == null ? null : r.annulees, echec: r.echec || null,
+    annulees: r.annulees == null ? null : r.annulees, echec: r.echec || null, luLe: lusLeFB[s] || null,
     commerciauxSansId: r.commerciauxSansId == null ? null : r.commerciauxSansId,
     prisesReference: referencesFB[s] ? {
       ok: !!referencesFB[s].ok, total: referencesFB[s].total == null ? null : referencesFB[s].total,
