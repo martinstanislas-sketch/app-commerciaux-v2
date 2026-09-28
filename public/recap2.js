@@ -61,6 +61,11 @@ const Recap2UI = (function () {
   let refsOuvertes = false; // détail des prises de référence du commercial
   let vniComOuvert = false; // détail des VNI du commercial
   let animerOuverture = false; // le prochain rendu fait entrer le détail en fondu
+  // Analyse lancée depuis l'écran (exécutée par l'agent du Mac) :
+  let analyse = null;          // { derniere, active, agentVuLe, agentActif } du mois affiché
+  let analyseSuivie = null;    // id de l'analyse de CE mois qu'on regarde tourner
+  let analyseMinuteur = null;  // interrogation périodique tant qu'une analyse tourne
+  let analyseMessage = '';     // refus du serveur (analyse déjà en cours…)
 
   function open() {
     if (!inited) { wire(); inited = true; }
@@ -72,6 +77,7 @@ const Recap2UI = (function () {
   function wire() {
     $('#rec2-mois').addEventListener('change', () => {
       mois = $('#rec2-mois').value; ouvert = ''; alertesOuvertes = false;
+      analyse = null; analyseSuivie = null; analyseMessage = '';
       commercial = ''; filtreCom = 'tous'; refsOuvertes = false; vniComOuvert = false; charger();
     });
     $('#rec2-body').addEventListener('click', onBodyClick);
@@ -219,6 +225,7 @@ const Recap2UI = (function () {
       }
     } catch (_) { etat = 'erreur'; message = 'réseau indisponible'; }
     render();
+    chargerAnalyse();
   }
 
   // ── CONTRÔLES DE COHÉRENCE (on vérifie, on ne recalcule pas) ────────────────
@@ -284,7 +291,7 @@ const Recap2UI = (function () {
     }
     if (etat === 'chargement') { host.innerHTML = '<p class="rec2-info">Chargement…</p>'; return; }
     if (etat === 'absent') {
-      host.innerHTML = '<div class="rec2-vide"><p class="rec2-vide-t">Données non encore collectées pour ce mois.</p>'
+      host.innerHTML = blocAnalyse() + '<div class="rec2-vide"><p class="rec2-vide-t">Données non encore collectées pour ce mois.</p>'
         + (message ? '<p class="rec2-vide-s">Fichier attendu : <code>' + esc(message) + '</code></p>' : '')
         + '<p class="rec2-vide-s">Sur le Mac : <code>node crm-automation/recap2-collecte.js ' + esc(mois) + '</code>'
         + ' puis <code>node crm-automation/recap2-envoi.js ' + esc(mois) + '</code></p></div>';
@@ -333,12 +340,160 @@ const Recap2UI = (function () {
   // Fraîcheur + provenance, discrets, en haut.
   function bandeauSource() {
     const manquants = LABELS.filter((s) => !(rapport.studios && rapport.studios[s]));
-    return '<div class="rec2-meta">'
+    return '<div class="rec2-meta-bloc"><div class="rec2-meta">'
       + '<span>Données actualisées le <b>' + esc(fmtDate(rapport.genere)) + '</b></span>'
       + '<span class="rec2-meta-sep" aria-hidden="true">·</span>'
       + '<span class="rec2-meta-src">Source : Deciplus + Fitness Booster</span>'
       + (manquants.length ? '<span class="rec2-meta-ko">⚠ studio(s) absent(s) du fichier : ' + esc(manquants.join(', ')) + '</span>' : '')
+      + '</div>'
+      + blocAnalyse()
+      + '<button type="button" class="rec2-fichiers-btn" data-fichiers aria-haspopup="dialog">Voir les fichiers analysés</button>'
       + '</div>';
+  }
+
+  // ── LANCER L'ANALYSE DU MOIS (exécutée par l'agent du Mac) ─────────────────
+  //  L'écran ne calcule rien : il dépose une demande (lib/recap2Analyses.js),
+  //  suit son avancement toutes les 5 s, et recharge les données à la fin.
+  //  La zone est mise à jour SEULE pendant le suivi : aucun rendu complet, donc
+  //  aucune remarque en cours de saisie ni détail ouvert n'est perturbé.
+  const blocAnalyse = () => '<div class="rec2-analyse" id="rec2-analyse" aria-live="polite">' + contenuAnalyse() + '</div>';
+  function etapeEnCours(a) {
+    const e = (a.etapes || []).find((x) => x.statut === 'en_cours');
+    return e ? e.libelle : '';
+  }
+  function contenuAnalyse() {
+    const a = analyse;
+    const act = a && a.active;
+    const occupe = !!act;
+    const bouton = '<button type="button" class="rec2-analyse-btn" data-analyse-lancer' + (occupe || !a ? ' disabled' : '') + '>Lancer l\'analyse du mois</button>';
+    let statut = '';
+    if (act && act.mois === mois) {
+      const attente = act.statut === 'demandee'
+        ? (a.agentActif ? 'demande transmise au Mac' : 'en attente du Mac — agent hors ligne' + (a.agentVuLe ? ' depuis le ' + fmtDate(a.agentVuLe) : ''))
+        : etapeEnCours(act);
+      statut = '<span class="rec2-analyse-etat is-cours"><span class="rec2-analyse-roue" aria-hidden="true"></span>Analyse en cours…'
+        + (attente ? ' <span class="rec2-analyse-detail">' + esc(attente) + '</span>' : '') + '</span>';
+    } else if (act) {
+      statut = '<span class="rec2-analyse-etat">Analyse de ' + esc(moisLabel(act.mois)) + ' en cours sur le Mac</span>';
+    } else if (a && a.derniere && a.derniere.statut === 'terminee') {
+      statut = '<span class="rec2-analyse-etat is-ok">Analyse terminée le ' + esc(fmtDate(a.derniere.termineLe)) + '</span>';
+    } else if (a && a.derniere && a.derniere.statut === 'echec') {
+      statut = '<span class="rec2-analyse-etat is-ko">Échec de l\'analyse du ' + esc(fmtDate(a.derniere.termineLe || a.derniere.demandeLe))
+        + (a.derniere.erreur ? ' : ' + esc(a.derniere.erreur) : '') + '</span>';
+    }
+    if (!act && a && !a.agentActif) {
+      statut += '<span class="rec2-analyse-etat is-ko">Agent du Mac hors ligne' + (a.agentVuLe ? ' (vu le ' + esc(fmtDate(a.agentVuLe)) + ')' : '') + '</span>';
+    }
+    // Le refus du serveur n'a plus rien à dire quand l'analyse du mois tourne déjà.
+    if (analyseMessage && !(act && act.mois === mois)) statut += '<span class="rec2-analyse-etat is-ko">' + esc(analyseMessage) + '</span>';
+    return bouton + statut;
+  }
+  function majZoneAnalyse() {
+    const z = $('#rec2-analyse');
+    if (z) z.innerHTML = contenuAnalyse();
+  }
+  async function chargerAnalyse() {
+    clearTimeout(analyseMinuteur);
+    const pour = mois;
+    let j = null;
+    try {
+      const r = await fetch('/api/recap2/analyses/' + pour, { headers: H() });
+      j = r.ok ? await r.json() : null;
+    } catch (_) { j = null; }
+    if (pour !== mois) return; // le mois a changé entre-temps
+    if (j) analyse = j;
+    const act = analyse && analyse.active;
+    if (act && act.mois === mois) analyseSuivie = act.id;
+    // L'analyse qu'on regardait tourner vient de finir : on recharge l'écran.
+    if (analyseSuivie && !(act && act.id === analyseSuivie)) {
+      const fini = analyse && analyse.derniere && analyse.derniere.id === analyseSuivie ? analyse.derniere : null;
+      analyseSuivie = null;
+      if (fini && fini.statut === 'terminee') { charger(); return; }
+    }
+    majZoneAnalyse();
+    if (act) analyseMinuteur = setTimeout(chargerAnalyse, 5000);
+  }
+  async function lancerAnalyse(bouton) {
+    bouton.disabled = true;
+    analyseMessage = '';
+    try {
+      const r = await fetch('/api/recap2/analyses', {
+        method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, H()), body: JSON.stringify({ mois }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) analyseMessage = (j && j.error) || ('HTTP ' + r.status);
+    } catch (_) { analyseMessage = 'réseau indisponible'; }
+    chargerAnalyse();
+  }
+
+  // ── FICHIERS ANALYSÉS (traçabilité, lecture seule) ──────────────────────────
+  //  La liste vient du serveur (`fichiersAnalyses`, lib/recap2Fichiers.js) :
+  //  déduite du rapport affiché + dépôts remplacés. Rien n'est recalculé ici.
+  const STATUTS_FICHIER = {
+    pris: { libelle: 'Pris en compte', classe: 'is-pris' },
+    non_pris: { libelle: 'Non pris en compte', classe: 'is-non-pris' },
+    remplace: { libelle: 'Remplacé', classe: 'is-remplace' },
+  };
+  const nonEnregistre = '<i class="rec2-fic-na">non enregistré</i>';
+  function ligneFichier(f) {
+    const st = STATUTS_FICHIER[f.statut] || { libelle: f.statut || '—', classe: '' };
+    return '<tr>'
+      + '<td>' + esc(f.source) + '</td>'
+      + '<td><span class="rec2-fic-nom">' + (f.nom ? esc(f.nom) : nonEnregistre) + '</span>'
+      + (f.nature ? '<span class="rec2-fic-nature">' + esc(f.nature) + '</span>' : '') + '</td>'
+      + '<td>' + (f.mois ? esc(cap(moisLabel(f.mois))) : nonEnregistre) + '</td>'
+      + '<td>' + (f.importeLe ? esc(fmtDate(f.importeLe)) : nonEnregistre) + '</td>'
+      + '<td>' + (f.analyseLe ? esc(fmtDate(f.analyseLe)) : nonEnregistre) + '</td>'
+      + '<td><span class="rec2-fic-statut ' + st.classe + '">' + esc(st.libelle) + '</span>'
+      + (f.motif ? '<span class="rec2-fic-motif">' + esc(f.motif) + '</span>' : '') + '</td>'
+      + '</tr>';
+  }
+  function contenuFichiers() {
+    const fa = rapport && rapport.fichiersAnalyses;
+    if (!fa || !Array.isArray(fa.fichiers)) return '<p class="rec2-info">Liste des fichiers indisponible.</p>';
+    if (!fa.fichiers.length) return '<p class="rec2-info">Aucun fichier enregistré pour ce mois.</p>';
+    const incomplet = fa.fichiers.some((f) => f.statut !== 'remplace' && (!f.importeLe || !f.nom));
+    return '<p class="rec2-fic-intro">Analyse affichée : <b>' + esc(fmtDate(fa.analyseLe || rapport.genere)) + '</b></p>'
+      + traceAnalyse()
+      + (incomplet ? '<p class="rec2-fic-note">Collecte antérieure à la traçabilité : certaines informations n\'ont pas été enregistrées. Elles le seront à la prochaine collecte de ce mois.</p>' : '')
+      + '<div class="rec2-fic-table-wrap"><table class="rec2-fic-table">'
+      + '<thead><tr><th scope="col">Source</th><th scope="col">Fichier</th><th scope="col">Mois</th>'
+      + '<th scope="col">Import</th><th scope="col">Dernière analyse</th><th scope="col">Statut</th></tr></thead>'
+      + '<tbody>' + fa.fichiers.map(ligneFichier).join('') + '</tbody></table></div>';
+  }
+  // L'analyse lancée depuis l'écran qui a produit CE rapport (même `genere`) :
+  //  qui l'a demandée, quand, et l'heure de chaque étape exécutée sur le Mac.
+  function traceAnalyse() {
+    const d = analyse && analyse.derniere;
+    if (!d || d.statut !== 'terminee' || !d.genere || d.genere !== rapport.genere) return '';
+    return '<div class="rec2-fic-note"><p class="rec2-fic-trace">Analyse lancée depuis l\'écran'
+      + (d.demandePar ? ' par <b>' + esc(d.demandePar) + '</b>' : '') + ' le ' + esc(fmtDate(d.demandeLe))
+      + ', terminée le ' + esc(fmtDate(d.termineLe)) + '.</p><ul class="rec2-fic-etapes">'
+      + (d.etapes || []).map((e) => '<li>' + (e.statut === 'ok' ? '✓ ' : '') + esc(e.libelle)
+        + (e.fin ? ' — ' + esc(fmtDate(e.fin)) : '') + '</li>').join('')
+      + '</ul></div>';
+  }
+  function ouvrirFichiers(bouton) {
+    let dlg = $('#rec2-fichiers');
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'rec2-fichiers';
+      dlg.className = 'rec2-fic-dialog';
+      dlg.setAttribute('aria-labelledby', 'rec2-fichiers-titre');
+      // Dans .rec2-wrap : la modale hérite des jetons de couleur de RECAP 2.
+      $('.rec2-wrap').appendChild(dlg);
+      dlg.addEventListener('click', (e) => {
+        if (e.target === dlg || e.target.closest('[data-fichiers-fermer]')) dlg.close();
+      });
+      // Après la restauration native du navigateur, sinon elle l'emporte.
+      dlg.addEventListener('close', () => { setTimeout(() => { if (dlg._retour && dlg._retour.isConnected) dlg._retour.focus(); }, 0); });
+    }
+    dlg._retour = bouton;
+    dlg.innerHTML = '<div class="rec2-fic-cadre">'
+      + '<div class="rec2-fic-tete"><h3 id="rec2-fichiers-titre" class="rec2-fic-titre">Fichiers analysés — ' + esc(cap(moisLabel(rapport.mois))) + '</h3>'
+      + '<button type="button" class="rec2-fic-fermer" data-fichiers-fermer aria-label="Fermer">✕</button></div>'
+      + contenuFichiers() + '</div>';
+    dlg.showModal();
   }
 
   // Un seul indicateur discret ; le détail s'ouvre au clic.
@@ -2011,6 +2166,10 @@ const Recap2UI = (function () {
 
   // ── INTERACTIONS ────────────────────────────────────────────────────────────
   function onBodyClick(e) {
+    const fic = e.target.closest('[data-fichiers]');
+    if (fic && rapport) { ouvrirFichiers(fic); return; }
+    const btnAnalyse = e.target.closest('[data-analyse-lancer]');
+    if (btnAnalyse && !btnAnalyse.disabled) { lancerAnalyse(btnAnalyse); return; }
     const actNote = e.target.closest('[data-note-action]');
     if (actNote) { actionNote(actNote); return; }
     const actAuto = e.target.closest('[data-auto-action]');

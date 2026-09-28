@@ -22464,3 +22464,49 @@ tr.rec2-ligne-transforme { opacity: .78; }
   .rec2-card-sub { font-size: 14px; }
   .rec2-sub { font-size: 14.5px; }
 }
+
+/* ═══ RECAP 2 — fichiers analysés (bouton + modale, lecture seule) ═══════════
+   Classes `.rec2-fic*` nouvelles : aucune règle existante n'est modifiée. */
+.rec2-meta-bloc { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.rec2-fichiers-btn { border: 0; background: none; padding: 2px 0; font: inherit; font-size: 12px; color: var(--r2-lien); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.rec2-fichiers-btn:hover { color: var(--r2-lien-hover); }
+.rec2-fic-dialog { margin: auto; width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--r2-line-2); border-radius: 14px; background: var(--r2-bg); color: var(--r2-text); box-shadow: 0 20px 50px rgba(15,23,42,.25); }
+.rec2-fic-dialog::backdrop { background: rgba(15,23,42,.45); }
+.rec2-fic-cadre { padding: 18px 20px 20px; }
+.rec2-fic-tete { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.rec2-fic-titre { margin: 0; font-size: 17px; font-weight: 700; color: var(--r2-text); }
+.rec2-fic-fermer { border: 1px solid var(--r2-line-2); background: transparent; color: var(--r2-text-2); border-radius: 8px; min-width: 36px; min-height: 36px; font-size: 15px; cursor: pointer; }
+.rec2-fic-fermer:hover { background: var(--r2-surface-2); color: var(--r2-text); }
+.rec2-fic-intro { margin: 0 0 6px; font-size: 13px; color: var(--r2-text-2); }
+.rec2-fic-intro b { color: var(--r2-text); }
+.rec2-fic-note { margin: 0 0 10px; font-size: 12.5px; color: var(--r2-text-2); background: var(--r2-surface); border: 1px solid var(--r2-line); border-radius: 8px; padding: 8px 10px; }
+.rec2-fic-table-wrap { overflow-x: auto; border: 1px solid var(--r2-line); border-radius: 10px; }
+.rec2-fic-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rec2-fic-table th { text-align: left; font-weight: 650; font-size: 12px; color: var(--r2-text-2); background: var(--r2-surface); padding: 8px 10px; border-bottom: 1px solid var(--r2-line); white-space: nowrap; }
+.rec2-fic-table td { padding: 8px 10px; border-bottom: 1px solid var(--r2-line); vertical-align: top; color: var(--r2-text); }
+.rec2-fic-table tr:last-child td { border-bottom: 0; }
+.rec2-fic-nom { display: block; word-break: break-all; }
+.rec2-fic-nature, .rec2-fic-motif { display: block; font-size: 11.5px; color: var(--r2-text-3); margin-top: 2px; }
+.rec2-fic-na { color: var(--r2-text-3); }
+.rec2-fic-statut { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.rec2-fic-statut.is-pris { background: #D1FAE5; color: #065F46; }
+.rec2-fic-statut.is-non-pris { background: #FEE2E2; color: #991B1B; }
+.rec2-fic-statut.is-remplace { background: var(--r2-surface-2); color: var(--r2-text-2); }
+
+/* ═══ RECAP 2 — lancer l'analyse du mois (agent du Mac) ═════════════════════
+   Classes `.rec2-analyse*` nouvelles : aucune règle existante n'est modifiée. */
+.rec2-analyse { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 2px 0; }
+.rec2-analyse-btn { border: 1px solid var(--r2-accent); background: var(--r2-accent); color: #fff; font: inherit; font-size: 13px; font-weight: 600; border-radius: 8px; padding: 6px 14px; min-height: 34px; cursor: pointer; }
+.rec2-analyse-btn:hover { background: var(--r2-accent-hover); border-color: var(--r2-accent-hover); }
+.rec2-analyse-btn[disabled] { opacity: .5; cursor: default; }
+.rec2-analyse-etat { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--r2-text-2); }
+.rec2-analyse-etat.is-cours { color: var(--r2-accent); font-weight: 600; }
+.rec2-analyse-etat.is-ok { color: var(--r2-green); font-weight: 600; }
+.rec2-analyse-etat.is-ko { color: var(--r2-red); }
+.rec2-analyse-detail { font-weight: 400; color: var(--r2-text-2); }
+.rec2-analyse-roue { width: 12px; height: 12px; border: 2px solid var(--r2-accent-soft); border-top-color: var(--r2-accent); border-radius: 50%; animation: rec2-roue .8s linear infinite; }
+@keyframes rec2-roue { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rec2-analyse-roue { animation: none; } }
+.rec2-vide + .rec2-analyse, #rec2-body > .rec2-analyse { margin-bottom: 12px; }
+.rec2-fic-trace { margin: 0 0 4px; }
+.rec2-fic-etapes { margin: 0; padding-left: 18px; }
