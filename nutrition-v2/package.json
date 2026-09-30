@@ -1,0 +1,22 @@
+{
+  "name": "my-coach-nutrition-v2",
+  "version": "2.0.0",
+  "description": "My Coach Nutrition — refonte MVP (écrans Stitch) : questionnaire, plan de la semaine, liste de courses, connexion par lien magique",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "valider": "node tools/valider-recettes.js lib/recipes-v2.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "express": "^4.19.2"
+  },
+  "optionalDependencies": {
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.14"
+  }
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Coach Nutrition — Mange mieux, sans y penser</title>
+  <meta name="description" content="Réponds à quelques questions et reçois ton plan de repas de la semaine, adapté à ton objectif et à tes goûts, avec la liste de courses." />
+  <meta name="theme-color" content="#F8F9FF" />
+  <meta name="color-scheme" content="light" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Nutrition" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="favicon-48.png" sizes="48x48" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400..600,0..1,0&display=block" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app" id="app"></div>
+  <nav class="bottom-nav" id="nav" hidden>
+    <button data-go="#/plan"><span class="ms">calendar_month</span>Plan</button>
+    <button data-go="#/courses"><span class="ms">shopping_basket</span>Courses</button>
+    <button data-go="#/profil"><span class="ms">account_circle</span>Profil</button>
+  </nav>
+  <script src="coursesCatalogue.js"></script>
+  <script src="coursesEngine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,2990 @@
+{
+ "_meta": {
+  "source": "nutrition-app/lib/recipes-v2.js",
+  "recettes_parcourues": 382,
+  "produits_achat": 172,
+  "genere_par": "couche courses (rayons validés, staples, unités d'achat, groupes)"
+ },
+ "interchangeable_groups": {
+  "poisson_blanc": {
+   "display_name": "poisson blanc (au choix)",
+   "rayon": "Poissonnerie",
+   "note": "Variétés interchangeables (cabillaud, colin, merlu, lieu noir) — total au poids."
+  }
+ },
+ "produits": [
+  {
+   "canonical_id": "courgette",
+   "produit": "courgette",
+   "aliases": [
+    "courgette",
+    "courgettes"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 60,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "tomate",
+   "produit": "tomate",
+   "aliases": [
+    "tomate",
+    "tomates"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "piece",
+    "g"
+   ],
+   "nb_recettes": 58,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac",
+   "poids_piece_g": 125
+  },
+  {
+   "canonical_id": "carottes",
+   "produit": "carottes",
+   "aliases": [
+    "carottes",
+    "carotte"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 46,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "banane",
+   "produit": "banane",
+   "aliases": [
+    "banane"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 42,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "pommes_de_terre",
+   "produit": "pommes de terre",
+   "aliases": [
+    "pommes de terre"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 41,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "epinards",
+   "produit": "epinards",
+   "aliases": [
+    "epinards"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 29,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "concombre",
+   "produit": "concombre",
+   "aliases": [
+    "concombre"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 28,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "poivron",
+   "produit": "poivron",
+   "aliases": [
+    "poivron"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 20,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac",
+   "poids_piece_g": 160
+  },
+  {
+   "canonical_id": "brocoli",
+   "produit": "brocoli",
+   "aliases": [
+    "brocoli",
+    "brocolis"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 16,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "pomme",
+   "produit": "pomme",
+   "aliases": [
+    "pomme"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 15,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "salade_verte",
+   "produit": "salade verte",
+   "aliases": [
+    "salade verte",
+    "salade"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 15,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "tomates_cerises",
+   "produit": "tomates cerises",
+   "aliases": [
+    "tomates cerises"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 12,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "oignon",
+   "produit": "oignon",
+   "aliases": [
+    "oignon"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "piece",
+    "g"
+   ],
+   "nb_recettes": 11,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "ail",
+   "produit": "ail",
+   "aliases": [
+    "ail"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 10,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "avocat",
+   "produit": "avocat",
+   "aliases": [
+    "avocat"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 10,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité",
+   "poids_piece_g": 170
+  },
+  {
+   "canonical_id": "fruits_rouges",
+   "produit": "fruits rouges",
+   "aliases": [
+    "fruits rouges"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 10,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "champignons",
+   "produit": "champignons",
+   "aliases": [
+    "champignons"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 9,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "citron",
+   "produit": "citron",
+   "aliases": [
+    "citron"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 9,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "aubergine",
+   "produit": "aubergine",
+   "aliases": [
+    "aubergine"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 8,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "basilic",
+   "produit": "basilic",
+   "aliases": [
+    "basilic"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "haricots_verts",
+   "produit": "haricots verts",
+   "aliases": [
+    "haricots verts"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "petits_pois",
+   "produit": "petits pois",
+   "aliases": [
+    "petits pois"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "poire",
+   "produit": "poire",
+   "aliases": [
+    "poire"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "fraises",
+   "produit": "fraises",
+   "aliases": [
+    "fraises"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "persil",
+   "produit": "persil",
+   "aliases": [
+    "persil"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "roquette",
+   "produit": "roquette",
+   "aliases": [
+    "roquette"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "patate_douce",
+   "produit": "patate douce",
+   "aliases": [
+    "patate douce"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "ananas",
+   "produit": "ananas",
+   "aliases": [
+    "ananas"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "chou_fleur",
+   "produit": "chou-fleur",
+   "aliases": [
+    "chou-fleur"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "clementine",
+   "produit": "clementine",
+   "aliases": [
+    "clementine"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "kiwi",
+   "produit": "kiwi",
+   "aliases": [
+    "kiwi"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "mangue",
+   "produit": "mangue",
+   "aliases": [
+    "mangue"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "menthe",
+   "produit": "menthe",
+   "aliases": [
+    "menthe"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "peche",
+   "produit": "peche",
+   "aliases": [
+    "peche"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "à l'unité"
+  },
+  {
+   "canonical_id": "aneth",
+   "produit": "aneth",
+   "aliases": [
+    "aneth"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "piment_doux",
+   "produit": "piment doux",
+   "aliases": [
+    "piment doux"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "raisin",
+   "produit": "raisin",
+   "aliases": [
+    "raisin"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "raisins_secs",
+   "produit": "raisins secs",
+   "aliases": [
+    "raisins secs"
+   ],
+   "rayon": "Fruits & légumes",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "en vrac"
+  },
+  {
+   "canonical_id": "blanc_de_poulet",
+   "produit": "blanc de poulet",
+   "aliases": [
+    "blanc de poulet",
+    "blanc de poulet cuit"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 42,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "conversion_cru_cuit": {
+    "g_cuit_par_g_cru": 0.7,
+    "achat_depuis_cuit": "quantite_cuite / 0.7",
+    "note": "Les recettes melangent cru et cuit."
+   },
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "escalope_de_dinde",
+   "produit": "escalope de dinde",
+   "aliases": [
+    "escalope de dinde"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 20,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "boeuf_hache_5",
+   "produit": "boeuf hache 5%",
+   "aliases": [
+    "boeuf hache 5%"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 18,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "blanc_de_dinde",
+   "produit": "blanc de dinde",
+   "aliases": [
+    "blanc de dinde"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "tranche",
+    "g"
+   ],
+   "nb_recettes": 8,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "boeuf_emince",
+   "produit": "boeuf emince",
+   "aliases": [
+    "boeuf emince"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "steak_hache_5",
+   "produit": "steak hache 5%",
+   "aliases": [
+    "steak hache 5%"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "escalope_de_veau",
+   "produit": "escalope de veau",
+   "aliases": [
+    "escalope de veau"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "agneau_hache",
+   "produit": "agneau hache",
+   "aliases": [
+    "agneau hache"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "dinde_hachee",
+   "produit": "dinde hachee",
+   "aliases": [
+    "dinde hachee"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "escalope_de_poulet",
+   "produit": "escalope de poulet",
+   "aliases": [
+    "escalope de poulet"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "saucisse_de_volaille",
+   "produit": "saucisse de volaille",
+   "aliases": [
+    "saucisse de volaille"
+   ],
+   "rayon": "Boucherie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "tofu_ferme",
+   "produit": "tofu ferme",
+   "aliases": [
+    "tofu ferme"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 12,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "houmous",
+   "produit": "houmous",
+   "aliases": [
+    "houmous"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "jambon_blanc",
+   "produit": "jambon blanc",
+   "aliases": [
+    "jambon blanc"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "piece",
+   "unites_recette": [
+    "tranche"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "tofu_nature",
+   "produit": "tofu nature",
+   "aliases": [
+    "tofu nature"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "falafels_sans_gluten",
+   "produit": "falafels sans gluten",
+   "aliases": [
+    "falafels sans gluten"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "saumon_fume",
+   "produit": "saumon fume",
+   "aliases": [
+    "saumon fume"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "falafels",
+   "produit": "falafels",
+   "aliases": [
+    "falafels"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "tempeh",
+   "produit": "tempeh",
+   "aliases": [
+    "tempeh"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "tofu_soyeux",
+   "produit": "tofu soyeux",
+   "aliases": [
+    "tofu soyeux"
+   ],
+   "rayon": "Charcuterie / Traiteur",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 barquette"
+  },
+  {
+   "canonical_id": "saumon",
+   "produit": "saumon",
+   "aliases": [
+    "saumon",
+    "filet de saumon"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 8,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "crevettes",
+   "produit": "crevettes",
+   "aliases": [
+    "crevettes"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "cabillaud",
+   "produit": "cabillaud",
+   "aliases": [
+    "cabillaud",
+    "filet de cabillaud"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": "poisson_blanc",
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "merlu",
+   "produit": "merlu",
+   "aliases": [
+    "merlu",
+    "filet de merlu"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": "poisson_blanc",
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "colin",
+   "produit": "colin",
+   "aliases": [
+    "colin"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": "poisson_blanc",
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "truite",
+   "produit": "truite",
+   "aliases": [
+    "truite"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "lieu_noir",
+   "produit": "lieu noir",
+   "aliases": [
+    "lieu noir"
+   ],
+   "rayon": "Poissonnerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": "poisson_blanc",
+   "is_staple": false,
+   "purchase_unit": "au poids"
+  },
+  {
+   "canonical_id": "oeufs",
+   "produit": "oeufs",
+   "aliases": [
+    "oeufs",
+    "oeuf"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 49,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 boite (6 ou 12)"
+  },
+  {
+   "canonical_id": "lait_demi_ecreme",
+   "produit": "lait demi-ecreme",
+   "aliases": [
+    "lait demi-ecreme"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 26,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 brique (1 L)"
+  },
+  {
+   "canonical_id": "skyr_nature",
+   "produit": "skyr nature",
+   "aliases": [
+    "skyr nature"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 25,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "emmental",
+   "produit": "emmental",
+   "aliases": [
+    "emmental"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 21,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "creme_legere",
+   "produit": "creme legere",
+   "aliases": [
+    "creme legere"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 18,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot / brique"
+  },
+  {
+   "canonical_id": "fromage_blanc",
+   "produit": "fromage blanc",
+   "aliases": [
+    "fromage blanc"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 18,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "fromage_frais",
+   "produit": "fromage frais",
+   "aliases": [
+    "fromage frais"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 18,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "feta",
+   "produit": "feta",
+   "aliases": [
+    "feta"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 9,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "mozzarella",
+   "produit": "mozzarella",
+   "aliases": [
+    "mozzarella"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 8,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "parmesan",
+   "produit": "parmesan",
+   "aliases": [
+    "parmesan"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 8,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "beurre",
+   "produit": "beurre",
+   "aliases": [
+    "beurre"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 plaquette"
+  },
+  {
+   "canonical_id": "yaourt_grec",
+   "produit": "yaourt grec",
+   "aliases": [
+    "yaourt grec"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "ricotta",
+   "produit": "ricotta",
+   "aliases": [
+    "ricotta"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "yaourt_nature",
+   "produit": "yaourt nature",
+   "aliases": [
+    "yaourt nature"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "yaourt_soja_nature",
+   "produit": "yaourt soja nature",
+   "aliases": [
+    "yaourt soja nature"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "chevre_frais",
+   "produit": "chevre frais",
+   "aliases": [
+    "chevre frais"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "cheddar",
+   "produit": "cheddar",
+   "aliases": [
+    "cheddar"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "halloumi",
+   "produit": "halloumi",
+   "aliases": [
+    "halloumi"
+   ],
+   "rayon": "Crèmerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 portion / sachet"
+  },
+  {
+   "canonical_id": "pain_complet",
+   "produit": "pain complet",
+   "aliases": [
+    "pain complet"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "tranche"
+   ],
+   "nb_recettes": 30,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "galettes_de_riz",
+   "produit": "galettes de riz",
+   "aliases": [
+    "galettes de riz"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "wrap_de_ble",
+   "produit": "wrap de ble",
+   "aliases": [
+    "wrap de ble"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "tortilla_de_ble",
+   "produit": "tortilla de ble",
+   "aliases": [
+    "tortilla de ble"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "crackers_de_ble",
+   "produit": "crackers de ble",
+   "aliases": [
+    "crackers de ble"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "pain_sans_gluten",
+   "produit": "pain sans gluten",
+   "aliases": [
+    "pain sans gluten"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "tranche"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "bagel_nature",
+   "produit": "bagel nature",
+   "aliases": [
+    "bagel nature"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "galette_de_sarrasin",
+   "produit": "galette de sarrasin",
+   "aliases": [
+    "galette de sarrasin"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "galettes_de_mais",
+   "produit": "galettes de mais",
+   "aliases": [
+    "galettes de mais"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "pain_pita",
+   "produit": "pain pita",
+   "aliases": [
+    "pain pita"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "pate_brisee",
+   "produit": "pate brisee",
+   "aliases": [
+    "pate brisee"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "tortillas_de_mais",
+   "produit": "tortillas de mais",
+   "aliases": [
+    "tortillas de mais"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "wrap_de_mais_sans_gluten",
+   "produit": "wrap de mais sans gluten",
+   "aliases": [
+    "wrap de mais sans gluten"
+   ],
+   "rayon": "Boulangerie",
+   "unite_base": "piece",
+   "unites_recette": [
+    "piece"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "huile_d_olive",
+   "produit": "huile d'olive",
+   "aliases": [
+    "huile d'olive"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a cafe",
+    "c. a soupe"
+   ],
+   "nb_recettes": 165,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 bouteille"
+  },
+  {
+   "canonical_id": "riz",
+   "produit": "riz",
+   "aliases": [
+    "riz",
+    "riz cru",
+    "riz cuit"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 93,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "conversion_cru_cuit": {
+    "g_cuit_par_g_cru": 2.7,
+    "achat_depuis_cuit": "quantite_cuite / 2.7",
+    "note": "Les recettes melangent cru et cuit."
+   },
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "tomates_concassees",
+   "produit": "tomates concassees",
+   "aliases": [
+    "tomates concassees"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 75,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte (400 g)",
+   "conditionnement_g": 400
+  },
+  {
+   "canonical_id": "pois_chiches",
+   "produit": "pois chiches",
+   "aliases": [
+    "pois chiches"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 25,
+   "forme_achat": "cuit (conserve / poids egoutte)",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte/bocal (250 g égoutté)",
+   "conditionnement_g": 250
+  },
+  {
+   "canonical_id": "jus_de_citron",
+   "produit": "jus de citron",
+   "aliases": [
+    "jus de citron"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a soupe"
+   ],
+   "nb_recettes": 24,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 flacon"
+  },
+  {
+   "canonical_id": "pates",
+   "produit": "pates",
+   "aliases": [
+    "pates crues",
+    "pates"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 23,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "lentilles",
+   "produit": "lentilles",
+   "aliases": [
+    "lentilles"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 20,
+   "forme_achat": "cuit (conserve / poids egoutte)",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte/bocal (250 g égoutté)",
+   "conditionnement_g": 250
+  },
+  {
+   "canonical_id": "thon_au_naturel",
+   "produit": "thon au naturel",
+   "aliases": [
+    "thon au naturel"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 20,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte (140 g)",
+   "conditionnement_g": 140
+  },
+  {
+   "canonical_id": "tamari",
+   "produit": "tamari",
+   "aliases": [
+    "tamari"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a soupe"
+   ],
+   "nb_recettes": 19,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 bouteille"
+  },
+  {
+   "canonical_id": "flocons_d_avoine",
+   "produit": "flocons d'avoine",
+   "aliases": [
+    "flocons d'avoine"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 16,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "huile_de_colza",
+   "produit": "huile de colza",
+   "aliases": [
+    "huile de colza"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a soupe",
+    "c. a cafe"
+   ],
+   "nb_recettes": 16,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 bouteille"
+  },
+  {
+   "canonical_id": "miel",
+   "produit": "miel",
+   "aliases": [
+    "miel"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "c. a cafe"
+   ],
+   "nb_recettes": 13,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "beurre_de_cacahuete",
+   "produit": "beurre de cacahuete",
+   "aliases": [
+    "beurre de cacahuete"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 12,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "cannelle",
+   "produit": "cannelle",
+   "aliases": [
+    "cannelle"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 12,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "flocons_d_avoine_sans_gluten",
+   "produit": "flocons d'avoine sans gluten",
+   "aliases": [
+    "flocons d'avoine sans gluten"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 10,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "haricots_rouges",
+   "produit": "haricots rouges",
+   "aliases": [
+    "haricots rouges"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 10,
+   "forme_achat": "cuit (conserve / poids egoutte)",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte/bocal (250 g égoutté)",
+   "conditionnement_g": 250
+  },
+  {
+   "canonical_id": "paprika",
+   "produit": "paprika",
+   "aliases": [
+    "paprika"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee",
+    "c. a cafe"
+   ],
+   "nb_recettes": 10,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "curry",
+   "produit": "curry",
+   "aliases": [
+    "curry"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "c. a cafe"
+   ],
+   "nb_recettes": 9,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "lait_de_coco",
+   "produit": "lait de coco",
+   "aliases": [
+    "lait de coco"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 9,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte (400 ml)",
+   "conditionnement_g": 400
+  },
+  {
+   "canonical_id": "quinoa",
+   "produit": "quinoa",
+   "aliases": [
+    "quinoa cru",
+    "quinoa"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 8,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "amandes",
+   "produit": "amandes",
+   "aliases": [
+    "amandes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "bouillon_de_legumes",
+   "produit": "bouillon de legumes",
+   "aliases": [
+    "bouillon de legumes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 brique/cube"
+  },
+  {
+   "canonical_id": "compote_sans_sucres_ajoutes",
+   "produit": "compote sans sucres ajoutes",
+   "aliases": [
+    "compote sans sucres ajoutes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "graines_de_chia",
+   "produit": "graines de chia",
+   "aliases": [
+    "graines de chia"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 7,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "haricots_blancs",
+   "produit": "haricots blancs",
+   "aliases": [
+    "haricots blancs"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cuit (conserve / poids egoutte)",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte/bocal (250 g égoutté)",
+   "conditionnement_g": 250
+  },
+  {
+   "canonical_id": "olives_noires",
+   "produit": "olives noires",
+   "aliases": [
+    "olives noires"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "riz_arborio",
+   "produit": "riz arborio",
+   "aliases": [
+    "riz arborio"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "mais",
+   "produit": "mais",
+   "aliases": [
+    "mais"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 6,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte (140 g)",
+   "conditionnement_g": 140
+  },
+  {
+   "canonical_id": "graines_de_sesame",
+   "produit": "graines de sesame",
+   "aliases": [
+    "graines de sesame"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "c. a cafe",
+    "c. a soupe"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "lait_de_riz",
+   "produit": "lait de riz",
+   "aliases": [
+    "lait de riz"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 brique (1 L)"
+  },
+  {
+   "canonical_id": "muesli",
+   "produit": "muesli",
+   "aliases": [
+    "muesli"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "noix",
+   "produit": "noix",
+   "aliases": [
+    "noix"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "nouilles_de_riz",
+   "produit": "nouilles de riz",
+   "aliases": [
+    "nouilles de riz"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "polenta",
+   "produit": "polenta",
+   "aliases": [
+    "polenta"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 5,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "cacao_non_sucre",
+   "produit": "cacao non sucre",
+   "aliases": [
+    "cacao non sucre"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "c. a cafe",
+    "c. a soupe"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "cereales_completes",
+   "produit": "cereales completes",
+   "aliases": [
+    "cereales completes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "chocolat_noir",
+   "produit": "chocolat noir",
+   "aliases": [
+    "chocolat noir"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "compote_de_pomme_sans_sucre_ajoute",
+   "produit": "compote de pomme sans sucre ajoute",
+   "aliases": [
+    "compote de pomme sans sucre ajoute"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "pates_sans_gluten",
+   "produit": "pates sans gluten",
+   "aliases": [
+    "pates sans gluten"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "semoule",
+   "produit": "semoule",
+   "aliases": [
+    "semoule",
+    "semoule crue"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "whey_vanille",
+   "produit": "whey vanille",
+   "aliases": [
+    "whey vanille"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 4,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "boulgour",
+   "produit": "boulgour",
+   "aliases": [
+    "boulgour",
+    "boulgour cru"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "cumin",
+   "produit": "cumin",
+   "aliases": [
+    "cumin"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee",
+    "c. a cafe"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "lait_d_amande",
+   "produit": "lait d'amande",
+   "aliases": [
+    "lait d'amande"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 brique (1 L)"
+  },
+  {
+   "canonical_id": "lait_de_soja",
+   "produit": "lait de soja",
+   "aliases": [
+    "lait de soja"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "ml"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 brique (1 L)"
+  },
+  {
+   "canonical_id": "pesto",
+   "produit": "pesto",
+   "aliases": [
+    "pesto"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "whey_chocolat",
+   "produit": "whey chocolat",
+   "aliases": [
+    "whey chocolat"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "herbes_de_provence",
+   "produit": "herbes de Provence",
+   "aliases": [
+    "herbes de Provence"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "lentilles_corail",
+   "produit": "lentilles corail",
+   "aliases": [
+    "lentilles corail crues",
+    "lentilles corail"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "noisettes",
+   "produit": "noisettes",
+   "aliases": [
+    "noisettes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "pois_casses",
+   "produit": "pois casses",
+   "aliases": [
+    "pois casses"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cuit (conserve / poids egoutte)",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte/bocal (250 g égoutté)",
+   "conditionnement_g": 250
+  },
+  {
+   "canonical_id": "sirop_d_agave",
+   "produit": "sirop d'agave",
+   "aliases": [
+    "sirop d'agave"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a cafe"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 flacon"
+  },
+  {
+   "canonical_id": "tahini",
+   "produit": "tahini",
+   "aliases": [
+    "tahini"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "c. a soupe"
+   ],
+   "nb_recettes": 2,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "cacahuetes",
+   "produit": "cacahuetes",
+   "aliases": [
+    "cacahuetes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "confiture",
+   "produit": "confiture",
+   "aliases": [
+    "confiture"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "coquillettes",
+   "produit": "coquillettes",
+   "aliases": [
+    "coquillettes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "corn_flakes",
+   "produit": "corn flakes",
+   "aliases": [
+    "corn flakes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "dattes",
+   "produit": "dattes",
+   "aliases": [
+    "dattes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "fecule_de_mais",
+   "produit": "fecule de mais",
+   "aliases": [
+    "fecule de mais"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "feuilles_de_lasagne",
+   "produit": "feuilles de lasagne",
+   "aliases": [
+    "feuilles de lasagne"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "gnocchi",
+   "produit": "gnocchi",
+   "aliases": [
+    "gnocchi"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "levure_chimique_sans_gluten",
+   "produit": "levure chimique sans gluten",
+   "aliases": [
+    "levure chimique sans gluten"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "c. a cafe"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "nouilles_de_ble",
+   "produit": "nouilles de ble",
+   "aliases": [
+    "nouilles de ble"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "olives_vertes",
+   "produit": "olives vertes",
+   "aliases": [
+    "olives vertes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "pesto_rouge",
+   "produit": "pesto rouge",
+   "aliases": [
+    "pesto rouge"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "puree_d_amandes",
+   "produit": "puree d'amandes",
+   "aliases": [
+    "puree d'amandes"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot"
+  },
+  {
+   "canonical_id": "riz_souffle_nature",
+   "produit": "riz souffle nature",
+   "aliases": [
+    "riz souffle nature"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "sauce_soja",
+   "produit": "sauce soja",
+   "aliases": [
+    "sauce soja"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a soupe"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 bouteille"
+  },
+  {
+   "canonical_id": "sel",
+   "produit": "sel",
+   "aliases": [
+    "sel"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "pincee"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 pot d'épice"
+  },
+  {
+   "canonical_id": "sirop_d_erable",
+   "produit": "sirop d'erable",
+   "aliases": [
+    "sirop d'erable"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a cafe"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 flacon"
+  },
+  {
+   "canonical_id": "spaghetti",
+   "produit": "spaghetti",
+   "aliases": [
+    "spaghetti"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "vinaigre",
+   "produit": "vinaigre",
+   "aliases": [
+    "vinaigre"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "ml",
+   "unites_recette": [
+    "c. a cafe"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 bouteille"
+  },
+  {
+   "canonical_id": "whey",
+   "produit": "whey",
+   "aliases": [
+    "whey"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 paquet"
+  },
+  {
+   "canonical_id": "sardines_au_naturel",
+   "produit": "sardines au naturel",
+   "aliases": [
+    "sardines au naturel"
+   ],
+   "rayon": "Épicerie",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": true,
+   "purchase_unit": "1 boîte (90 g)",
+   "conditionnement_g": 90
+  },
+  {
+   "canonical_id": "edamame",
+   "produit": "edamame",
+   "aliases": [
+    "edamame"
+   ],
+   "rayon": "Surgelés",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 3,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 sachet"
+  },
+  {
+   "canonical_id": "poisson_pane",
+   "produit": "poisson pane",
+   "aliases": [
+    "poisson pane"
+   ],
+   "rayon": "Surgelés",
+   "unite_base": "g",
+   "unites_recette": [
+    "g"
+   ],
+   "nb_recettes": 1,
+   "forme_achat": "cru",
+   "interchangeable_group": null,
+   "is_staple": false,
+   "purchase_unit": "1 sachet"
+  }
+ ]
+}
