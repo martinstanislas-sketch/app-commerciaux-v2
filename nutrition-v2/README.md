@@ -31,3 +31,12 @@ Accueil · Connexion · Vérification e-mail · Questionnaire (objectif, profil,
 Génération · Plan (jours, repères du jour, cartes repas, remplacer un repas, fiche recette) ·
 Courses (personnes, cases à cocher, placard, partage, PDF) · Profil (besoins, réglages, nouveau plan,
 déconnexion, suppression du compte).
+
+## Reprise des clients Protocole 42
+Les clients actuels sont dans la base de l'app principale (`data.db`, table `nutrition_clients`).
+```bash
+node tools/importer-clients-p42.js /chemin/vers/data.db              # simulation : affiche le bilan, n'écrit rien
+node tools/importer-clients-p42.js /chemin/vers/data.db --appliquer  # import réel
+```
+Reprend e-mail, prénom, profil, préférences et plan. La source est ouverte en lecture seule ; un compte
+v2 qui a déjà un plan n'est jamais écrasé. L'objectif « challenge » est converti en « perte ».
