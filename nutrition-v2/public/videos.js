@@ -68,17 +68,27 @@ let vidRecherche = '';
 const sansAccents = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const vidMiniature = (id) => `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 
+// L'onglet « Bonus » regroupe deux vues : Séances (vidéos, inchangées) et Guides (PDF).
+let bonusVue = 'seances';
+
 function ecranVideos() {
+  const guides = bonusVue === 'guides';
+  const seg = `<div class="bonus-seg" role="tablist" aria-label="Type de contenu">
+      <button role="tab" data-bv="seances" aria-selected="${!guides}" class="${guides ? '' : 'on'}">${ms('smart_display')}Séances</button>
+      <button role="tab" data-bv="guides" aria-selected="${guides}" class="${guides ? 'on' : ''}">${ms('menu_book')}Guides</button></div>`;
+  if (guides) return ecranGuides(seg);
   app.innerHTML = `
   <section class="screen with-nav videos-screen">
-    <div class="topbar">${logo()}<span class="title">Vidéos</span></div>
+    <div class="topbar">${logo()}<span class="title">Bonus</span></div>
     <h1 class="h1">Tes séances My Coach</h1>
     <p class="lead">Continue à bouger où que tu sois.</p>
+    ${seg}
     <div class="input-wrap vid-search">${ms('search')}<input id="vidQ" type="search" placeholder="Rechercher une séance…" aria-label="Rechercher une séance" autocomplete="off" value="${esc(vidRecherche)}" /></div>
     <div class="vid-filtres" role="tablist">${VIDEO_FILTRES.filter((f) => f.v === 'tous' || VIDEOS.some((v) => v.category === f.v)).map((f) => `<button class="chip${f.v === vidFiltre ? ' on' : ''}" data-vf="${f.v}" role="tab" aria-selected="${f.v === vidFiltre}">${f.t}</button>`).join('')}</div>
     <p class="vid-count muted small" id="vidCount"></p>
     <div class="vid-grid" id="vidGrid"></div>
   </section>`;
+  brancherBonusSeg();
   const q = document.getElementById('vidQ');
   q.addEventListener('input', () => { vidRecherche = q.value; vidListe(); });
   app.querySelectorAll('[data-vf]').forEach((b) => (b.onclick = () => {
@@ -87,6 +97,163 @@ function ecranVideos() {
     vidListe();
   }));
   vidListe();
+}
+
+function brancherBonusSeg() {
+  app.querySelectorAll('[data-bv]').forEach((b) => (b.onclick = () => {
+    if (bonusVue === b.dataset.bv) return;
+    bonusVue = b.dataset.bv; ecranVideos(); window.scrollTo(0, 0);
+  }));
+}
+
+// --- Guides PDF -------------------------------------------------------------------
+const GUIDE_FILTRES = [
+  { v: 'tous', t: 'Tous' },
+  { v: 'mindset', t: 'Mindset', ic: 'psychology' },
+  { v: 'nutrition', t: 'Nutrition', ic: 'restaurant' },
+  { v: 'coaching', t: 'Coaching', ic: 'fitness_center' },
+];
+let gdFiltre = 'tous';
+let gdRecherche = '';
+
+// Jour du challenge : le jour 1 est la date de la première mesure de l'onglet Perf
+// (le questionnaire la crée), à défaut la date du plan, à défaut aujourd'hui.
+function jourChallenge() {
+  const dates = ((typeof P !== 'undefined' && P.mesures) || []).map((m) => m.date).filter(Boolean).sort();
+  const debut = dates[0] || (S.planCreeLe ? jourISO(S.planCreeLe) : (S.profil && S.profil.poids_kg ? jourISO(Date.now()) : null));
+  if (!debut) return 1;
+  return Math.max(1, Math.floor((dateDe(jourISO(Date.now())) - dateDe(debut)) / 864e5) + 1);
+}
+const gdUrl = (g, dl) => `api/guides/${encodeURIComponent(g.slug)}.pdf?c=${encodeURIComponent((studio && studio.code) || '')}${dl ? '&dl=1&nom=' + encodeURIComponent(g.subtitle || g.title) : ''}`;
+const gdCat = (c) => GUIDE_FILTRES.find((f) => f.v === c) || { t: c, ic: 'menu_book' };
+
+function ecranGuides(seg) {
+  if (typeof perfDepartAuto === 'function') perfDepartAuto();
+  const jour = jourChallenge();
+  const ouverts = GUIDES.filter((g) => g.day <= jour).length;
+  app.innerHTML = `
+  <section class="screen with-nav videos-screen guides-screen">
+    <div class="topbar">${logo()}<span class="title">Bonus</span></div>
+    <h1 class="h1">Tes guides My Coach</h1>
+    <p class="lead">Des conseils concrets, débloqués au fil de ton challenge.</p>
+    ${seg}
+    <div class="card gd-jour"><span class="ic">${ms('local_fire_department', 'fill')}</span>
+      <div><b>Jour ${jour} de ton challenge</b><span>${ouverts} guide${ouverts > 1 ? 's' : ''} débloqué${ouverts > 1 ? 's' : ''} sur ${GUIDES.length}</span></div></div>
+    <div class="input-wrap vid-search">${ms('search')}<input id="gdQ" type="search" placeholder="Rechercher un guide…" aria-label="Rechercher un guide" autocomplete="off" value="${esc(gdRecherche)}" /></div>
+    <div class="vid-filtres" role="tablist">${GUIDE_FILTRES.map((f) => `<button class="chip${f.v === gdFiltre ? ' on' : ''}" data-gf="${f.v}" role="tab" aria-selected="${f.v === gdFiltre}">${f.t}</button>`).join('')}</div>
+    <p class="vid-count muted small" id="gdCount"></p>
+    <div class="vid-grid" id="gdGrid"></div>
+  </section>`;
+  brancherBonusSeg();
+  const q = document.getElementById('gdQ');
+  q.addEventListener('input', () => { gdRecherche = q.value; gdListe(jour); });
+  app.querySelectorAll('[data-gf]').forEach((b) => (b.onclick = () => {
+    gdFiltre = b.dataset.gf;
+    app.querySelectorAll('[data-gf]').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); });
+    gdListe(jour);
+  }));
+  gdListe(jour);
+}
+
+function gdListe(jour) {
+  const terme = sansAccents(gdRecherche.trim());
+  const liste = GUIDES.map((g, i) => ({ ...g, i }))
+    .filter((g) => (gdFiltre === 'tous' || g.category === gdFiltre) && (!terme || sansAccents(g.title + ' ' + g.subtitle).includes(terme)))
+    .sort((a, b) => a.day - b.day || a.i - b.i);
+  document.getElementById('gdCount').textContent = `${liste.length} guide${liste.length > 1 ? 's' : ''}`;
+  const grille = document.getElementById('gdGrid');
+  grille.innerHTML = liste.length ? liste.map((g) => {
+    const verrou = g.day > jour;
+    const cat = gdCat(g.category);
+    return `<article class="card vid-card gd-card${verrou ? ' locked' : ''}">
+      <button class="vid-thumb gd-thumb" data-gd="${g.i}" ${verrou ? 'aria-disabled="true"' : ''} aria-label="${verrou ? 'Débloqué au jour ' + g.day : 'Lire le guide ' + esc(g.title)}">
+        <img src="guides/${esc(g.slug)}.jpg" alt="" loading="lazy" />
+        ${verrou ? `<span class="gd-lock">${ms('lock', 'fill')}Débloqué au jour ${g.day}</span>` : ''}
+      </button>
+      <div class="body">
+        <h3 class="name">${esc(g.title)}</h3>
+        <p class="gd-sub">${esc(g.subtitle)}</p>
+        <div class="vid-meta">
+          <span>${ms(cat.ic)}${esc(cat.t)}</span>
+          <span>${ms('calendar_today')}Jour ${g.day}</span>
+          <span>${ms('description')}${g.pages} pages</span>
+        </div>
+        ${verrou ? `<button class="btn btn-block vid-btn gd-btn-lock" data-gd="${g.i}" aria-disabled="true">${ms('lock')}Débloqué au jour ${g.day}</button>`
+          : `<button class="btn btn-primary btn-block vid-btn" data-gd="${g.i}">${ms('menu_book')}Lire le guide</button>`}
+      </div></article>`;
+  }).join('')
+    : `<div class="card vid-vide">${ms('search_off')}<p>Aucun guide ne correspond à « ${esc(gdRecherche)} ».</p><button class="btn btn-ghost" id="gdReset">Voir tous les guides</button></div>`;
+  grille.querySelectorAll('[data-gd]').forEach((b) => (b.onclick = () => {
+    const g = GUIDES[Number(b.dataset.gd)];
+    if (g.day > jour) return toast(`Ce guide se débloque au jour ${g.day} de ton challenge.`);
+    gdOuvrir(g);
+  }));
+  const reset = document.getElementById('gdReset');
+  if (reset) reset.onclick = () => { gdRecherche = ''; gdFiltre = 'tous'; ecranVideos(); };
+}
+
+// Lecture intégrée : PDF.js (hébergé avec l'app) dessine chaque page ; téléchargement
+// du PDF d'origine. Si le lecteur ne charge pas, lien de secours vers le PDF.
+let pdfjsPromesse = null;
+function chargerPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfjsPromesse) {
+    pdfjsPromesse = new Promise((ok, ko) => {
+      const sc = document.createElement('script');
+      sc.src = 'vendor/pdfjs/pdf.min.js';
+      sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs/pdf.worker.min.js'; ok(window.pdfjsLib); };
+      sc.onerror = () => { pdfjsPromesse = null; ko(new Error('Lecteur indisponible.')); };
+      document.head.appendChild(sc);
+    });
+  }
+  return pdfjsPromesse;
+}
+
+function gdOuvrir(g) {
+  const back = document.createElement('div');
+  back.className = 'sheet-back gd-modal';
+  back.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(g.title)}">
+    <div class="top"><h2>${esc(g.title)}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div>
+    <div class="gd-actions">
+      <a class="btn btn-soft" href="${gdUrl(g, true)}" download>${ms('download')}Télécharger</a>
+      <span class="muted small">${g.pages} pages · ${esc(gdCat(g.category).t)}</span>
+    </div>
+    <div class="gd-pages" id="gdPages"><div class="gd-load"><div class="spinner"></div><p>Ouverture du guide…</p></div></div>
+  </div>`;
+  let annule = false;
+  const fermer = () => { annule = true; back.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', echap); };
+  const echap = (e) => { if (e.key === 'Escape') fermer(); };
+  back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) fermer(); });
+  document.addEventListener('keydown', echap);
+  document.body.style.overflow = 'hidden';
+  document.body.appendChild(back);
+
+  const zone = back.querySelector('#gdPages');
+  (async () => {
+    try {
+      const lib = await chargerPdfJs();
+      const doc = await lib.getDocument({ url: gdUrl(g, false) }).promise;
+      if (annule) return;
+      zone.innerHTML = '';
+      const largeur = zone.clientWidth || 360;
+      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      for (let n = 1; n <= doc.numPages; n++) {
+        if (annule) return;
+        const page = await doc.getPage(n);
+        const vp1 = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: (largeur / vp1.width) * ratio });
+        const c = document.createElement('canvas');
+        c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+        c.setAttribute('aria-label', `Page ${n} sur ${doc.numPages}`);
+        zone.appendChild(c);
+        await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      }
+    } catch (ex) {
+      if (annule) return;
+      zone.innerHTML = `<div class="gd-load">${ms('error')}<p>Le guide n'a pas pu s'afficher ici.</p>
+        <a class="btn btn-primary" href="${gdUrl(g, false)}" target="_blank" rel="noopener">${ms('open_in_new')}Ouvrir le PDF</a></div>`;
+    }
+  })();
 }
 
 function vidListe() {

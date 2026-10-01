@@ -120,6 +120,31 @@ function exigeStudio(req, res, next) {
   res.status(401).json({ ok: false, studioInvalide: true, error: 'Code studio requis.' });
 }
 
+// --- Guides PDF (onglet Bonus) ----------------------------------------------------
+// Fichiers dans data/guides/<slug>.pdf. Le code studio est passé dans l'adresse
+// (?c=…) car la lecture et le téléchargement ne peuvent pas envoyer d'en-tête.
+const GUIDES_DIR = path.join(__dirname, 'data', 'guides');
+app.get('/api/guides/:slug.pdf', (req, res) => {
+  const slug = String(req.params.slug || '');
+  if (!/^[a-z0-9-]{1,80}$/.test(slug)) return res.status(404).end();
+  const ip = ipClient(req);
+  if (!trouverStudio(req.query.c)) {
+    if (limiteur.bloque(ip)) return res.status(429).end();
+    limiteur.echec(ip);
+    return res.status(401).json({ ok: false, studioInvalide: true, error: 'Code studio requis.' });
+  }
+  const fichier = path.join(GUIDES_DIR, slug + '.pdf');
+  require('fs').stat(fichier, (err, st) => {
+    if (err || !st.isFile()) return res.status(404).json({ ok: false, error: 'Guide introuvable.' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    const nom = String(req.query.nom || slug).replace(/[^\w\s'’,()-àâäçéèêëîïôöùûüÿœæÀ-Ÿ]/g, '').slice(0, 90) || slug;
+    const dispo = req.query.dl ? 'attachment' : 'inline';
+    res.setHeader('Content-Disposition', `${dispo}; filename="${slug}.pdf"; filename*=UTF-8''${encodeURIComponent(nom + '.pdf')}`);
+    res.sendFile(fichier);
+  });
+});
+
 app.post('/api/needs', exigeStudio, (req, res) => {
   try { res.json({ ok: true, besoins: calculerBesoins(req.body || {}) }); } catch (e) { res.status(400).json({ ok: false, error: 'Profil invalide.' }); }
 });

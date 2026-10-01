@@ -155,11 +155,12 @@ async function syncServeur(champs) {
 // ---------------------------------------------------------------------------
 const ROUTES = {
   '': ecranAccueil, code: ecranCode, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
-  questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, perf: ecranPerf, videos: ecranVideos, profil: ecranProfil,
+  questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, perf: ecranPerf, bonus: ecranVideos, profil: ecranProfil,
 };
 function render() {
   const [, name = '', arg] = location.hash.split('/');
   let route = name;
+  if (route === 'videos') return location.replace('#/bonus'); // ancien nom de l'onglet
   // Porte d'entrée : sans studio validé sur l'appareil, seul l'écran du code s'affiche.
   if (!studio && route !== 'code') return location.replace('#/code');
   // Garde-fous : pas de plan -> questionnaire ; plan existant -> pas d'accueil.
@@ -167,7 +168,7 @@ function render() {
   if (route === '' && S.plan) return location.replace('#/plan');
   if (route && !ROUTES[route]) return location.replace('#/');
   const fn = ROUTES[route] || ecranAccueil;
-  const avecNav = ['plan', 'courses', 'perf', 'videos', 'profil'].includes(route);
+  const avecNav = ['plan', 'courses', 'perf', 'bonus', 'profil'].includes(route);
   nav.hidden = !avecNav;
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === '#/' + route));
   document.querySelector('.sheet-back')?.remove(); document.body.style.overflow = '';
