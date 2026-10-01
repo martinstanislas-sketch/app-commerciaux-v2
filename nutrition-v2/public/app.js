@@ -781,17 +781,7 @@ function exporterPlanPDF() {
       </header>${repas}</section>`;
   }).join('');
 
-  nettoyerExportPDF();
-  // Page sans marge : le navigateur n'a plus de place pour ses en-têtes et pieds
-  // automatiques (date, URL, numéros). Les marges sont recréées par le tableau.
-  const page = document.createElement('style');
-  page.id = 'pp-page';
-  page.textContent = '@page { size: A4; margin: 0; }';
-  document.head.appendChild(page);
-
-  const zone = document.createElement('div');
-  zone.id = 'print-plan';
-  zone.innerHTML = `<div class="pp">
+  imprimerPDF(`<div class="pp">
     <table class="pp-frame"><thead><tr><td><div class="pp-sp-top"></div></td></tr></thead>
     <tfoot><tr><td><div class="pp-pagefoot"><img src="logo-mycoach-noir.png" alt="" /><span class="pp-pf-txt">${esc(nomStudio)} · ${esc(titre)}</span><span class="pp-pf-sem">${esc(semaineCourt)}</span></div></td></tr></tfoot>
     <tbody><tr><td>
@@ -816,11 +806,82 @@ function exporterPlanPDF() {
       <section class="pp-sante">${ms('info')}<div><b>Bon à savoir</b><p>Les valeurs de ce plan sont des estimations indicatives. Ce document ne remplace pas l'avis d'un médecin, d'un diététicien ou d'un professionnel de santé.</p>
         <p class="pp-cree">Plan créé avec My Coach Nutrition · ${esc(nomStudio)} · ${esc(fr(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }))}</p></div></section>
     </td></tr></tbody></table>
-  </div>`;
+  </div>`, `Plan alimentaire ${nomStudio} - semaine du ${fr(lundi, { day: 'numeric', month: 'long' })}`);
+}
+
+// Export PDF de la liste de courses : même liste, mêmes quantités, mêmes rayons
+// que l'écran ; seule la présentation change (2 colonnes, rayons non coupés).
+const ORDRE_RAYONS_PDF = ['Fruits & légumes', 'Boucherie', 'Charcuterie / Traiteur', 'Poissonnerie', 'Crèmerie', 'Boulangerie', 'Surgelés'];
+function exporterCoursesPDF(liste) {
+  const plan = S.plan; if (!plan) return;
+  const lundi = lundiDuPlan();
+  const fr = (d, o) => d.toLocaleDateString('fr-FR', o);
+  const k = JOURS_SEMAINE.indexOf(plan.jours[plan.jours.length - 1].jour);
+  const dernier = new Date(lundi); dernier.setDate(lundi.getDate() + (k >= 0 ? k : plan.jours.length - 1));
+  const semaine = `Semaine du ${fr(lundi, { day: 'numeric', month: 'long' })} au ${fr(dernier, { day: 'numeric', month: 'long', year: 'numeric' })}`;
+  const nomStudio = studio ? 'My Coach ' + studio.nom : 'My Coach';
+  const pers = S.portions || 1;
+  const cle = (it) => it.id || it.nom;
+  const parRayon = {};
+  liste.frais.forEach((it) => { (parRayon[it.rayon] = parRayon[it.rayon] || []).push(it); });
+  const autres = CoursesEngine.trierRayons(Object.keys(parRayon).filter((r) => !ORDRE_RAYONS_PDF.includes(r)));
+  const rayons = [...ORDRE_RAYONS_PDF.filter((r) => parRayon[r]), ...autres];
+  const total = liste.frais.length + liste.placard.length;
+  const ligne = (it) => {
+    const pris = !!S.coches[cle(it)];
+    return `<li class="${pris ? 'pris' : ''}"><span class="cs-box">${pris ? ms('check') : ''}</span><span class="cs-nm">${esc(it.nom)}${it.probablement_deja_en_stock ? '<small>déjà au placard ?</small>' : ''}</span><b class="cs-q">${esc(it.quantite_achat)}</b></li>`;
+  };
+  const bloc = (ry) => `<section class="cs-rayon"><header><span class="cs-ic">${ms(RAYON_IC[ry] || 'shopping_basket')}</span><h2>${esc(ry)}</h2><span class="cs-n">${parRayon[ry].length}</span></header>
+    <ul>${parRayon[ry].map(ligne).join('')}</ul></section>`;
+  // Répartition en 2 colonnes équilibrées, dans l'ordre des rayons.
+  const poids = rayons.map((ry) => 2.2 + parRayon[ry].length);
+  const moitie = poids.reduce((a, x) => a + x, 0) / 2;
+  let cumul = 0, coupe = rayons.length;
+  for (let i = 0; i < rayons.length; i++) {
+    if (cumul + poids[i] / 2 > moitie) { coupe = i; break; }
+    cumul += poids[i];
+  }
+  if (coupe === 0 && rayons.length > 1) coupe = 1;
+  const col1 = rayons.slice(0, coupe).map(bloc).join('');
+  const col2 = rayons.slice(coupe).map(bloc).join('');
+  const placard = liste.placard.length ? `<section class="cs-placard"><header><span class="cs-ic">${ms('kitchen')}</span><h2>Placard</h2><span class="cs-n">${liste.placard.length}</span>
+      <p>Condiments et basiques : vérifie avant d'en racheter.</p></header><ul>${liste.placard.map(ligne).join('')}</ul></section>` : '';
+
+  imprimerPDF(`<div class="pp cs">
+    <table class="pp-frame"><thead><tr><td><div class="pp-sp-top cs-sp"></div></td></tr></thead>
+    <tfoot><tr><td><div class="pp-pagefoot"><img src="logo-mycoach-noir.png" alt="" /><span class="pp-pf-txt">${esc(nomStudio)} · Liste de courses</span><span class="pp-pf-sem">${esc(semaine)}</span></div></td></tr></tfoot>
+    <tbody><tr><td>
+      <header class="cs-head">
+        <img src="logo-mycoach-blanc.png" alt="My Coach" />
+        <div class="cs-titre"><span class="cs-studio">${esc(nomStudio.toUpperCase())}</span><h1>Liste de courses</h1></div>
+        <div class="cs-meta">
+          <div><small>Semaine</small><b>${esc(semaine.replace('Semaine du ', 'Du '))}</b></div>
+          <div><small>Personnes</small><b>${pers} ${pers > 1 ? 'personnes' : 'personne'}</b></div>
+          <div><small>Articles</small><b>${total}</b></div>
+        </div>
+      </header>
+      <div class="cs-cols"><div class="cs-col">${col1}</div><div class="cs-col">${col2}</div></div>
+      ${placard}
+    </td></tr></tbody></table>
+  </div>`, `Liste de courses ${nomStudio} - semaine du ${fr(lundi, { day: 'numeric', month: 'long' })}`);
+}
+
+// Impression d'un document dédié (plan ou courses) : page A4 sans marge, pour que
+// le navigateur n'ait plus de place pour ses en-têtes et pieds automatiques (date,
+// URL, numéros). Les marges sont recréées dans le document (tableau .pp-frame).
+function imprimerPDF(html, nomFichier) {
+  nettoyerExportPDF();
+  const page = document.createElement('style');
+  page.id = 'pp-page';
+  page.textContent = '@page { size: A4; margin: 0; }';
+  document.head.appendChild(page);
+  const zone = document.createElement('div');
+  zone.id = 'print-plan';
+  zone.innerHTML = html;
   document.body.appendChild(zone);
   document.body.classList.add('print-plan');
   const titreDoc = document.title;
-  document.title = `Plan alimentaire ${nomStudio} - semaine du ${fr(lundi, { day: 'numeric', month: 'long' })}`;
+  document.title = nomFichier;
   const fin = () => { nettoyerExportPDF(); document.title = titreDoc; window.removeEventListener('afterprint', fin); };
   window.addEventListener('afterprint', fin);
   // On attend les logos et les polices pour un rendu net.
@@ -934,7 +995,7 @@ function ecranCourses() {
   }));
   document.getElementById('minus').onclick = () => { S.portions = Math.max(1, S.portions - 1); persist(); syncCourses(); reRender(); };
   document.getElementById('plus').onclick = () => { S.portions = Math.min(12, S.portions + 1); persist(); syncCourses(); reRender(); };
-  document.getElementById('pdf').onclick = () => { const p = app.querySelector('.placard'); if (p) p.open = true; window.print(); };
+  document.getElementById('pdf').onclick = () => exporterCoursesPDF(liste);
   const reset = document.getElementById('reset'); if (reset) reset.onclick = () => { S.coches = {}; persist(); syncCourses(); reRender(); };
   document.getElementById('share').onclick = async () => {
     const texte = CoursesEngine.rendreTexte(liste, { jours: S.plan.jours.length, personnes: S.portions, programme: APP_NOM });
