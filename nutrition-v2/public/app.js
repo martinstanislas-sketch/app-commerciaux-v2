@@ -126,6 +126,11 @@ function toast(msg) {
 
 function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 
+// Le plan envoyé au compte embarque l'état de la liste de courses (cases, personnes).
+function planPourServeur() { return S.plan ? Object.assign({}, S.plan, { _courses: { coches: S.coches || {}, portions: S.portions || 1 } }) : null; }
+let syncCoursesT;
+function syncCourses() { clearTimeout(syncCoursesT); syncCoursesT = setTimeout(() => syncServeur({ plan: planPourServeur() }), 900); }
+
 // Sauvegarde serveur (silencieuse) quand on est connecté.
 async function syncServeur(champs) {
   if (!token) return;
@@ -143,8 +148,9 @@ function render() {
   const [, name = '', arg] = location.hash.split('/');
   let route = name;
   // Garde-fous : pas de plan -> questionnaire ; plan existant -> pas d'accueil.
-  if (['plan', 'courses'].includes(route) && !S.plan) route = 'questionnaire';
-  if (route === '' && S.plan) route = 'plan';
+  if (['plan', 'courses'].includes(route) && !S.plan) return location.replace('#/questionnaire/1');
+  if (route === '' && S.plan) return location.replace('#/plan');
+  if (route && !ROUTES[route]) return location.replace('#/');
   const fn = ROUTES[route] || ecranAccueil;
   const avecNav = ['plan', 'courses', 'profil'].includes(route);
   nav.hidden = !avecNav;
@@ -281,12 +287,14 @@ function adopterCompte(compte, pousserLocal) {
   S.email = compte.email;
   if (compte.prenom) S.prenom = compte.prenom;
   if (compte.plan && compte.profil) {
-    const change = !S.plan || JSON.stringify(S.plan) !== JSON.stringify(compte.plan);
-    S.profil = compte.profil; S.preferences = compte.preferences || {}; S.plan = compte.plan;
-    if (change) { S.coches = {}; S.jour = 0; }
+    const { _courses, ...planServeur } = compte.plan;
+    const change = !S.plan || JSON.stringify(S.plan) !== JSON.stringify(planServeur);
+    S.profil = compte.profil; S.preferences = compte.preferences || {}; S.plan = planServeur;
+    if (change) { S.coches = {}; S.jour = 0; S.refus = {}; }
+    if (_courses) { S.coches = _courses.coches || {}; S.portions = _courses.portions || 1; }
     if (S.profil) S.draft = Object.assign(draftDepuis(S.profil, S.preferences), { prenom: S.prenom || '' });
   } else if (pousserLocal && S.plan) {
-    syncServeur({ profil: S.profil, preferences: S.preferences, plan: S.plan, prenom: S.prenom || undefined });
+    syncServeur({ profil: S.profil, preferences: S.preferences, plan: planPourServeur(), prenom: S.prenom || undefined });
   }
   persist();
 }
@@ -387,7 +395,10 @@ function ecranQuestionnaire(arg) {
   const champPrenom = document.getElementById('prenom');
   if (champPrenom) champPrenom.addEventListener('input', () => { d.prenom = champPrenom.value.trim().slice(0, 40); persist(); });
   app.querySelectorAll('.measure input').forEach((inp) => inp.addEventListener('input', () => {
-    inp.value = inp.value.replace(/[^0-9.,]/g, '');
+    let v = inp.value.replace(/[^0-9.,]/g, '').replace('.', ',');
+    const i = v.indexOf(',');
+    if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, '').slice(0, 1);
+    if (inp.value !== v) inp.value = v;
     d[inp.name] = inp.value.replace(',', '.'); inp.closest('.measure').classList.remove('err'); maj();
   }));
   app.querySelectorAll('[data-tagform]').forEach((f) => f.addEventListener('submit', (e) => {
@@ -526,7 +537,7 @@ async function genererPlan() {
   if (r.plan.poolVide) throw new Error('Aucune recette ne correspond à toutes tes contraintes. Assouplis un critère (temps, budget ou aliments à éviter).');
   S.profil = profil; S.preferences = preferences; S.plan = r.plan; S.seed = r.seed;
   if (S.draft.prenom) S.prenom = S.draft.prenom;
-  S.jour = 0; S.coches = {}; S.genDemandee = false;
+  S.jour = 0; S.coches = {}; S.refus = {}; S.genDemandee = false;
   persist();
   syncServeur({ profil, preferences, plan: r.plan, prenom: S.prenom || undefined });
 }
@@ -602,16 +613,25 @@ function ecranPlan() {
   app.querySelectorAll('[data-day]').forEach((bt) => bt.addEventListener('click', () => { S.jour = Number(bt.dataset.day); persist(); const y = window.scrollY; ecranPlan(); window.scrollTo(0, y); }));
   app.querySelectorAll('[data-recipe]').forEach((bt) => bt.addEventListener('click', () => ouvrirRecette(jour.repas[Number(bt.dataset.recipe)])));
   app.querySelectorAll('[data-swap]').forEach((bt) => bt.addEventListener('click', async () => {
-    const repas = jour.repas[Number(bt.dataset.swap)];
+    const idx = Number(bt.dataset.swap);
+    const repas = jour.repas[idx];
+    const cleRefus = S.jour + '-' + idx;
+    S.refus = S.refus || {};
+    const refus = S.refus[cleRefus] = [...new Set([...(S.refus[cleRefus] || []), repas.recette.id])];
     bt.disabled = true; bt.innerHTML = ms('hourglass_top') + 'Un instant…';
+    const demander = (exclus) => api('/api/meal', { body: {
+      profil: S.profil, preferences: S.preferences, creneau: repas.creneau, kcalCible: repas.kcalCible,
+      exclureId: repas.recette.id, exclus, seed: Math.floor(Math.random() * 2e9) + 1,
+    } });
     try {
-      const r = await api('/api/meal', { body: {
-        profil: S.profil, preferences: S.preferences, creneau: repas.creneau, kcalCible: repas.kcalCible,
-        exclureId: repas.recette.id, exclus: tousIds, seed: Math.floor(Math.random() * 2e9) + 1,
-      } });
+      let r = await demander([...tousIds, ...refus]);
+      let tour = false;
+      // Toutes les recettes compatibles ont été vues : on repart du début.
+      if (!r.recette && refus.length > 1) { S.refus[cleRefus] = [repas.recette.id]; r = await demander([...tousIds]); tour = true; }
       if (!r.recette) { toast('Pas d\'autre recette compatible pour ce repas.'); bt.disabled = false; bt.innerHTML = ms('sync') + 'Changer'; return; }
       repas.recette = r.recette;
-      persist(); syncServeur({ plan: S.plan });
+      persist(); syncServeur({ plan: planPourServeur() });
+      if (tour) { const y = window.scrollY; ecranPlan(); window.scrollTo(0, y); return toast('Tu as vu toutes les recettes possibles, on recommence.'); }
       const y = window.scrollY; ecranPlan(); window.scrollTo(0, y);
       toast('Repas remplacé ✓');
     } catch (ex) { toast(ex.message); bt.disabled = false; bt.innerHTML = ms('sync') + 'Changer'; }
@@ -698,13 +718,13 @@ function ecranCourses() {
 
   const reRender = () => { const y = window.scrollY; const ouvert = app.querySelector('.placard')?.open; ecranCourses(); window.scrollTo(0, y); if (ouvert) app.querySelector('.placard').open = true; };
   app.querySelectorAll('[data-item]').forEach((b) => b.addEventListener('click', () => {
-    const k = b.dataset.item; if (S.coches[k]) delete S.coches[k]; else S.coches[k] = 1; persist(); reRender();
+    const k = b.dataset.item; if (S.coches[k]) delete S.coches[k]; else S.coches[k] = 1; persist(); syncCourses(); reRender();
   }));
-  document.getElementById('minus').onclick = () => { S.portions = Math.max(1, S.portions - 1); persist(); reRender(); };
-  document.getElementById('plus').onclick = () => { S.portions = Math.min(12, S.portions + 1); persist(); reRender(); };
+  document.getElementById('minus').onclick = () => { S.portions = Math.max(1, S.portions - 1); persist(); syncCourses(); reRender(); };
+  document.getElementById('plus').onclick = () => { S.portions = Math.min(12, S.portions + 1); persist(); syncCourses(); reRender(); };
   document.getElementById('me').onclick = () => go('#/profil');
   document.getElementById('pdf').onclick = () => { const p = app.querySelector('.placard'); if (p) p.open = true; window.print(); };
-  const reset = document.getElementById('reset'); if (reset) reset.onclick = () => { S.coches = {}; persist(); reRender(); };
+  const reset = document.getElementById('reset'); if (reset) reset.onclick = () => { S.coches = {}; persist(); syncCourses(); reRender(); };
   document.getElementById('share').onclick = async () => {
     const texte = CoursesEngine.rendreTexte(liste, { jours: S.plan.jours.length, personnes: S.portions, programme: APP_NOM });
     try {
