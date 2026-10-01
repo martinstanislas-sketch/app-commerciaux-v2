@@ -544,3 +544,45 @@ button.chip-float:disabled { opacity: .6; }
 }
 @keyframes pop { from { opacity: 0; transform: scale(.97); } }
 .list-row .txt .link-txt { color: var(--saphir); font-weight: 700; }
+
+/* ---------- Export du plan en PDF (visible uniquement à l'impression) ---------- */
+#print-plan { display: none; }
+.pp { color: var(--navy); font-size: 10.5pt; line-height: 1.4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pp-head { display: flex; align-items: center; gap: 18px; padding-bottom: 12px; border-bottom: 3px solid var(--saphir); }
+.pp-head img { height: 44px; width: auto; }
+.pp-headtxt { flex: 1; }
+.pp-studio { color: var(--saphir); font-weight: 800; font-size: 10pt; letter-spacing: .06em; text-transform: uppercase; }
+.pp-head h1 { font-size: 20pt; line-height: 1.15; font-weight: 800; margin: 2px 0 0; }
+.pp-head p { margin: 2px 0 0; color: var(--text-2); font-size: 10.5pt; }
+.pp-obj { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 1px; margin-top: 14px; background: var(--navy); border-radius: 12px; overflow: hidden; }
+.pp-obj > div { background: var(--navy); color: #fff; padding: 9px 12px; }
+.pp-obj small { display: block; color: #b0c6ff; font-size: 7.5pt; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.pp-obj b { font-size: 12pt; }
+.pp-note { color: var(--slate); font-size: 8.5pt; margin: 8px 0 4px; }
+.pp-day { margin-top: 14px; }
+.pp-dayhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; background: var(--saphir-soft); border-radius: 8px; padding: 7px 12px; break-after: avoid; page-break-after: avoid; }
+.pp-dayhead h2 { font-size: 12.5pt; font-weight: 800; }
+.pp-dayhead h2::first-letter { text-transform: uppercase; }
+.pp-dayhead span { font-size: 9pt; color: var(--text-2); }
+.pp-dayhead span b { color: var(--navy); }
+.pp-meal { display: grid; grid-template-columns: 112px 1fr; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
+.pp-slot { color: var(--saphir-deep); font-weight: 700; font-size: 9pt; padding-top: 1px; }
+.pp-title { display: flex; justify-content: space-between; gap: 10px; }
+.pp-title b { font-size: 11pt; }
+.pp-kcal { flex: none; font-weight: 800; }
+.pp-macros { color: var(--slate); font-size: 8.5pt; margin-top: 1px; }
+.pp-ing { list-style: none; padding: 0; margin: 6px 0 0; display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; }
+.pp-ing li { display: flex; justify-content: space-between; gap: 8px; font-size: 9pt; padding: 2px 0; border-bottom: 1px dotted var(--line); }
+.pp-ing li b { font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.pp-vide { margin: 0; color: var(--slate); font-size: 9pt; }
+.pp-foot { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--slate); font-size: 8pt; text-align: center; }
+@media print {
+  body.print-plan { background: #fff; }
+  body.print-plan #app, body.print-plan #nav, body.print-plan .toast, body.print-plan .sheet-back { display: none !important; }
+  body.print-plan #print-plan { display: block; }
+}
+.end-cta .export-row { margin-top: 8px; }
+@media screen and (min-width: 960px) {
+  .dk-meals .end-cta { display: flex; align-items: center; gap: 12px; }
+  .dk-meals .end-cta .export-row { margin: 0; }
+}

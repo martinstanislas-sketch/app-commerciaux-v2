@@ -602,7 +602,7 @@ async function genererPlan() {
   if (r.plan.poolVide) throw new Error('Aucune recette ne correspond à toutes tes contraintes. Assouplis un critère (temps, budget ou aliments à éviter).');
   S.profil = profil; S.preferences = preferences; S.plan = r.plan; S.seed = r.seed;
   if (S.draft.prenom) S.prenom = S.draft.prenom;
-  S.jour = 0; S.coches = {}; S.refus = {}; S.genDemandee = false;
+  S.jour = 0; S.coches = {}; S.refus = {}; S.genDemandee = false; S.planCreeLe = new Date().toISOString();
   persist();
   syncServeur({ profil, preferences, plan: r.plan, prenom: S.prenom || undefined });
 }
@@ -669,7 +669,8 @@ function ecranPlan() {
             <button class="btn btn-ghost" data-recipe="${i}">Recette${ms('chevron_right')}</button></div></div>
       </article>`;
     }).join('')}
-    <div class="end-cta"><button class="btn btn-primary btn-block" id="toShop">${ms('shopping_cart')}Voir ma liste de courses</button></div>
+    <div class="end-cta"><button class="btn btn-primary btn-block" id="toShop">${ms('shopping_cart')}Voir ma liste de courses</button>
+      <div class="export-row"><button class="btn btn-ghost" id="pdfPlan">${ms('download')}Exporter en PDF</button></div></div>
     </div></div>
   </section>`;
 
@@ -702,7 +703,79 @@ function ecranPlan() {
   const det = app.querySelector('.macros-detail');
   if (det) det.addEventListener('toggle', () => { S.voirMacros = det.open; persist(); });
   document.getElementById('toShop').onclick = () => go('#/courses');
+  document.getElementById('pdfPlan').onclick = exporterPlanPDF;
   const save = document.getElementById('save'); if (save) save.onclick = () => go('#/connexion');
+}
+
+// ---------------------------------------------------------------------------
+//  Export du plan en PDF (impression du navigateur → « Enregistrer en PDF »)
+// ---------------------------------------------------------------------------
+const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+// Lundi de la semaine du plan : semaine de sa création (un plan créé le week-end
+// vaut pour la semaine suivante). Plans plus anciens sans date : semaine en cours.
+function lundiDuPlan() {
+  const d = new Date(S.planCreeLe || Date.now());
+  d.setHours(12, 0, 0, 0);
+  const j = (d.getDay() + 6) % 7; // 0 = lundi
+  d.setDate(d.getDate() + (j >= 5 ? 7 - j : -j));
+  return d;
+}
+function exporterPlanPDF() {
+  const plan = S.plan; if (!plan) return;
+  const b = plan.besoins;
+  const lundi = lundiDuPlan();
+  const dateDuJour = (nom, i) => { const k = JOURS_SEMAINE.indexOf(nom); const d = new Date(lundi); d.setDate(lundi.getDate() + (k >= 0 ? k : i)); return d; };
+  const fr = (d, o) => d.toLocaleDateString('fr-FR', o);
+  const dernier = dateDuJour(plan.jours[plan.jours.length - 1].jour, plan.jours.length - 1);
+  const semaine = `Semaine du ${fr(lundi, { weekday: 'long', day: 'numeric', month: 'long' })} au ${fr(dernier, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`;
+  const nomStudio = studio ? 'My Coach ' + studio.nom : 'My Coach';
+  const macrosTxt = (o) => `P ${fmt(o.proteines)} g · G ${fmt(o.glucides)} g · L ${fmt(o.lipides)} g`;
+
+  const jours = plan.jours.map((j, i) => {
+    const t = totauxJour(j);
+    const repas = j.repas.map((r) => {
+      const rc = r.recette;
+      if (!rc) return `<article class="pp-meal"><div class="pp-slot">${esc(labelRepas(r.label))}</div><p class="pp-vide">Aucune recette compatible avec tes contraintes pour ce repas.</p></article>`;
+      return `<article class="pp-meal">
+        <div class="pp-slot">${esc(labelRepas(r.label))}</div>
+        <div class="pp-main">
+          <div class="pp-title"><b>${esc(rc.nom)}</b><span class="pp-kcal">${fmt(rc.kcal)} kcal</span></div>
+          <div class="pp-macros">${macrosTxt(rc)} · ${rc.tempsMinutes} min</div>
+          <ul class="pp-ing">${(rc.ingredients || []).map((x) => `<li><span>${esc(nomIngredient(x.nom))}</span><b>${esc(quantiteTxt(x))}</b></li>`).join('')}</ul>
+        </div></article>`;
+    }).join('');
+    return `<section class="pp-day">
+      <div class="pp-dayhead"><h2>${esc(fr(dateDuJour(j.jour, i), { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>
+        <span><b>${fmt(t.kcal)} kcal</b> · ${macrosTxt(t)}</span></div>${repas}</section>`;
+  }).join('');
+
+  document.getElementById('print-plan')?.remove();
+  const zone = document.createElement('div');
+  zone.id = 'print-plan';
+  zone.innerHTML = `<div class="pp">
+    <header class="pp-head"><img src="logo-mycoach-noir.png" alt="My Coach" />
+      <div class="pp-headtxt"><div class="pp-studio">${esc(nomStudio)}</div>
+        <h1>Plan alimentaire${S.prenom ? ' de ' + esc(S.prenom) : ''}</h1><p>${esc(semaine)}</p></div></header>
+    <div class="pp-obj">
+      <div><small>Objectif</small><b>${esc(objectifLabel(S.profil && S.profil.objectif))}</b></div>
+      <div><small>Cible par jour</small><b>${fmt(b.kcalCible)} kcal</b></div>
+      <div><small>Protéines</small><b>${fmt(b.macros.proteines)} g</b></div>
+      <div><small>Glucides</small><b>${fmt(b.macros.glucides)} g</b></div>
+      <div><small>Lipides</small><b>${fmt(b.macros.lipides)} g</b></div>
+    </div>
+    <p class="pp-note">${plan.jours.length} jours · quantités pour 1 personne · P = protéines, G = glucides, L = lipides</p>
+    ${jours}
+    <footer class="pp-foot">${esc(nomStudio)} · Plan créé avec My Coach Nutrition le ${esc(fr(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }))}.<br />Estimations indicatives, ne remplace pas l'avis d'un professionnel de santé.</footer>
+  </div>`;
+  document.body.appendChild(zone);
+  document.body.classList.add('print-plan');
+  const titre = document.title;
+  document.title = `Plan alimentaire ${nomStudio} - semaine du ${fr(lundi, { day: 'numeric', month: 'long' })}`;
+  const fin = () => { document.body.classList.remove('print-plan'); zone.remove(); document.title = titre; window.removeEventListener('afterprint', fin); };
+  window.addEventListener('afterprint', fin);
+  const img = zone.querySelector('img');
+  const imprimer = () => setTimeout(() => window.print(), 60);
+  if (img.complete) imprimer(); else { img.onload = imprimer; img.onerror = imprimer; }
 }
 
 function nomIngredient(n) {
