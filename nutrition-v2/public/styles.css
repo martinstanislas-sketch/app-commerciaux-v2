@@ -275,7 +275,7 @@ button.chip-float:disabled { opacity: .6; }
 .save-banner .ms { font-size: 28px; color: #b0c6ff; }
 .save-banner p { margin: 2px 0 0; font-size: 13px; color: #c1d1ff; }
 .save-banner button { flex: none; background: #fff; color: var(--navy); border-radius: 999px; padding: 10px 14px; font-weight: 700; font-size: 14px; }
-.sticky-cta { position: sticky; bottom: calc(var(--nav-h) + 12px); z-index: 15; margin-top: 8px; }
+.end-cta { margin-top: 8px; }
 
 /* ---------- Navigation basse ---------- */
 .bottom-nav { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; z-index: 30; width: 100%; max-width: 480px; height: calc(var(--nav-h) + env(safe-area-inset-bottom));
@@ -371,8 +371,8 @@ button.chip-float:disabled { opacity: .6; }
 .steps li::before { content: counter(s); flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--saphir-soft); color: var(--saphir-deep); font-weight: 700; font-size: 13px; display: grid; place-items: center; }
 
 /* ---------- Toast ---------- */
-.toast { position: fixed; left: 50%; bottom: calc(var(--nav-h) + 20px); transform: translateX(-50%); z-index: 60; background: var(--navy); color: #fff; padding: 12px 18px; border-radius: 999px;
-  font-size: 14px; font-weight: 600; box-shadow: var(--shadow-2); animation: up .2s; max-width: calc(100% - 40px); text-align: center; }
+.toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 60; background: var(--navy); color: #fff; padding: 12px 18px; border-radius: 999px;
+  font-size: 14px; font-weight: 600; box-shadow: var(--shadow-2); animation: toastin .2s; max-width: calc(100% - 40px); text-align: center; }
 
 @media (min-width: 520px) { .app { box-shadow: 0 0 0 1px var(--line); } }
 
@@ -387,3 +387,8 @@ button.chip-float:disabled { opacity: .6; }
   .print-only { display: block !important; }
 }
 .print-only { display: none; }
+
+/* Message d'erreur du questionnaire, juste au-dessus des boutons */
+.q-err { position: sticky; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 21; margin: 18px 0 -8px; padding: 12px 14px; border-radius: 12px; background: #fdecec; color: #93000a; font-weight: 600; text-align: left; }
+.portions .txt span { display: block; }
+@keyframes toastin { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }

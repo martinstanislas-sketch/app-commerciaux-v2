@@ -327,7 +327,6 @@ function ecranQuestionnaire(arg) {
         ${mesureHTML('taille', 'Taille', 'cm', d.taille, 120, 230, 1)}
         ${mesureHTML('poids', 'Poids', 'kg', d.poids, 35, 250, 0.1)}
       </div>
-      <p class="form-error" id="err" hidden></p>
       <div class="section-title">Niveau d'activité <small>Une seule option</small></div>
       ${ACTIVITES.map((o) => optionHTML('activite', o, d.activite === o.v, true)).join('')}`;
   } else if (n === 3) {
@@ -364,13 +363,13 @@ function ecranQuestionnaire(arg) {
   }
   const dernier = n === 4;
   app.innerHTML = `<section class="screen">${top}${corps}
+    <p class="form-error q-err" id="qerr" hidden></p>
     <div class="q-foot">
       ${n > 1 ? `<button class="btn btn-soft" id="prev" aria-label="Étape précédente">${ms('arrow_back')}</button>` : ''}
       <button class="btn btn-primary" id="next">${dernier ? 'Voir mon plan ' + ms('auto_awesome') : 'Continuer ' + ms('arrow_forward')}</button>
     </div></section>`;
 
-  const maj = () => { persist(); majBouton(); };
-  const majBouton = () => { document.getElementById('next').disabled = !etapeValide(n, false); };
+  const maj = () => { persist(); const e = document.getElementById('qerr'); if (e) e.hidden = true; };
 
   app.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.set; const v = b.dataset.v;
@@ -384,6 +383,7 @@ function ecranQuestionnaire(arg) {
   }));
   app.querySelectorAll('[data-clear]').forEach((b) => b.addEventListener('click', () => { d[b.dataset.clear] = []; persist(); ecranQuestionnaireRefresh(n); }));
   app.querySelectorAll('.measure input').forEach((inp) => inp.addEventListener('input', () => {
+    inp.value = inp.value.replace(/[^0-9.,]/g, '');
     d[inp.name] = inp.value.replace(',', '.'); inp.closest('.measure').classList.remove('err'); maj();
   }));
   app.querySelectorAll('[data-tagform]').forEach((f) => f.addEventListener('submit', (e) => {
@@ -401,10 +401,16 @@ function ecranQuestionnaire(arg) {
   const prev = document.getElementById('prev'); if (prev) prev.onclick = () => go('#/questionnaire/' + (n - 1));
   document.getElementById('next').onclick = () => {
     if (!etapeValide(n, true)) return;
-    if (dernier) { go('#/generation'); } else go('#/questionnaire/' + (n + 1));
+    if (!dernier) return go('#/questionnaire/' + (n + 1));
+    // Un plan existe déjà : on prévient avant de le remplacer.
+    if (S.plan) return confirmer('Remplacer ton plan actuel ?', 'Ton nouveau plan remplacera celui en cours, avec les repas que tu as changés et ta liste de courses cochée.', 'Créer mon nouveau plan', lancerGeneration, true);
+    lancerGeneration();
   };
-  majBouton();
 }
+
+// La génération n'est lancée QUE par un clic : revenir en arrière vers cet écran
+// ne doit jamais recréer un plan (cf. ecranGeneration).
+function lancerGeneration() { S.genDemandee = true; persist(); go('#/generation'); }
 
 // Re-rendu de l'étape en gardant la position de défilement.
 function ecranQuestionnaireRefresh(n, focusTag) {
@@ -420,7 +426,7 @@ function optionHTML(champ, o, on, compact) {
 }
 function mesureHTML(name, label, unit, val, min, max, step) {
   return `<div class="measure"><label for="m-${name}">${label}</label><div class="val">
-    <input id="m-${name}" name="${name}" type="number" inputmode="decimal" min="${min}" max="${max}" step="${step}" value="${esc(val)}" placeholder="—" />
+    <input id="m-${name}" name="${name}" type="text" inputmode="${step < 1 ? 'decimal' : 'numeric'}" autocomplete="off" maxlength="5" value="${esc(String(val).replace('.', ','))}" placeholder="—" />
     <span class="unit">${unit}</span></div></div>`;
 }
 function tagsHTML(k, titre, aide, ph, neg) {
@@ -430,18 +436,25 @@ function tagsHTML(k, titre, aide, ph, neg) {
     <div class="tags">${S.draft[k].map((t, i) => `<span class="tag${neg ? ' neg' : ''}">${esc(t)}<button data-untag="${k}:${i}" aria-label="Retirer ${esc(t)}">${ms('close')}</button></span>`).join('')}</div>`;
 }
 
+const nombre = (v) => { const x = parseFloat(String(v == null ? '' : v).replace(',', '.')); return Number.isFinite(x) ? x : NaN; };
 const BORNES = { age: [14, 100], taille: [120, 230], poids: [35, 250] };
 function etapeValide(n, montrer) {
   const d = S.draft;
-  if (n === 1) return !!d.objectif;
+  const dire = (txt) => {
+    if (!montrer) return;
+    const e = document.getElementById('qerr');
+    if (e) { e.textContent = txt; e.hidden = false; }
+  };
+  if (n === 1) { if (!d.objectif) dire('Choisis ton objectif pour continuer.'); return !!d.objectif; }
   if (n === 2) {
-    const fautifs = Object.entries(BORNES).filter(([k, [a, b]]) => { const v = Number(d[k]); return !d[k] || !(v >= a && v <= b); }).map(([k]) => k);
-    if (montrer && fautifs.length) {
-      fautifs.forEach((k) => app.querySelector(`.measure input[name="${k}"]`)?.closest('.measure').classList.add('err'));
-      const err = document.getElementById('err');
-      err.textContent = 'Vérifie tes mesures : âge 14–100 ans, taille 120–230 cm, poids 35–250 kg.'; err.hidden = false;
-    }
-    return !!d.sexe && !!d.activite && (montrer ? !fautifs.length : Object.keys(BORNES).every((k) => d[k] !== ''));
+    const manque = [];
+    if (!d.sexe) manque.push('ton sexe');
+    const fautifs = Object.entries(BORNES).filter(([k, [a, b]]) => { const v = nombre(d[k]); return !(v >= a && v <= b); }).map(([k]) => k);
+    if (fautifs.length) manque.push('tes mesures (âge 14–100 ans, taille 120–230 cm, poids 35–250 kg)');
+    if (!d.activite) manque.push('ton niveau d\'activité');
+    if (montrer) fautifs.forEach((k) => app.querySelector(`.measure input[name="${k}"]`)?.closest('.measure').classList.add('err'));
+    if (manque.length) dire('Il manque ' + manque.join(', ') + '.');
+    return !manque.length;
   }
   return true;
 }
@@ -449,7 +462,7 @@ function etapeValide(n, montrer) {
 // Conversion questionnaire -> format attendu par le moteur.
 function profilDepuisDraft(d) {
   return {
-    objectif: d.objectif, sexe: d.sexe, age: Number(d.age), taille_cm: Number(d.taille), poids_kg: Number(d.poids),
+    objectif: d.objectif, sexe: d.sexe, age: nombre(d.age), taille_cm: nombre(d.taille), poids_kg: nombre(d.poids),
     activite: d.activite, jours: Number(d.jours) || 7, mangeMatin: d.matin !== 'aucun', collations: [...d.collations], dinerTard: 'non',
   };
 }
@@ -473,7 +486,9 @@ function draftDepuis(p, pr) {
 //  Génération du plan
 // ---------------------------------------------------------------------------
 async function ecranGeneration() {
-  if (!etapeValide(1, false) || !etapeValide(2, false)) return go('#/questionnaire/' + (etapeValide(1, false) ? 2 : 1));
+  // Arrivée sans clic (bouton retour, lien, rechargement) : on ne régénère pas.
+  if (!S.genDemandee) return location.replace(S.plan ? '#/plan' : '#/questionnaire/1');
+  if (!etapeValide(1, false) || !etapeValide(2, false)) { S.genDemandee = false; persist(); return go('#/questionnaire/' + (etapeValide(1, false) ? 2 : 1)); }
   const etapes = ['Analyse de ton objectif', 'Calcul de tes besoins', 'Prise en compte de tes goûts', 'Vérification de tes contraintes', 'Équilibrage de tes repas', 'Création de la liste de courses'];
   app.innerHTML = `<section class="loading"><div class="spinner"></div><h1 class="h2">On prépare ton plan…</h1>
     <p class="lead">On adapte chaque repas à toi, un instant.</p>
@@ -486,13 +501,14 @@ async function ecranGeneration() {
     await genererPlan();
     await new Promise((r) => setTimeout(r, Math.max(0, 1900 - (Date.now() - debut))));
     clearInterval(tick); lis.forEach((l) => l.classList.add('done'));
-    setTimeout(() => go('#/plan'), 250);
+    setTimeout(() => location.replace('#/plan'), 250);
   } catch (ex) {
     clearInterval(tick);
+    S.genDemandee = false; persist();
     app.innerHTML = `<section class="loading"><h1 class="h2">Oups, le plan n'a pas pu être créé</h1><p class="lead">${esc(ex.message)}</p>
       <button class="btn btn-primary btn-block" style="margin-top:22px" id="retry">Réessayer</button>
       <button class="btn btn-ghost" id="edit">Modifier mes réponses</button></section>`;
-    document.getElementById('retry').onclick = () => render();
+    document.getElementById('retry').onclick = () => { S.genDemandee = true; render(); };
     document.getElementById('edit').onclick = () => go('#/questionnaire/1');
   }
 }
@@ -505,7 +521,7 @@ async function genererPlan() {
   if (!r.plan || !r.plan.jours || !r.plan.jours.length) throw new Error('Aucun plan renvoyé.');
   if (r.plan.poolVide) throw new Error('Aucune recette ne correspond à toutes tes contraintes. Assouplis un critère (temps, budget ou aliments à éviter).');
   S.profil = profil; S.preferences = preferences; S.plan = r.plan; S.seed = r.seed;
-  S.jour = 0; S.coches = {};
+  S.jour = 0; S.coches = {}; S.genDemandee = false;
   persist();
   syncServeur({ profil, preferences, plan: r.plan });
 }
@@ -575,7 +591,7 @@ function ecranPlan() {
             <span class="grow"></span><button class="btn btn-ghost" data-recipe="${i}">Recette${ms('chevron_right')}</button></div></div>
       </article>`;
     }).join('')}
-    <div class="sticky-cta"><button class="btn btn-primary btn-block" id="toShop">${ms('shopping_cart')}Voir ma liste de courses</button></div>
+    <div class="end-cta"><button class="btn btn-primary btn-block" id="toShop">${ms('shopping_cart')}Voir ma liste de courses</button></div>
   </section>`;
 
   app.querySelectorAll('[data-day]').forEach((bt) => bt.addEventListener('click', () => { S.jour = Number(bt.dataset.day); persist(); const y = window.scrollY; ecranPlan(); window.scrollTo(0, y); }));
@@ -600,6 +616,12 @@ function ecranPlan() {
   const save = document.getElementById('save'); if (save) save.onclick = () => go('#/connexion');
 }
 
+function quantiteTxt(i) {
+  const q = Number(i.quantite) || 0;
+  let u = String(i.unite || '').trim();
+  if (/^pi[eè]ces?$/i.test(u)) u = q > 1 ? 'pièces' : 'pièce';
+  return (String(i.quantite).replace('.', ',') + ' ' + u).trim();
+}
 function labelRepas(l) { return String(l || '').replace(/apres/g, 'après'); }
 
 function initiale() { return ((S.prenom || S.email || 'M').trim()[0] || 'M').toUpperCase(); }
@@ -613,7 +635,7 @@ function ouvrirRecette(repas) {
     <div class="meta"><span>${ms('schedule')}${r.tempsMinutes} min</span><span>${ms('local_fire_department')}${fmt(r.kcal)} kcal</span><span>${ms('person')}1 portion</span></div>
     <div class="macros"><span class="macro">Protéines ${fmt(r.proteines)} g</span><span class="macro">Glucides ${fmt(r.glucides)} g</span><span class="macro">Lipides ${fmt(r.lipides)} g</span></div>
     <h3>Ingrédients</h3>
-    ${(r.ingredients || []).map((i) => `<div class="ing"><span>${esc(i.nom)}</span><span>${esc(String(i.quantite).replace('.', ','))} ${esc(i.unite || '')}</span></div>`).join('')}
+    ${(r.ingredients || []).map((i) => `<div class="ing"><span>${esc(i.nom)}</span><span>${esc(quantiteTxt(i))}</span></div>`).join('')}
     <h3>Préparation</h3>
     <ol class="steps">${(r.etapes || []).map((e) => `<li>${esc(e)}</li>`).join('')}</ol>
     <p class="legal">Quantités calculées pour ta cible de ${fmt(repas.kcalCible)} kcal sur ce repas.</p>
@@ -653,7 +675,7 @@ function ecranCourses() {
     <h1 class="h1" style="margin-top:12px">Liste de courses</h1>
     <p class="lead">Tous les ingrédients de ton plan, calculés pour la semaine.</p>
     <p class="print-only">${esc(APP_NOM)} — pour ${S.plan.jours.length} jours · ${S.portions} personne(s)</p>
-    <div class="card portions"><div class="ic">${ms('group')}</div><div class="txt"><b>Cuisiner pour</b><span>Les quantités s'ajustent automatiquement.</span></div>
+    <div class="card portions"><div class="ic">${ms('group')}</div><div class="txt"><b>Cuisiner pour</b><span>Quantités ajustées</span></div>
       <div class="stepper"><button id="minus" aria-label="Une personne de moins" ${S.portions <= 1 ? 'disabled' : ''}>${ms('remove')}</button>
         <output>${S.portions}<small>pers.</small></output>
         <button id="plus" aria-label="Une personne de plus" ${S.portions >= 12 ? 'disabled' : ''}>${ms('add')}</button></div></div>
@@ -736,7 +758,7 @@ function ecranProfil() {
   };
   const save = document.getElementById('save'); if (save) save.onclick = () => go('#/connexion');
   document.getElementById('edit').onclick = () => { if (S.profil) S.draft = draftDepuis(S.profil, S.preferences); persist(); go('#/questionnaire/1'); };
-  document.getElementById('regen').onclick = () => go('#/generation');
+  document.getElementById('regen').onclick = () => confirmer('Créer un nouveau plan ?', 'Mêmes réglages, nouvelles recettes. Ton plan actuel et ta liste de courses cochée seront remplacés.', 'Créer mon nouveau plan', lancerGeneration, true);
   const logout = document.getElementById('logout');
   if (logout) logout.onclick = async () => {
     try { await api('/account/logout', { body: {} }); } catch (_) { /* déjà déconnecté */ }
@@ -757,12 +779,12 @@ function ecranProfil() {
   );
 }
 
-function confirmer(titre, texte, action, onOk) {
+function confirmer(titre, texte, action, onOk, doux) {
   const back = document.createElement('div');
   back.className = 'sheet-back';
   back.innerHTML = `<div class="sheet" role="alertdialog" aria-modal="true"><div class="grab"></div><h2 class="h2">${esc(titre)}</h2>
     <p class="lead">${esc(texte)}</p>
-    <button class="btn btn-block" style="margin-top:20px;background:var(--danger);color:#fff" data-ok>${esc(action)}</button>
+    <button class="btn btn-block ${doux ? 'btn-primary' : ''}" style="margin-top:20px;${doux ? '' : 'background:var(--danger);color:#fff'}" data-ok>${esc(action)}</button>
     <button class="btn btn-soft btn-block" style="margin-top:10px" data-close>Annuler</button></div>`;
   back.addEventListener('click', (e) => {
     if (e.target === back || e.target.closest('[data-close]')) back.remove();
