@@ -174,6 +174,7 @@ function ecranAccueil() {
   app.innerHTML = `
   <section class="screen landing">
     ${logo('logo-top')}
+    <div class="dk dk-hero">
     <span class="pill"><span class="dot"></span>TON COACH NUTRITION</span>
     <h1 class="display">Mange mieux,<br/>sans y penser.</h1>
     <p class="lead">Un plan de la semaine adapté à tes goûts, avec la liste de courses.</p>
@@ -181,13 +182,16 @@ function ecranAccueil() {
       <img src="api/recipe-photo/plat-bowl-lentilles-oeuf-feta" alt="" onerror="this.remove()" />
       <span class="float">${ms('verified', 'fill')}100 % personnalisé</span></div>
     <button class="btn btn-primary btn-block" id="start">Créer mon plan ${ms('arrow_forward')}</button>
-    <p class="small muted center" style="margin:10px 0 22px">2 minutes · réservé aux adhérents My Coach</p>
+    <p class="small muted center hero-note" style="margin:10px 0 22px">2 minutes · réservé aux adhérents My Coach</p>
+    </div>
+    <div class="dk dk-features">
     <div class="card feature"><div class="ic">${ms('bolt')}</div><div><div class="head"><b class="h3">Plan en 2 minutes</b><span class="badge">Express</span></div>
       <p>Quelques questions simples pour générer ta semaine.</p></div></div>
     <div class="card feature"><div class="ic">${ms('add_shopping_cart')}</div><div><div class="head"><b class="h3">Courses automatiques</b><span class="badge ok">${ms('check')}Prêt</span></div>
       <p>Les quantités calculées pour ta semaine, rayon par rayon.</p></div></div>
     <div class="card feature"><div class="ic">${ms('restaurant')}</div><div><div class="head"><b class="h3">Selon tes goûts</b><span class="badge">Sur-mesure</span></div>
       <p>Tes cuisines préférées, sans tes allergies ni ce que tu n'aimes pas.</p></div></div>
+    </div>
     ${COMPTES ? `<p style="margin-top:18px">Déjà un compte ? <a class="link" href="#/connexion">Se connecter</a></p>` : ''}
     <p class="legal">Estimations indicatives, ne remplace pas un avis médical.</p>
   </section>`;
@@ -323,7 +327,7 @@ function ecranQuestionnaire(arg) {
     corps = `
       <div class="q-head"><h1 class="h1">Quel est ton objectif principal ?</h1>
         <p class="lead">On adapte les calories et les macronutriments de ton plan à ta réponse.</p></div>
-      ${OBJECTIFS.map((o) => optionHTML('objectif', o, d.objectif === o.v)).join('')}`;
+      <div class="dk dk-opts">${OBJECTIFS.map((o) => optionHTML('objectif', o, d.objectif === o.v)).join('')}</div>`;
   } else if (n === 2) {
     corps = `
       <div class="q-head"><h1 class="h1">Parlons un peu de toi</h1>
@@ -343,7 +347,7 @@ function ecranQuestionnaire(arg) {
         ${mesureHTML('poids', 'Poids', 'kg', d.poids, 35, 250, 0.1)}
       </div>
       <div class="section-title">Niveau d'activité <small>Une seule option</small></div>
-      ${ACTIVITES.map((o) => optionHTML('activite', o, d.activite === o.v, true)).join('')}`;
+      <div class="dk dk-opts">${ACTIVITES.map((o) => optionHTML('activite', o, d.activite === o.v, true)).join('')}</div>`;
   } else if (n === 3) {
     corps = `
       <div class="q-head"><h1 class="h1">Quels sont tes goûts ?</h1>
@@ -365,7 +369,7 @@ function ecranQuestionnaire(arg) {
       <div class="chip-grid">${ALLERGIES.map((a) => `<button class="chip neg${d.allergies.includes(a.v) ? ' on' : ''}" data-toggle="allergies" data-v="${a.v}">${d.allergies.includes(a.v) ? ms('block') : ''}${a.t}</button>`).join('')}
         <button class="chip${!d.allergies.length ? ' on' : ''}" data-clear="allergies">Aucune allergie</button></div>
       <div class="section-title">Régime</div>
-      ${REGIMES.map((o) => optionHTML('regime', o, d.regime === o.v, true)).join('')}
+      <div class="dk dk-opts">${REGIMES.map((o) => optionHTML('regime', o, d.regime === o.v, true)).join('')}</div>
       ${S.q4Plus ? '' : `<button class="card resume" id="q4plus"><span class="ic">${ms('tune')}</span><span class="txt"><b>${d.budget === 'eco' ? 'Budget économique' : 'Budget standard'} · ${(TEMPS.find((t) => t.v === Number(d.temps)) || TEMPS[1]).d} · ${d.jours} jours</b><span>Réglages par défaut, tu peux les changer</span></span><span class="link-txt">Modifier</span></button>`}
       <div ${S.q4Plus ? '' : 'hidden'}>
       <div class="section-title">Budget courses</div>
@@ -380,7 +384,7 @@ function ecranQuestionnaire(arg) {
       </div>`;
   }
   const dernier = n === 4;
-  app.innerHTML = `<section class="screen">${top}${corps}
+  app.innerHTML = `<section class="screen q-screen">${top}${corps}
     <p class="form-error q-err" id="qerr" hidden></p>
     <div class="q-foot">
       ${n > 1 ? `<button class="btn btn-soft" id="prev" aria-label="Étape précédente">${ms('arrow_back')}</button>` : ''}
@@ -583,13 +587,14 @@ function ecranPlan() {
   const tousIds = plan.jours.flatMap((j) => j.repas.map((r) => r.recette && r.recette.id).filter(Boolean));
 
   app.innerHTML = `
-  <section class="screen with-nav">
+  <section class="screen with-nav plan-screen">
     <div class="topbar">${logo()}<span class="title">Plan de repas</span></div>
     <span class="pill">${ms('eco')}${esc(objectifLabel(S.profil.objectif))} · ${plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">${S.prenom ? esc(S.prenom) + ', ton' : 'Ton'} menu de la semaine</h1>
     <p class="lead">Calibré pour ton objectif et tes goûts.</p>
     <div class="days" role="tablist" style="--n:${plan.jours.length}">${plan.jours.map((j, i) => `<button class="day${i === S.jour ? ' on' : ''}" data-day="${i}" role="tab" aria-selected="${i === S.jour}">
       ${JOURS_COURTS[j.jour] || j.jour.slice(0, 3)}</button>`).join('')}</div>
+    <div class="dk dk-cols${doux && !(COMPTES && !token) ? ' solo' : ''}"><div class="dk dk-side">
     ${doux ? '' : `<div class="hero-card energie">
       <div class="head"><div><small>Énergie du ${esc((jour.jour || '').toLowerCase())}</small><b>${fmt(t.kcal)} <span>/ ${fmt(b.kcalCible)} kcal</span></b></div>
         <span class="badge${kcalPct >= 95 && kcalPct <= 105 ? ' ok' : ''}">${kcalPct >= 95 && kcalPct <= 105 ? ms('check') + 'Équilibré' : kcalPct + ' %'}</span></div>
@@ -598,6 +603,7 @@ function ecranPlan() {
         ${macroLigne('Protéines', t.proteines, b.macros.proteines)}${macroLigne('Glucides', t.glucides, b.macros.glucides)}${macroLigne('Lipides', t.lipides, b.macros.lipides)}</details>
     </div>`}
     ${COMPTES && !token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Garde ton plan</b><p>Retrouve-le sur tous tes appareils.</p></div><button id="save">Sauvegarder</button></div>` : ''}
+    </div><div class="dk dk-main dk-meals">
     <div class="meals-head"><h2 class="h2">Les repas du jour</h2><span class="muted small">${jour.repas.length} repas prévus</span></div>
     ${jour.repas.map((r, i) => {
       const c = CRENEAU[r.creneau] || CRENEAU.dejeuner;
@@ -613,6 +619,7 @@ function ecranPlan() {
       </article>`;
     }).join('')}
     <div class="end-cta"><button class="btn btn-primary btn-block" id="toShop">${ms('shopping_cart')}Voir ma liste de courses</button></div>
+    </div></div>
   </section>`;
 
   app.querySelectorAll('[data-day]').forEach((bt) => bt.addEventListener('click', () => { S.jour = Number(bt.dataset.day); persist(); const y = window.scrollY; ecranPlan(); window.scrollTo(0, y); }));
@@ -665,15 +672,18 @@ function ouvrirRecette(repas) {
   const r = repas.recette; if (!r) return;
   const back = document.createElement('div');
   back.className = 'sheet-back';
-  back.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(r.nom)}"><div class="grab"></div>
+  back.innerHTML = `<div class="sheet sheet-recette" role="dialog" aria-modal="true" aria-label="${esc(r.nom)}"><div class="grab"></div>
     ${photos[r.id] ? `<img class="sheet-photo" src="api/recipe-photo/${encodeURIComponent(r.id)}?v=${encodeURIComponent(photos[r.id])}" alt="" onerror="this.remove()" />` : ''}
     <div class="top"><h2>${esc(r.nom)}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div>
     <div class="meta"><span>${ms('schedule')}${r.tempsMinutes} min</span>${S.masquerKcal ? '' : `<span>${ms('local_fire_department')}${fmt(r.kcal)} kcal</span>`}<span>${ms('person')}1 portion</span></div>
     ${S.masquerKcal ? '' : `<div class="macros"><span class="macro">Protéines ${fmt(r.proteines)} g</span><span class="macro">Glucides ${fmt(r.glucides)} g</span><span class="macro">Lipides ${fmt(r.lipides)} g</span></div>`}
+    <div class="dk dk-recette"><div class="dk">
     <h3>Ingrédients</h3>
     ${(r.ingredients || []).map((i) => `<div class="ing"><span>${esc(nomIngredient(i.nom))}</span><span>${esc(quantiteTxt(i))}</span></div>`).join('')}
+    </div><div class="dk">
     <h3>Préparation</h3>
     <ol class="steps">${(r.etapes || []).map((e) => `<li>${esc(e)}</li>`).join('')}</ol>
+    </div></div>
     <p class="legal">Les quantités sont adaptées à ton objectif.</p>
   </div>`;
   const fermer = () => { back.remove(); document.body.style.overflow = ''; };
@@ -715,12 +725,14 @@ function ecranCourses() {
     <h1 class="h1" style="margin-top:12px">Liste de courses</h1>
     <p class="lead">Tous les ingrédients de ton plan, calculés pour la semaine.</p>
     <p class="print-only">${esc(APP_NOM)} — pour ${S.plan.jours.length} jours · ${S.portions} personne(s)</p>
+    <div class="dk dk-cols dk-courses"><div class="dk dk-side">
     <div class="card portions"><div class="ic">${ms('group')}</div><div class="txt"><b>Cuisiner pour</b><span>Quantités ajustées</span></div>
       <div class="stepper"><button id="minus" aria-label="Une personne de moins" ${S.portions <= 1 ? 'disabled' : ''}>${ms('remove')}</button>
         <output>${S.portions}<small>pers.</small></output>
         <button id="plus" aria-label="Une personne de plus" ${S.portions >= 12 ? 'disabled' : ''}>${ms('add')}</button></div></div>
     <div class="card progress-card"><div class="row"><span>${ms('check_circle', 'fill')}${faits} sur ${tous.length} articles</span><span>${pct} %</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div></div>
+    </div><div class="dk dk-main dk-rayons">
     ${rayonsEnCours.map((ry) => `<div class="card rayon"><div class="head"><div class="ic">${ms(RAYON_IC[ry] || 'shopping_basket')}</div><h3>${esc(ry)}</h3>
       <small>${faitsDans(parRayon[ry])}/${parRayon[ry].length}</small></div>${trier(parRayon[ry]).map(itemHTML).join('')}</div>`).join('')}
     ${liste.placard.length ? `<details class="card rayon placard"><summary class="head"><div class="ic">${ms('kitchen')}</div><h3>Placard</h3>
@@ -728,9 +740,11 @@ function ecranCourses() {
       <p class="section-help" style="margin:4px 0 0">Condiments et basiques : vérifie avant d'en racheter.</p>${trier(liste.placard).map(itemHTML).join('')}</details>` : ''}
     ${rayonsFinis.map((ry) => `<details class="card rayon fini"><summary class="head"><div class="ic">${ms('check', 'fill')}</div><h3>${esc(ry)}</h3>
       <small>Tout est pris</small>${ms('expand_more', 'chev')}</summary>${parRayon[ry].map(itemHTML).join('')}</details>`).join('')}
+    </div><div class="dk dk-actions">
     <button class="btn btn-primary btn-block no-print" style="margin-top:22px" id="share">${ms('ios_share')}Partager la liste</button>
     <div class="export-row no-print"><button class="btn btn-ghost" id="pdf">${ms('download')}Exporter en PDF</button>
       ${faits ? `<button class="btn btn-ghost" id="reset">${ms('restart_alt')}Tout décocher</button>` : ''}</div>
+    </div></div>
   </section>`;
 
   const reRender = () => {
@@ -776,6 +790,7 @@ function ecranProfil() {
   app.innerHTML = `
   <section class="screen with-nav">
     <div class="topbar">${logo()}<span class="title">Profil</span></div>
+    <div class="dk dk-cols dk-profil"><div class="dk dk-side">
     <div class="profile-head"><div class="avatar">${esc(initiale())}</div><div class="who">
       <b>${esc(S.prenom || 'Ajoute ton prénom')}</b><span>${token ? esc(S.email || '') : 'Ton plan est enregistré sur ce téléphone'}</span></div>
       <button class="icon-btn" id="editName" aria-label="Modifier mon prénom">${ms('edit')}</button></div>
@@ -785,6 +800,7 @@ function ecranProfil() {
     ${b ? `<div class="goal-card"><small>Objectif</small><div class="h2">${esc(objectifLabel(S.profil.objectif))}</div>
       ${S.masquerKcal ? '' : `<div class="kcal"><b>${fmt(b.kcalCible)}</b><span>kcal / jour</span></div>
       <div class="macro-rows">${macroRow('Protéines', b.macros.proteines, 4)}${macroRow('Glucides', b.macros.glucides, 4)}${macroRow('Lipides', b.macros.lipides, 9)}</div>`}</div>` : ''}
+    </div><div class="dk dk-main">
     <div class="card list-card">
       <button class="list-row" id="edit"><span class="ic">${ms('tune')}</span><span class="txt"><b>Modifier mes réponses</b><span>Objectif, mesures, goûts, contraintes</span></span>${ms('chevron_right')}</button>
       <div class="list-row"><span class="ic">${ms('restaurant')}</span><span class="txt"><b>Régime &amp; tolérances</b><span>${esc(contraintes)}</span></span></div>
@@ -798,6 +814,7 @@ function ecranProfil() {
       <button class="list-row" id="erase"><span class="ic" style="color:var(--danger)">${ms('delete')}</span><span class="txt"><b style="color:var(--danger)">${token ? 'Supprimer mon compte' : 'Effacer mes données'}</b>
         <span>${token ? 'Supprime ton compte et ton plan, définitivement' : 'Efface le plan enregistré sur cet appareil'}</span></span></button>
     </div>
+    </div></div>
     <p class="legal center">Estimations à titre indicatif. Cette application ne remplace pas l'avis d'un professionnel de santé.</p>
   </section>`;
 
@@ -834,7 +851,7 @@ function ecranProfil() {
 function confirmer(titre, texte, action, onOk, doux) {
   const back = document.createElement('div');
   back.className = 'sheet-back';
-  back.innerHTML = `<div class="sheet" role="alertdialog" aria-modal="true"><div class="grab"></div><h2 class="h2">${esc(titre)}</h2>
+  back.innerHTML = `<div class="sheet sheet-confirm" role="alertdialog" aria-modal="true"><div class="grab"></div><h2 class="h2">${esc(titre)}</h2>
     <p class="lead">${esc(texte)}</p>
     <button class="btn btn-block ${doux ? 'btn-primary' : ''}" style="margin-top:20px;${doux ? '' : 'background:var(--danger);color:#fff'}" data-ok>${esc(action)}</button>
     <button class="btn btn-soft btn-block" style="margin-top:10px" data-close>Annuler</button></div>`;
