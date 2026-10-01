@@ -171,6 +171,7 @@ function render() {
   nav.hidden = !avecNav;
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === '#/' + route));
   document.querySelector('.sheet-back')?.remove(); document.body.style.overflow = '';
+  if (document.getElementById('print-plan')) nettoyerExportPDF();
   app.innerHTML = '';
   fn(arg);
   window.scrollTo(0, 0);
@@ -720,6 +721,27 @@ function lundiDuPlan() {
   d.setDate(d.getDate() + (j >= 5 ? 7 - j : -j));
   return d;
 }
+// Quantité pour le PDF : accord singulier/pluriel des unités comptables
+// (1 tranche, 1,5 tranche, 2 tranches). Valeurs inchangées.
+const UNITES_PLURIEL = { piece: 'pièce', pièce: 'pièce', pieces: 'pièce', pièces: 'pièce', tranche: 'tranche', tranches: 'tranche', pincée: 'pincée', pincées: 'pincée', pincee: 'pincée', boîte: 'boîte', sachet: 'sachet', gousse: 'gousse', feuille: 'feuille', brique: 'brique', pot: 'pot', poignée: 'poignée', verre: 'verre', bol: 'bol', branche: 'branche' };
+function quantitePDF(i) {
+  const q = Number(i.quantite) || 0;
+  let u = String(i.unite || '').trim();
+  const base = UNITES_PLURIEL[u.toLowerCase()];
+  if (base) u = q >= 2 ? base + 's' : base;
+  return (String(i.quantite).replace('.', ',') + ' ' + u).trim();
+}
+function prenomAffiche(p) {
+  return String(p || '').trim().toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, sep, l) => sep + l.toUpperCase());
+}
+const CRENEAU_PDF = { 'petit-dejeuner': 'free_breakfast', dejeuner: 'lunch_dining', collation: 'nutrition', diner: 'dinner_dining' };
+
+function nettoyerExportPDF() {
+  document.getElementById('print-plan')?.remove();
+  document.getElementById('pp-page')?.remove();
+  document.body.classList.remove('print-plan');
+}
+
 function exporterPlanPDF() {
   const plan = S.plan; if (!plan) return;
   const b = plan.besoins;
@@ -728,54 +750,83 @@ function exporterPlanPDF() {
   const fr = (d, o) => d.toLocaleDateString('fr-FR', o);
   const dernier = dateDuJour(plan.jours[plan.jours.length - 1].jour, plan.jours.length - 1);
   const semaine = `Semaine du ${fr(lundi, { weekday: 'long', day: 'numeric', month: 'long' })} au ${fr(dernier, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`;
+  const semaineCourt = `Semaine du ${fr(lundi, { day: 'numeric', month: 'long' })} au ${fr(dernier, { day: 'numeric', month: 'long', year: 'numeric' })}`;
   const nomStudio = studio ? 'My Coach ' + studio.nom : 'My Coach';
-  const macrosTxt = (o) => `P ${fmt(o.proteines)} g · G ${fmt(o.glucides)} g · L ${fmt(o.lipides)} g`;
+  const prenom = prenomAffiche(S.prenom);
+  const titre = 'Plan alimentaire' + (prenom ? ' de ' + prenom : '');
+  const kcalCible = Number(b.kcalCible) || 1;
+  const part = (g, k) => Math.round(((Number(g) || 0) * k * 100) / kcalCible);
+  const chips = (o) => `<span class="pp-chip p">P ${fmt(o.proteines)} g</span><span class="pp-chip g">G ${fmt(o.glucides)} g</span><span class="pp-chip l">L ${fmt(o.lipides)} g</span>`;
+  const repere = (cls, lbl, g, k) => `<div class="pp-stat ${cls}"><small>${lbl}</small><b>${fmt(g)} g</b><div class="pp-bar"><i style="width:${Math.min(100, part(g, k))}%"></i></div><span>${part(g, k)} % de l'énergie</span></div>`;
 
   const jours = plan.jours.map((j, i) => {
     const t = totauxJour(j);
+    const d = dateDuJour(j.jour, i);
     const repas = j.repas.map((r) => {
       const rc = r.recette;
-      if (!rc) return `<article class="pp-meal"><div class="pp-slot">${esc(labelRepas(r.label))}</div><p class="pp-vide">Aucune recette compatible avec tes contraintes pour ce repas.</p></article>`;
-      return `<article class="pp-meal">
-        <div class="pp-slot">${esc(labelRepas(r.label))}</div>
+      const slot = `<div class="pp-slot">${ms(CRENEAU_PDF[r.creneau] || 'restaurant')}<span>${esc(labelRepas(r.label))}</span></div>`;
+      if (!rc) return `<div class="pp-meal">${slot}<p class="pp-vide">Aucune recette compatible avec tes contraintes pour ce repas.</p></div>`;
+      return `<div class="pp-meal">${slot}
         <div class="pp-main">
           <div class="pp-title"><b>${esc(rc.nom)}</b><span class="pp-kcal">${fmt(rc.kcal)} kcal</span></div>
-          <div class="pp-macros">${macrosTxt(rc)} · ${rc.tempsMinutes} min</div>
-          <ul class="pp-ing">${(rc.ingredients || []).map((x) => `<li><span>${esc(nomIngredient(x.nom))}</span><b>${esc(quantiteTxt(x))}</b></li>`).join('')}</ul>
-        </div></article>`;
+          <div class="pp-sub">${chips(rc)}<span class="pp-time">${ms('schedule')}${rc.tempsMinutes} min</span></div>
+          <ul class="pp-ing">${(rc.ingredients || []).map((x) => `<li><span>${esc(nomIngredient(x.nom))}</span><i></i><b>${esc(quantitePDF(x))}</b></li>`).join('')}</ul>
+        </div></div>`;
     }).join('');
     return `<section class="pp-day">
-      <div class="pp-dayhead"><h2>${esc(fr(dateDuJour(j.jour, i), { weekday: 'long', day: 'numeric', month: 'long' }))}</h2>
-        <span><b>${fmt(t.kcal)} kcal</b> · ${macrosTxt(t)}</span></div>${repas}</section>`;
+      <header class="pp-dayhead">
+        <div class="pp-date"><b>${d.getDate()}</b><span>${esc(fr(d, { month: 'short' }).replace('.', ''))}</span></div>
+        <div class="pp-dayname"><h2>${esc(fr(d, { weekday: 'long' }))}</h2><span>Jour ${i + 1} sur ${plan.jours.length} · ${j.repas.length} repas</span></div>
+        <div class="pp-daytot"><span class="pp-kcalpill">${fmt(t.kcal)} kcal</span><div>${chips(t)}</div></div>
+      </header>${repas}</section>`;
   }).join('');
 
-  document.getElementById('print-plan')?.remove();
+  nettoyerExportPDF();
+  // Page sans marge : le navigateur n'a plus de place pour ses en-têtes et pieds
+  // automatiques (date, URL, numéros). Les marges sont recréées par le tableau.
+  const page = document.createElement('style');
+  page.id = 'pp-page';
+  page.textContent = '@page { size: A4; margin: 0; }';
+  document.head.appendChild(page);
+
   const zone = document.createElement('div');
   zone.id = 'print-plan';
   zone.innerHTML = `<div class="pp">
-    <header class="pp-head"><img src="logo-mycoach-noir.png" alt="My Coach" />
-      <div class="pp-headtxt"><div class="pp-studio">${esc(nomStudio)}</div>
-        <h1>Plan alimentaire${S.prenom ? ' de ' + esc(S.prenom) : ''}</h1><p>${esc(semaine)}</p></div></header>
-    <div class="pp-obj">
-      <div><small>Objectif</small><b>${esc(objectifLabel(S.profil && S.profil.objectif))}</b></div>
-      <div><small>Cible par jour</small><b>${fmt(b.kcalCible)} kcal</b></div>
-      <div><small>Protéines</small><b>${fmt(b.macros.proteines)} g</b></div>
-      <div><small>Glucides</small><b>${fmt(b.macros.glucides)} g</b></div>
-      <div><small>Lipides</small><b>${fmt(b.macros.lipides)} g</b></div>
-    </div>
-    <p class="pp-note">${plan.jours.length} jours · quantités pour 1 personne · P = protéines, G = glucides, L = lipides</p>
-    ${jours}
-    <footer class="pp-foot">${esc(nomStudio)} · Plan créé avec My Coach Nutrition le ${esc(fr(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }))}.<br />Estimations indicatives, ne remplace pas l'avis d'un professionnel de santé.</footer>
+    <table class="pp-frame"><thead><tr><td><div class="pp-sp-top"></div></td></tr></thead>
+    <tfoot><tr><td><div class="pp-pagefoot"><img src="logo-mycoach-noir.png" alt="" /><span class="pp-pf-txt">${esc(nomStudio)} · ${esc(titre)}</span><span class="pp-pf-sem">${esc(semaineCourt)}</span></div></td></tr></tfoot>
+    <tbody><tr><td>
+      <header class="pp-cover">
+        <div class="pp-cover-top"><img src="logo-mycoach-blanc.png" alt="My Coach" /><span class="pp-studio">${esc(nomStudio.toUpperCase())}</span></div>
+        <h1>${esc(titre)}</h1>
+        <p>${esc(semaine.charAt(0).toUpperCase() + semaine.slice(1))}</p>
+        <div class="pp-cover-meta">
+          <div><small>Objectif</small><b>${esc(objectifLabel(S.profil && S.profil.objectif))}</b></div>
+          <div><small>Énergie par jour</small><b>${fmt(b.kcalCible)} kcal</b></div>
+          <div><small>Durée</small><b>${plan.jours.length} jours</b></div>
+        </div>
+      </header>
+      <section class="pp-reperes">
+        <h3>Tes repères quotidiens</h3>
+        <div class="pp-stats">
+          ${repere('p', 'Protéines', b.macros.proteines, 4)}${repere('g', 'Glucides', b.macros.glucides, 4)}${repere('l', 'Lipides', b.macros.lipides, 9)}
+        </div>
+        <p class="pp-legende">Quantités pour 1 personne · P = protéines · G = glucides · L = lipides</p>
+      </section>
+      ${jours}
+      <section class="pp-sante">${ms('info')}<div><b>Bon à savoir</b><p>Les valeurs de ce plan sont des estimations indicatives. Ce document ne remplace pas l'avis d'un médecin, d'un diététicien ou d'un professionnel de santé.</p>
+        <p class="pp-cree">Plan créé avec My Coach Nutrition · ${esc(nomStudio)} · ${esc(fr(new Date(), { day: 'numeric', month: 'long', year: 'numeric' }))}</p></div></section>
+    </td></tr></tbody></table>
   </div>`;
   document.body.appendChild(zone);
   document.body.classList.add('print-plan');
-  const titre = document.title;
+  const titreDoc = document.title;
   document.title = `Plan alimentaire ${nomStudio} - semaine du ${fr(lundi, { day: 'numeric', month: 'long' })}`;
-  const fin = () => { document.body.classList.remove('print-plan'); zone.remove(); document.title = titre; window.removeEventListener('afterprint', fin); };
+  const fin = () => { nettoyerExportPDF(); document.title = titreDoc; window.removeEventListener('afterprint', fin); };
   window.addEventListener('afterprint', fin);
-  const img = zone.querySelector('img');
-  const imprimer = () => setTimeout(() => window.print(), 60);
-  if (img.complete) imprimer(); else { img.onload = imprimer; img.onerror = imprimer; }
+  // On attend les logos et les polices pour un rendu net.
+  const imgs = [...zone.querySelectorAll('img')].map((im) => (im.complete ? null : new Promise((r) => { im.onload = r; im.onerror = r; }))).filter(Boolean);
+  const polices = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  Promise.all([...imgs, polices]).then(() => setTimeout(() => window.print(), 80));
 }
 
 function nomIngredient(n) {
