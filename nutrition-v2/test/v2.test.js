@@ -10,6 +10,7 @@ const fs = require('fs');
 process.env.NUTRITION_DB = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'nv2-')), 't.sqlite');
 delete process.env.SMTP_HOST;
 process.env.NODE_ENV = 'test';
+process.env.COMPTES = 'on';
 
 const app = require('../server');
 const { getDb, nowIso } = require('../lib/db');

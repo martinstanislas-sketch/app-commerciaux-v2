@@ -115,6 +115,9 @@ app.post('/api/meal', (req, res) => {
 });
 
 // --- Comptes : lien magique ----------------------------------------------------
+// Comptes désactivés pour la phase de test (COMPTES=on pour les réactiver).
+const COMPTES = String(process.env.COMPTES || 'off').toLowerCase() === 'on';
+app.use('/account', (req, res, next) => (COMPTES ? next() : res.status(404).json({ ok: false, error: 'Comptes désactivés.' })));
 function baseUrlPour(req) {
   if (PUBLIC_URL) return PUBLIC_URL.replace(/\/?$/, '/');
   // Pas d'URL configurée : on reprend la page appelante si elle est sur le même hôte.

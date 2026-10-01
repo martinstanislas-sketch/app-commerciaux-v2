@@ -7,6 +7,10 @@
    ========================================================================== */
 
 const APP_NOM = 'My Coach Nutrition';
+// Comptes clients (connexion par lien e-mail) : désactivés pour la phase de test
+// (01/10/2026). Le plan reste enregistré sur le téléphone. Passer à true (et
+// COMPTES=on côté serveur) pour réactiver connexion, sauvegarde et synchronisation.
+const COMPTES = false;
 const LS_STATE = 'nv2.state';
 const LS_TOKEN = 'nv2.token';
 const app = document.getElementById('app');
@@ -87,7 +91,7 @@ S.draft = Object.assign(draftVide(), S.draft || {});
 S.portions = S.portions || 1;
 S.coches = S.coches || {};
 S.jour = S.jour || 0;
-let token = lsGet(LS_TOKEN);
+let token = COMPTES ? lsGet(LS_TOKEN) : null;
 let photos = {};
 let authCtx = { email: '', lienDev: '', minutes: 15 };
 
@@ -133,7 +137,7 @@ function syncCourses() { clearTimeout(syncCoursesT); syncCoursesT = setTimeout((
 
 // Sauvegarde serveur (silencieuse) quand on est connecté.
 async function syncServeur(champs) {
-  if (!token) return;
+  if (!COMPTES || !token) return;
   try { await api('/account/save', { body: champs }); } catch (_) { /* hors ligne : localStorage fait foi */ }
 }
 
@@ -141,7 +145,7 @@ async function syncServeur(champs) {
 //  Routeur
 // ---------------------------------------------------------------------------
 const ROUTES = {
-  '': ecranAccueil, connexion: ecranConnexion, verification: ecranVerification,
+  '': ecranAccueil, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
   questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, profil: ecranProfil,
 };
 function render() {
@@ -182,7 +186,7 @@ function ecranAccueil() {
     <div class="card feature"><div class="ic">${ms('restaurant')}</div><div><div class="head"><b class="h3">Selon tes goûts</b><span class="badge">Sur-mesure</span></div>
       <p>Tes cuisines préférées, sans tes allergies ni ce que tu n'aimes pas.</p></div></div>
     <button class="btn btn-primary btn-block" style="margin-top:18px" id="start">Créer mon plan ${ms('arrow_forward')}</button>
-    <p style="margin-top:18px">Déjà un compte ? <a class="link" href="#/connexion">Se connecter</a></p>
+    ${COMPTES ? `<p style="margin-top:18px">Déjà un compte ? <a class="link" href="#/connexion">Se connecter</a></p>` : ''}
     <p class="legal">Estimations indicatives, ne remplace pas un avis médical.</p>
   </section>`;
   document.getElementById('start').onclick = () => go('#/questionnaire/1');
@@ -591,7 +595,7 @@ function ecranPlan() {
         ${metric('Lipides', 'water_drop', t.lipides, b.macros.lipides, ' g')}
       </div>
     </div>
-    ${!token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Garde ton plan</b><p>Retrouve-le sur tous tes appareils.</p></div><button id="save">Sauvegarder</button></div>` : ''}
+    ${COMPTES && !token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Garde ton plan</b><p>Retrouve-le sur tous tes appareils.</p></div><button id="save">Sauvegarder</button></div>` : ''}
     <div class="meals-head"><h2 class="h2">Les repas du jour</h2><span class="muted small">${jour.repas.length} repas prévus</span></div>
     ${jour.repas.map((r, i) => {
       const c = CRENEAU[r.creneau] || CRENEAU.dejeuner;
@@ -755,10 +759,10 @@ function ecranProfil() {
   <section class="screen with-nav">
     <div class="topbar">${logo()}<span class="title">Profil</span></div>
     <div class="profile-head"><div class="avatar">${esc(initiale())}</div><div class="who">
-      <b>${esc(S.prenom || 'Mon profil')}</b><span>${token ? esc(S.email || '') : 'Plan enregistré sur cet appareil uniquement'}</span></div></div>
+      <b>${esc(S.prenom || 'Mon profil')}</b><span>${token ? esc(S.email || '') : 'Ton plan est enregistré sur ce téléphone'}</span></div></div>
     <form class="name-edit" id="nameForm"><div class="input-wrap"><input id="prenom" placeholder="Ton prénom" value="${esc(S.prenom || '')}" maxlength="60" aria-label="Ton prénom" /></div>
       <button class="btn btn-soft" type="submit">OK</button></form>
-    ${!token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Sauvegarde ton plan</b><p>Connexion par e-mail, sans mot de passe.</p></div><button id="save">Me connecter</button></div>` : ''}
+    ${COMPTES && !token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Sauvegarde ton plan</b><p>Connexion par e-mail, sans mot de passe.</p></div><button id="save">Me connecter</button></div>` : ''}
     ${b ? `<div class="goal-card"><small>Objectif</small><div class="h2">${esc(objectifLabel(S.profil.objectif))}</div>
       <div class="kcal"><b>${fmt(b.kcalCible)}</b><span>kcal / jour</span></div>
       <div class="macro-rows">${macroRow('Protéines', b.macros.proteines, 4)}${macroRow('Glucides', b.macros.glucides, 4)}${macroRow('Lipides', b.macros.lipides, 9)}</div></div>` : ''}
@@ -823,9 +827,9 @@ function confirmer(titre, texte, action, onOk, doux) {
 // ---------------------------------------------------------------------------
 (async function init() {
   fetch('api/recipe-photos-index').then((r) => r.json()).then((j) => { photos = (j && j.photos) || {}; if (Object.keys(photos).length && /plan/.test(location.hash)) render(); }).catch(() => {});
-  if (new URLSearchParams(location.search).has('lien')) { await traiterLienMagique(); render(); return; }
+  if (COMPTES && new URLSearchParams(location.search).has('lien')) { await traiterLienMagique(); render(); return; }
   render();
-  if (token) {
+  if (COMPTES && token) {
     try { const r = await api('/account/me'); adopterCompte(r.compte, false); if (/^#\/(plan|profil|courses)?$/.test(location.hash || '#/')) render(); } catch (_) { /* hors ligne ou session expirée */ }
   }
 })();
