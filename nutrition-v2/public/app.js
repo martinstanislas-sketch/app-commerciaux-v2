@@ -26,11 +26,11 @@ const OBJECTIFS = [
   { v: 'energie', ic: 'bolt', t: 'Avoir plus d\'énergie', d: 'Une répartition pensée pour ta vitalité au quotidien.' },
 ];
 const ACTIVITES = [
-  { v: 'sedentaire', ic: 'chair', t: 'Sédentaire', d: 'Travail de bureau, peu de mouvement.' },
-  { v: 'leger', ic: 'directions_walk', t: 'Léger', d: '1 à 3 séances par semaine ou marche quotidienne.' },
-  { v: 'modere', ic: 'directions_run', t: 'Modéré', d: '3 à 5 séances par semaine.' },
-  { v: 'actif', ic: 'fitness_center', t: 'Actif', d: 'Sport 6 à 7 fois par semaine.' },
-  { v: 'tres_actif', ic: 'bolt', t: 'Très actif', d: 'Métier physique et sport régulier.' },
+  { v: 'sedentaire', ic: 'chair', t: 'Sédentaire', d: 'Pas d\'entraînement My Coach pour l\'instant.' },
+  { v: 'leger', ic: 'directions_walk', t: 'Je suis lancé·e', d: '1 séance My Coach par semaine.' },
+  { v: 'modere', ic: 'directions_run', t: 'Régulier·e', d: '2 séances My Coach par semaine.' },
+  { v: 'actif', ic: 'fitness_center', t: 'Sportif·ve', d: '2 à 3 séances My Coach par semaine et un métier physique.' },
+  { v: 'tres_actif', ic: 'bolt', t: 'Athlète au quotidien', d: '3 séances My Coach, un métier actif et de la marche.' },
 ];
 const CUISINES = [
   { v: 'francaise', e: '🥖', t: 'Française' },
