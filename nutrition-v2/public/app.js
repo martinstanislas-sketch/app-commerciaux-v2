@@ -26,11 +26,11 @@ const OBJECTIFS = [
   { v: 'energie', ic: 'bolt', t: 'Avoir plus d\'énergie', d: 'Une répartition pensée pour ta vitalité au quotidien.' },
 ];
 const ACTIVITES = [
-  { v: 'sedentaire', ic: 'chair', t: 'Sédentaire', d: 'Pas d\'entraînement My Coach pour l\'instant.' },
-  { v: 'leger', ic: 'directions_walk', t: 'Je suis lancé·e', d: '1 séance My Coach par semaine.' },
-  { v: 'modere', ic: 'directions_run', t: 'Régulier·e', d: '2 séances My Coach par semaine.' },
-  { v: 'actif', ic: 'fitness_center', t: 'Sportif·ve', d: '2 à 3 séances My Coach par semaine et un métier physique.' },
-  { v: 'tres_actif', ic: 'bolt', t: 'Athlète au quotidien', d: '3 séances My Coach, un métier actif et de la marche.' },
+  { v: 'sedentaire', ic: 'chair', t: 'Je démarre', d: 'Pas d\'entraînement My Coach pour l\'instant.' },
+  { v: 'leger', ic: 'directions_walk', t: 'Je bouge', d: '1 séance My Coach par semaine.' },
+  { v: 'modere', ic: 'directions_run', t: 'Je suis régulier·e', d: '2 séances My Coach par semaine.' },
+  { v: 'actif', ic: 'fitness_center', t: 'Je suis actif·ve', d: '2 à 3 séances My Coach par semaine et un métier physique.' },
+  { v: 'tres_actif', ic: 'bolt', t: 'Je suis très actif·ve', d: '3 séances My Coach, un métier actif et de la marche.' },
 ];
 const CUISINES = [
   { v: 'francaise', e: '🥖', t: 'Française' },

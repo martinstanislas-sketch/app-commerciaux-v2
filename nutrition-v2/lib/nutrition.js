@@ -5,11 +5,12 @@
 // Facteurs d'activite classiques. Les quatre objectifs de l'app :
 //   perte / maintien / muscle / energie.
 const ACTIVITE_FACTEURS = {
-  sedentaire: 1.2, // peu ou pas d'exercice
-  leger: 1.375, // exercice leger 1-3 j/semaine
-  modere: 1.55, // exercice modere 3-5 j/semaine
-  actif: 1.725, // exercice intense 6-7 j/semaine
-  tres_actif: 1.9, // travail physique + sport
+  // Recales sur des seances My Coach d'environ 1 h (v2).
+  sedentaire: 1.2, // Je demarre : pas encore de seance
+  leger: 1.3, // Je bouge : 1 seance / semaine
+  modere: 1.375, // Je suis regulier.e : 2 seances / semaine
+  actif: 1.55, // Je suis actif.ve : 2-3 seances + metier physique
+  tres_actif: 1.725, // Je suis tres actif.ve : 3 seances + metier actif + marche
 };
 
 const OBJECTIF_AJUSTEMENT = {
