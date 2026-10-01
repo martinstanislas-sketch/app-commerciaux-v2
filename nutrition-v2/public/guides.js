@@ -9,8 +9,8 @@
         large) dans public/guides/, sous le même nom (slug) ;
      2. ajouter une ligne ci-dessous.
    category : mindset | nutrition | coaching
-   day : jour du challenge où le guide se débloque (1 = dès le départ). Le jour 1
-   est la date de la première mesure de l'onglet Perf.
+   day : jour conseillé du challenge, sert uniquement à l'ordre d'affichage
+   (tous les guides sont accessibles dès le départ).
    ========================================================================== */
 
 const GUIDES = [

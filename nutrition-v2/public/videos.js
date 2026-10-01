@@ -128,17 +128,15 @@ const gdUrl = (g, dl) => `api/guides/${encodeURIComponent(g.slug)}.pdf?c=${encod
 const gdCat = (c) => GUIDE_FILTRES.find((f) => f.v === c) || { t: c, ic: 'menu_book' };
 
 function ecranGuides(seg) {
-  if (typeof perfDepartAuto === 'function') perfDepartAuto();
-  const jour = jourChallenge();
-  const ouverts = GUIDES.filter((g) => g.day <= jour).length;
+  // Tous les guides sont accessibles dès le départ (pas de déblocage) ; ils restent
+  // triés selon le jour conseillé du challenge.
+  const jour = Infinity;
   app.innerHTML = `
   <section class="screen with-nav videos-screen guides-screen">
     <div class="topbar">${logo()}<span class="title">Bonus</span></div>
     <h1 class="h1">Tes guides My Coach</h1>
-    <p class="lead">Des conseils concrets, débloqués au fil de ton challenge.</p>
+    <p class="lead">Des conseils concrets pour réussir ton challenge.</p>
     ${seg}
-    <div class="card gd-jour"><span class="ic">${ms('local_fire_department', 'fill')}</span>
-      <div><b>Jour ${jour} de ton challenge</b><span>${ouverts} guide${ouverts > 1 ? 's' : ''} débloqué${ouverts > 1 ? 's' : ''} sur ${GUIDES.length}</span></div></div>
     <div class="input-wrap vid-search">${ms('search')}<input id="gdQ" type="search" placeholder="Rechercher un guide…" aria-label="Rechercher un guide" autocomplete="off" value="${esc(gdRecherche)}" /></div>
     <div class="vid-filtres" role="tablist">${GUIDE_FILTRES.map((f) => `<button class="chip${f.v === gdFiltre ? ' on' : ''}" data-gf="${f.v}" role="tab" aria-selected="${f.v === gdFiltre}">${f.t}</button>`).join('')}</div>
     <p class="vid-count muted small" id="gdCount"></p>
@@ -175,7 +173,6 @@ function gdListe(jour) {
         <p class="gd-sub">${esc(g.subtitle)}</p>
         <div class="vid-meta">
           <span>${ms(cat.ic)}${esc(cat.t)}</span>
-          <span>${ms('calendar_today')}Jour ${g.day}</span>
           <span>${ms('description')}${g.pages} pages</span>
         </div>
         ${verrou ? `<button class="btn btn-block vid-btn gd-btn-lock" data-gd="${g.i}" aria-disabled="true">${ms('lock')}Débloqué au jour ${g.day}</button>`
