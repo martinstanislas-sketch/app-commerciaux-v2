@@ -251,8 +251,37 @@ async function importerPhotosDepuisSource() {
   return bilan;
 }
 
+// --- Photos fournies avec l'app (data/photos/<id de recette>.jpg) -----------------
+// Chargées en base à chaque démarrage : remplacent l'emoji des recettes sans photo.
+// Un fichier plus récent que la photo en base la remplace.
+function chargerPhotosLocales() {
+  const fs = require('fs');
+  const dir = path.join(__dirname, 'data', 'photos');
+  let n = 0;
+  try {
+    const ids = new Set(RECIPES.map((r) => r.id));
+    const db = getDb();
+    const lire = db.prepare('SELECT updated_at FROM recipe_photos WHERE recipe_id = ?');
+    const ecrire = db.prepare(`INSERT INTO recipe_photos (recipe_id, mime, data, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(recipe_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`);
+    for (const f of fs.readdirSync(dir)) {
+      const m = /^(.+)\.(jpe?g|png|webp)$/i.exec(f);
+      if (!m || !ids.has(m[1])) continue;
+      const maj = fs.statSync(path.join(dir, f)).mtime.toISOString();
+      const deja = lire.get(m[1]);
+      if (deja && deja.updated_at >= maj) continue;
+      const mime = /png/i.test(m[2]) ? 'image/png' : /webp/i.test(m[2]) ? 'image/webp' : 'image/jpeg';
+      ecrire.run(m[1], mime, fs.readFileSync(path.join(dir, f)), maj);
+      n++;
+    }
+  } catch (_) { /* dossier absent : rien à charger */ }
+  if (n) console.log(`Photos fournies : ${n} chargée(s) depuis data/photos.`);
+  return n;
+}
+
 if (require.main === module) {
   getDb();
+  chargerPhotosLocales();
   setTimeout(() => { importerPhotosDepuisSource(); }, 1500);
   app.listen(PORT, () => {
     console.log(`\n  ${APP_NOM} v2 -> http://localhost:${PORT}`);
@@ -263,3 +292,4 @@ if (require.main === module) {
 
 module.exports = app;
 module.exports.importerPhotosDepuisSource = importerPhotosDepuisSource;
+module.exports.chargerPhotosLocales = chargerPhotosLocales;
