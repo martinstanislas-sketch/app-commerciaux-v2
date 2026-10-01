@@ -122,7 +122,7 @@ function vidOuvrir(v) {
   back.className = 'sheet-back vid-modal';
   back.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(v.title)}">
     <div class="top"><h2>${esc(v.title)}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div>
-    <div class="vid-player"><iframe src="https://www.youtube-nocookie.com/embed/${v.youtubeId}?autoplay=1&rel=0&playsinline=1&modestbranding=1"
+    <div class="vid-player"><iframe src="https://www.youtube-nocookie.com/embed/${v.youtubeId}?rel=0&playsinline=1"
       title="${esc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
     <div class="vid-meta">
       <span>${ms('schedule')}${esc(v.duration)}</span><span>${ms('signal_cellular_alt')}${esc(v.level)}</span><span>${ms('fitness_center')}${esc(v.equipment === 'Aucun' ? 'Aucun matériel' : v.equipment)}</span>
