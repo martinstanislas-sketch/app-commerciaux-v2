@@ -178,14 +178,16 @@ function ecranAccueil() {
     <h1 class="display">Mange mieux,<br/>sans y penser.</h1>
     <p class="lead">Un plan de la semaine adapté à tes goûts, avec la liste de courses.</p>
     <div class="hero-img" aria-hidden="true"><span class="plate">🥗</span>
+      <img src="api/recipe-photo/plat-bowl-lentilles-oeuf-feta" alt="" onerror="this.remove()" />
       <span class="float">${ms('verified', 'fill')}100 % personnalisé</span></div>
+    <button class="btn btn-primary btn-block" id="start">Créer mon plan ${ms('arrow_forward')}</button>
+    <p class="small muted center" style="margin:10px 0 22px">2 minutes · gratuit · sans inscription</p>
     <div class="card feature"><div class="ic">${ms('bolt')}</div><div><div class="head"><b class="h3">Plan en 2 minutes</b><span class="badge">Express</span></div>
       <p>Quelques questions simples pour générer ta semaine.</p></div></div>
     <div class="card feature"><div class="ic">${ms('add_shopping_cart')}</div><div><div class="head"><b class="h3">Courses automatiques</b><span class="badge ok">${ms('check')}Prêt</span></div>
       <p>Les quantités calculées pour ta semaine, rayon par rayon.</p></div></div>
     <div class="card feature"><div class="ic">${ms('restaurant')}</div><div><div class="head"><b class="h3">Selon tes goûts</b><span class="badge">Sur-mesure</span></div>
       <p>Tes cuisines préférées, sans tes allergies ni ce que tu n'aimes pas.</p></div></div>
-    <button class="btn btn-primary btn-block" style="margin-top:18px" id="start">Créer mon plan ${ms('arrow_forward')}</button>
     ${COMPTES ? `<p style="margin-top:18px">Déjà un compte ? <a class="link" href="#/connexion">Se connecter</a></p>` : ''}
     <p class="legal">Estimations indicatives, ne remplace pas un avis médical.</p>
   </section>`;
@@ -321,8 +323,7 @@ function ecranQuestionnaire(arg) {
     corps = `
       <div class="q-head"><h1 class="h1">Quel est ton objectif principal ?</h1>
         <p class="lead">On adapte les calories et les macronutriments de ton plan à ta réponse.</p></div>
-      ${OBJECTIFS.map((o) => optionHTML('objectif', o, d.objectif === o.v)).join('')}
-      <div class="tip">${'<div class="ic">' + ms('info') + '</div>'}<div>Tu pourras changer d'objectif à tout moment depuis ton profil : ton plan sera recalculé.</div></div>`;
+      ${OBJECTIFS.map((o) => optionHTML('objectif', o, d.objectif === o.v)).join('')}`;
   } else if (n === 2) {
     corps = `
       <div class="q-head"><h1 class="h1">Parlons un peu de toi</h1>
@@ -365,6 +366,8 @@ function ecranQuestionnaire(arg) {
         <button class="chip${!d.allergies.length ? ' on' : ''}" data-clear="allergies">Aucune allergie</button></div>
       <div class="section-title">Régime</div>
       ${REGIMES.map((o) => optionHTML('regime', o, d.regime === o.v, true)).join('')}
+      ${S.q4Plus ? '' : `<button class="card resume" id="q4plus"><span class="ic">${ms('tune')}</span><span class="txt"><b>${d.budget === 'eco' ? 'Budget économique' : 'Budget standard'} · ${(TEMPS.find((t) => t.v === Number(d.temps)) || TEMPS[1]).d} · ${d.jours} jours</b><span>Réglages par défaut, tu peux les changer</span></span><span class="link-txt">Modifier</span></button>`}
+      <div ${S.q4Plus ? '' : 'hidden'}>
       <div class="section-title">Budget courses</div>
       <div class="seg-2">
         <button class="tile stack${d.budget === 'eco' ? ' on' : ''}" data-set="budget" data-v="eco">Économique<small>Produits simples</small></button>
@@ -373,7 +376,8 @@ function ecranQuestionnaire(arg) {
       <div class="section-title">Temps de cuisine par repas</div>
       <div class="seg-3">${TEMPS.map((t) => `<button class="tile stack${Number(d.temps) === t.v ? ' on' : ''}" data-set="temps" data-v="${t.v}">${ms(t.ic)}${t.t}<small>${t.d}</small></button>`).join('')}</div>
       <div class="section-title">Nombre de jours au menu</div>
-      <div class="seg-3">${[3, 5, 7].map((j) => `<button class="tile stack${Number(d.jours) === j ? ' on' : ''}" data-set="jours" data-v="${j}">${j} jours<small>${j === 7 ? 'Semaine complète' : j === 5 ? 'Du lundi au vendredi' : 'Pour démarrer'}</small></button>`).join('')}</div>`;
+      <div class="seg-3">${[3, 5, 7].map((j) => `<button class="tile stack${Number(d.jours) === j ? ' on' : ''}" data-set="jours" data-v="${j}">${j} jours<small>${j === 7 ? 'Semaine complète' : j === 5 ? 'Du lundi au vendredi' : 'Pour démarrer'}</small></button>`).join('')}</div>
+      </div>`;
   }
   const dernier = n === 4;
   app.innerHTML = `<section class="screen">${top}${corps}
@@ -395,6 +399,8 @@ function ecranQuestionnaire(arg) {
     d[k] = d[k].includes(v) ? d[k].filter((x) => x !== v) : [...d[k], v];
     persist(); ecranQuestionnaireRefresh(n);
   }));
+  const q4plus = document.getElementById('q4plus');
+  if (q4plus) q4plus.onclick = () => { S.q4Plus = true; persist(); ecranQuestionnaireRefresh(n); };
   app.querySelectorAll('[data-clear]').forEach((b) => b.addEventListener('click', () => { d[b.dataset.clear] = []; persist(); ecranQuestionnaireRefresh(n); }));
   const champPrenom = document.getElementById('prenom');
   if (champPrenom) champPrenom.addEventListener('input', () => { d.prenom = champPrenom.value.trim().slice(0, 40); persist(); });
@@ -572,29 +578,25 @@ function ecranPlan() {
   const t = totauxJour(jour);
   const pct = (a, c) => (c ? Math.min(100, Math.round((a / c) * 100)) : 0);
   const kcalPct = Math.round((t.kcal / (b.kcalCible || 1)) * 100);
-  const metric = (lbl, ic, val, cible, unit) => `<div class="metric"><div class="lbl">${lbl}${ms(ic)}</div>
-    <div class="num">${fmt(val)}${unit} <small>/ ${fmt(cible)}${unit}</small></div><div class="bar"><i style="width:${pct(val, cible)}%"></i></div></div>`;
+  const macroLigne = (lbl, val, cible) => `<div class="mline"><span>${lbl}</span><div class="bar"><i style="width:${pct(val, cible)}%"></i></div><b>${fmt(val)} / ${fmt(cible)} g</b></div>`;
+  const doux = !!S.masquerKcal;
   const tousIds = plan.jours.flatMap((j) => j.repas.map((r) => r.recette && r.recette.id).filter(Boolean));
 
   app.innerHTML = `
   <section class="screen with-nav">
-    <div class="topbar">${logo()}<span class="title">Plan de repas</span>
-      <button class="avatar" id="me" aria-label="Mon profil">${esc(initiale())}</button></div>
+    <div class="topbar">${logo()}<span class="title">Plan de repas</span></div>
     <span class="pill">${ms('eco')}${esc(objectifLabel(S.profil.objectif))} · ${plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">${S.prenom ? esc(S.prenom) + ', ton' : 'Ton'} menu de la semaine</h1>
     <p class="lead">Calibré pour ton objectif et tes goûts.</p>
-    <div class="days" role="tablist">${plan.jours.map((j, i) => `<button class="day${i === S.jour ? ' on' : ''}" data-day="${i}" role="tab" aria-selected="${i === S.jour}">
-      <small>${JOURS_COURTS[j.jour] || j.jour.slice(0, 3)}</small><b>${i + 1}</b><i></i></button>`).join('')}</div>
-    <div class="hero-card targets">
-      <div class="head"><h3>${ms('donut_large')}Repères du ${esc((jour.jour || '').toLowerCase())}</h3>
-        <span class="badge${kcalPct >= 95 && kcalPct <= 105 ? ' ok' : ''}">${kcalPct} % de ta cible</span></div>
-      <div class="grid">
-        ${metric('Calories', 'local_fire_department', t.kcal, b.kcalCible, '')}
-        ${metric('Protéines', 'egg_alt', t.proteines, b.macros.proteines, ' g')}
-        ${metric('Glucides', 'grain', t.glucides, b.macros.glucides, ' g')}
-        ${metric('Lipides', 'water_drop', t.lipides, b.macros.lipides, ' g')}
-      </div>
-    </div>
+    <div class="days" role="tablist" style="--n:${plan.jours.length}">${plan.jours.map((j, i) => `<button class="day${i === S.jour ? ' on' : ''}" data-day="${i}" role="tab" aria-selected="${i === S.jour}">
+      ${JOURS_COURTS[j.jour] || j.jour.slice(0, 3)}</button>`).join('')}</div>
+    ${doux ? '' : `<div class="hero-card energie">
+      <div class="head"><div><small>Énergie du ${esc((jour.jour || '').toLowerCase())}</small><b>${fmt(t.kcal)} <span>/ ${fmt(b.kcalCible)} kcal</span></b></div>
+        <span class="badge${kcalPct >= 95 && kcalPct <= 105 ? ' ok' : ''}">${kcalPct >= 95 && kcalPct <= 105 ? ms('check') + 'Équilibré' : kcalPct + ' %'}</span></div>
+      <div class="bar big${kcalPct >= 95 && kcalPct <= 105 ? ' ok' : ''}"><i style="width:${pct(t.kcal, b.kcalCible)}%"></i></div>
+      <details class="macros-detail"${S.voirMacros ? ' open' : ''}><summary>Voir le détail (protéines, glucides, lipides)${ms('expand_more', 'chev')}</summary>
+        ${macroLigne('Protéines', t.proteines, b.macros.proteines)}${macroLigne('Glucides', t.glucides, b.macros.glucides)}${macroLigne('Lipides', t.lipides, b.macros.lipides)}</details>
+    </div>`}
     ${COMPTES && !token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Garde ton plan</b><p>Retrouve-le sur tous tes appareils.</p></div><button id="save">Sauvegarder</button></div>` : ''}
     <div class="meals-head"><h2 class="h2">Les repas du jour</h2><span class="muted small">${jour.repas.length} repas prévus</span></div>
     ${jour.repas.map((r, i) => {
@@ -606,9 +608,8 @@ function ecranPlan() {
           <span class="chip-float slot">${ms(c.ic)}${esc(labelRepas(r.label))}</span>
           <button class="chip-float swap" data-swap="${i}">${ms('sync')}Changer</button></div>
         <div class="body"><h3 class="name">${esc(rc.nom)}</h3>
-          <div class="meta"><span>${ms('schedule')}${rc.tempsMinutes} min</span><span>${ms('local_fire_department')}${fmt(rc.kcal)} kcal</span></div>
-          <div class="macros"><span class="macro">P : ${fmt(rc.proteines)} g</span><span class="macro">G : ${fmt(rc.glucides)} g</span><span class="macro">L : ${fmt(rc.lipides)} g</span>
-            <span class="grow"></span><button class="btn btn-ghost" data-recipe="${i}">Recette${ms('chevron_right')}</button></div></div>
+          <div class="meal-foot"><div class="meta"><span>${ms('schedule')}${rc.tempsMinutes} min</span>${doux ? '' : `<span>${ms('local_fire_department')}${fmt(rc.kcal)} kcal</span>`}</div>
+            <button class="btn btn-ghost" data-recipe="${i}">Recette${ms('chevron_right')}</button></div></div>
       </article>`;
     }).join('')}
     <div class="end-cta"><button class="btn btn-primary btn-block" id="toShop">${ms('shopping_cart')}Voir ma liste de courses</button></div>
@@ -640,11 +641,16 @@ function ecranPlan() {
       toast('Repas remplacé ✓');
     } catch (ex) { toast(ex.message); bt.disabled = false; bt.innerHTML = ms('sync') + 'Changer'; }
   }));
-  document.getElementById('me').onclick = () => go('#/profil');
+  const det = app.querySelector('.macros-detail');
+  if (det) det.addEventListener('toggle', () => { S.voirMacros = det.open; persist(); });
   document.getElementById('toShop').onclick = () => go('#/courses');
   const save = document.getElementById('save'); if (save) save.onclick = () => go('#/connexion');
 }
 
+function nomIngredient(n) {
+  const t = String(n || '').replace(/\boeuf/gi, (m) => (m[0] === 'O' ? 'Œuf' : 'œuf'));
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 function quantiteTxt(i) {
   const q = Number(i.quantite) || 0;
   let u = String(i.unite || '').trim();
@@ -660,14 +666,15 @@ function ouvrirRecette(repas) {
   const back = document.createElement('div');
   back.className = 'sheet-back';
   back.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(r.nom)}"><div class="grab"></div>
+    ${photos[r.id] ? `<img class="sheet-photo" src="api/recipe-photo/${encodeURIComponent(r.id)}?v=${encodeURIComponent(photos[r.id])}" alt="" onerror="this.remove()" />` : ''}
     <div class="top"><h2>${esc(r.nom)}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div>
-    <div class="meta"><span>${ms('schedule')}${r.tempsMinutes} min</span><span>${ms('local_fire_department')}${fmt(r.kcal)} kcal</span><span>${ms('person')}1 portion</span></div>
-    <div class="macros"><span class="macro">Protéines ${fmt(r.proteines)} g</span><span class="macro">Glucides ${fmt(r.glucides)} g</span><span class="macro">Lipides ${fmt(r.lipides)} g</span></div>
+    <div class="meta"><span>${ms('schedule')}${r.tempsMinutes} min</span>${S.masquerKcal ? '' : `<span>${ms('local_fire_department')}${fmt(r.kcal)} kcal</span>`}<span>${ms('person')}1 portion</span></div>
+    ${S.masquerKcal ? '' : `<div class="macros"><span class="macro">Protéines ${fmt(r.proteines)} g</span><span class="macro">Glucides ${fmt(r.glucides)} g</span><span class="macro">Lipides ${fmt(r.lipides)} g</span></div>`}
     <h3>Ingrédients</h3>
-    ${(r.ingredients || []).map((i) => `<div class="ing"><span>${esc(i.nom)}</span><span>${esc(quantiteTxt(i))}</span></div>`).join('')}
+    ${(r.ingredients || []).map((i) => `<div class="ing"><span>${esc(nomIngredient(i.nom))}</span><span>${esc(quantiteTxt(i))}</span></div>`).join('')}
     <h3>Préparation</h3>
     <ol class="steps">${(r.etapes || []).map((e) => `<li>${esc(e)}</li>`).join('')}</ol>
-    <p class="legal">Quantités calculées pour ta cible de ${fmt(repas.kcalCible)} kcal sur ce repas.</p>
+    <p class="legal">Les quantités sont adaptées à ton objectif.</p>
   </div>`;
   const fermer = () => { back.remove(); document.body.style.overflow = ''; };
   back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) fermer(); });
@@ -696,10 +703,14 @@ function ecranCourses() {
       <span class="qty">${esc(it.quantite_achat)}</span></button>`;
   };
   const faitsDans = (arr) => arr.filter((it) => S.coches[cle(it)]).length;
+  // Les articles pris descendent ; un rayon entièrement pris se replie en bas.
+  const trier = (arr) => [...arr.filter((it) => !S.coches[cle(it)]), ...arr.filter((it) => S.coches[cle(it)])];
+  const rayonsFinis = rayons.filter((ry) => faitsDans(parRayon[ry]) === parRayon[ry].length);
+  const rayonsEnCours = rayons.filter((ry) => !rayonsFinis.includes(ry));
 
   app.innerHTML = `
   <section class="screen with-nav">
-    <div class="topbar">${logo()}<span class="title">Courses</span><button class="avatar" id="me" aria-label="Mon profil">${esc(initiale())}</button></div>
+    <div class="topbar">${logo()}<span class="title">Courses</span></div>
     <span class="pill">${ms('calendar_month')}Plan de ${S.plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">Liste de courses</h1>
     <p class="lead">Tous les ingrédients de ton plan, calculés pour la semaine.</p>
@@ -710,23 +721,30 @@ function ecranCourses() {
         <button id="plus" aria-label="Une personne de plus" ${S.portions >= 12 ? 'disabled' : ''}>${ms('add')}</button></div></div>
     <div class="card progress-card"><div class="row"><span>${ms('check_circle', 'fill')}${faits} sur ${tous.length} articles</span><span>${pct} %</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div></div>
-    ${rayons.map((ry) => `<div class="card rayon"><div class="head"><div class="ic">${ms(RAYON_IC[ry] || 'shopping_basket')}</div><h3>${esc(ry)}</h3>
-      <small>${faitsDans(parRayon[ry])}/${parRayon[ry].length}</small></div>${parRayon[ry].map(itemHTML).join('')}</div>`).join('')}
+    ${rayonsEnCours.map((ry) => `<div class="card rayon"><div class="head"><div class="ic">${ms(RAYON_IC[ry] || 'shopping_basket')}</div><h3>${esc(ry)}</h3>
+      <small>${faitsDans(parRayon[ry])}/${parRayon[ry].length}</small></div>${trier(parRayon[ry]).map(itemHTML).join('')}</div>`).join('')}
     ${liste.placard.length ? `<details class="card rayon placard"><summary class="head"><div class="ic">${ms('kitchen')}</div><h3>Placard</h3>
       <small>${faitsDans(liste.placard)}/${liste.placard.length}</small>${ms('expand_more', 'chev')}</summary>
-      <p class="section-help" style="margin:4px 0 0">Condiments et basiques : vérifie avant d'en racheter.</p>${liste.placard.map(itemHTML).join('')}</details>` : ''}
+      <p class="section-help" style="margin:4px 0 0">Condiments et basiques : vérifie avant d'en racheter.</p>${trier(liste.placard).map(itemHTML).join('')}</details>` : ''}
+    ${rayonsFinis.map((ry) => `<details class="card rayon fini"><summary class="head"><div class="ic">${ms('check', 'fill')}</div><h3>${esc(ry)}</h3>
+      <small>Tout est pris</small>${ms('expand_more', 'chev')}</summary>${parRayon[ry].map(itemHTML).join('')}</details>`).join('')}
     <button class="btn btn-primary btn-block no-print" style="margin-top:22px" id="share">${ms('ios_share')}Partager la liste</button>
     <div class="export-row no-print"><button class="btn btn-ghost" id="pdf">${ms('download')}Exporter en PDF</button>
       ${faits ? `<button class="btn btn-ghost" id="reset">${ms('restart_alt')}Tout décocher</button>` : ''}</div>
   </section>`;
 
-  const reRender = () => { const y = window.scrollY; const ouvert = app.querySelector('.placard')?.open; ecranCourses(); window.scrollTo(0, y); if (ouvert) app.querySelector('.placard').open = true; };
+  const reRender = () => {
+    const y = window.scrollY; const ouvert = app.querySelector('.placard')?.open;
+    const finisOuverts = [...app.querySelectorAll('.rayon.fini[open] h3')].map((h) => h.textContent);
+    ecranCourses(); window.scrollTo(0, y);
+    if (ouvert) app.querySelector('.placard').open = true;
+    app.querySelectorAll('.rayon.fini').forEach((el) => { if (finisOuverts.includes(el.querySelector('h3').textContent)) el.open = true; });
+  };
   app.querySelectorAll('[data-item]').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.item; if (S.coches[k]) delete S.coches[k]; else S.coches[k] = 1; persist(); syncCourses(); reRender();
   }));
   document.getElementById('minus').onclick = () => { S.portions = Math.max(1, S.portions - 1); persist(); syncCourses(); reRender(); };
   document.getElementById('plus').onclick = () => { S.portions = Math.min(12, S.portions + 1); persist(); syncCourses(); reRender(); };
-  document.getElementById('me').onclick = () => go('#/profil');
   document.getElementById('pdf').onclick = () => { const p = app.querySelector('.placard'); if (p) p.open = true; window.print(); };
   const reset = document.getElementById('reset'); if (reset) reset.onclick = () => { S.coches = {}; persist(); syncCourses(); reRender(); };
   document.getElementById('share').onclick = async () => {
@@ -759,17 +777,20 @@ function ecranProfil() {
   <section class="screen with-nav">
     <div class="topbar">${logo()}<span class="title">Profil</span></div>
     <div class="profile-head"><div class="avatar">${esc(initiale())}</div><div class="who">
-      <b>${esc(S.prenom || 'Mon profil')}</b><span>${token ? esc(S.email || '') : 'Ton plan est enregistré sur ce téléphone'}</span></div></div>
-    <form class="name-edit" id="nameForm"><div class="input-wrap"><input id="prenom" placeholder="Ton prénom" value="${esc(S.prenom || '')}" maxlength="60" aria-label="Ton prénom" /></div>
+      <b>${esc(S.prenom || 'Ajoute ton prénom')}</b><span>${token ? esc(S.email || '') : 'Ton plan est enregistré sur ce téléphone'}</span></div>
+      <button class="icon-btn" id="editName" aria-label="Modifier mon prénom">${ms('edit')}</button></div>
+    <form class="name-edit" id="nameForm" hidden><div class="input-wrap"><input id="prenom" placeholder="Ton prénom" value="${esc(S.prenom || '')}" maxlength="60" aria-label="Ton prénom" autocomplete="given-name" /></div>
       <button class="btn btn-soft" type="submit">OK</button></form>
     ${COMPTES && !token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Sauvegarde ton plan</b><p>Connexion par e-mail, sans mot de passe.</p></div><button id="save">Me connecter</button></div>` : ''}
     ${b ? `<div class="goal-card"><small>Objectif</small><div class="h2">${esc(objectifLabel(S.profil.objectif))}</div>
-      <div class="kcal"><b>${fmt(b.kcalCible)}</b><span>kcal / jour</span></div>
-      <div class="macro-rows">${macroRow('Protéines', b.macros.proteines, 4)}${macroRow('Glucides', b.macros.glucides, 4)}${macroRow('Lipides', b.macros.lipides, 9)}</div></div>` : ''}
+      ${S.masquerKcal ? '' : `<div class="kcal"><b>${fmt(b.kcalCible)}</b><span>kcal / jour</span></div>
+      <div class="macro-rows">${macroRow('Protéines', b.macros.proteines, 4)}${macroRow('Glucides', b.macros.glucides, 4)}${macroRow('Lipides', b.macros.lipides, 9)}</div>`}</div>` : ''}
     <div class="card list-card">
       <button class="list-row" id="edit"><span class="ic">${ms('tune')}</span><span class="txt"><b>Modifier mes réponses</b><span>Objectif, mesures, goûts, contraintes</span></span>${ms('chevron_right')}</button>
       <div class="list-row"><span class="ic">${ms('restaurant')}</span><span class="txt"><b>Régime &amp; tolérances</b><span>${esc(contraintes)}</span></span></div>
       ${pr.cuisines && pr.cuisines.length ? `<div class="list-row"><span class="ic">${ms('public')}</span><span class="txt"><b>Cuisines préférées</b><span>${esc(listeTxt(pr.cuisines, CUISINES))}</span></span></div>` : ''}
+      <label class="list-row toggle-row" for="masquer"><span class="ic">${ms('visibility_off')}</span><span class="txt"><b>Masquer les calories</b><span>Affichage plus doux, sans chiffres</span></span>
+        <input type="checkbox" id="masquer" class="switch" ${S.masquerKcal ? 'checked' : ''} /></label>
       <button class="list-row" id="regen"><span class="ic">${ms('autorenew')}</span><span class="txt"><b>Nouveau plan</b><span>Mêmes réglages, nouvelles recettes</span></span>${ms('chevron_right')}</button>
     </div>
     <div class="card list-card">
@@ -780,6 +801,8 @@ function ecranProfil() {
     <p class="legal center">Estimations à titre indicatif. Cette application ne remplace pas l'avis d'un professionnel de santé.</p>
   </section>`;
 
+  document.getElementById('editName').onclick = () => { const f = document.getElementById('nameForm'); f.hidden = !f.hidden; if (!f.hidden) document.getElementById('prenom').focus(); };
+  document.getElementById('masquer').onchange = (e) => { S.masquerKcal = e.target.checked; persist(); toast(S.masquerKcal ? 'Calories masquées' : 'Calories affichées'); };
   document.getElementById('nameForm').onsubmit = (e) => {
     e.preventDefault();
     S.prenom = document.getElementById('prenom').value.trim().slice(0, 60); persist();
