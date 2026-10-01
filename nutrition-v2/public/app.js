@@ -155,7 +155,7 @@ async function syncServeur(champs) {
 // ---------------------------------------------------------------------------
 const ROUTES = {
   '': ecranAccueil, code: ecranCode, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
-  questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, perf: ecranPerf, profil: ecranProfil,
+  questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, perf: ecranPerf, videos: ecranVideos, profil: ecranProfil,
 };
 function render() {
   const [, name = '', arg] = location.hash.split('/');
@@ -167,10 +167,9 @@ function render() {
   if (route === '' && S.plan) return location.replace('#/plan');
   if (route && !ROUTES[route]) return location.replace('#/');
   const fn = ROUTES[route] || ecranAccueil;
-  const avecNav = ['plan', 'courses', 'perf', 'profil'].includes(route);
+  const avecNav = ['plan', 'courses', 'perf', 'videos', 'profil'].includes(route);
   nav.hidden = !avecNav;
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === '#/' + route));
-  const navMe = document.getElementById('navMe'); if (navMe) navMe.textContent = initiale();
   document.querySelector('.sheet-back')?.remove(); document.body.style.overflow = '';
   if (document.getElementById('print-plan')) nettoyerExportPDF();
   app.innerHTML = '';
@@ -179,7 +178,6 @@ function render() {
 }
 window.addEventListener('hashchange', render);
 nav.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
-app.addEventListener('click', (e) => { if (e.target.closest('[data-me]')) go('#/profil'); });
 
 // ---------------------------------------------------------------------------
 //  Accueil
@@ -904,9 +902,9 @@ function quantiteTxt(i) {
 }
 function labelRepas(l) { return String(l || '').replace(/apres/g, 'après'); }
 
-// Barre du haut des onglets : logo, titre et accès au profil (pastille avec l'initiale).
+// Barre du haut des onglets : logo et titre.
 function barreHaut(titre) {
-  return `<div class="topbar">${logo()}<span class="title">${esc(titre)}</span><button class="avatar me" data-me aria-label="Mon profil">${esc(initiale())}</button></div>`;
+  return `<div class="topbar">${logo()}<span class="title">${esc(titre)}</span></div>`;
 }
 
 function initiale() { return ((S.prenom || S.email || 'M').trim()[0] || 'M').toUpperCase(); }
