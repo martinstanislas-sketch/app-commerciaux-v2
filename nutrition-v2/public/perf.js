@@ -23,7 +23,6 @@ const PERF_MESURES = [
   { k: 'bras', t: 'Bras', champ: 'Tour de bras', u: 'cm', min: 15, max: 70 },
 ];
 const PERF_VUES = [{ v: 'face', t: 'Face' }, { v: 'profil', t: 'Profil' }, { v: 'dos', t: 'Dos' }];
-const PERF_RYTHME_JOURS = 7; // prochaine mise à jour recommandée
 
 let P = (() => { try { return JSON.parse(localStorage.getItem(LS_PERF)) || {}; } catch (_) { return {}; } })();
 P.mesures = Array.isArray(P.mesures) ? P.mesures : [];
@@ -66,6 +65,10 @@ async function perfPhotos() {
 async function perfPhotosEnregistrer(recs) {
   const db = await perfDb();
   await new Promise((ok, ko) => { const t = db.transaction('photos', 'readwrite'); recs.forEach((r) => t.objectStore('photos').put(r)); t.oncomplete = ok; t.onerror = () => ko(t.error); });
+}
+async function perfPhotoSupprimer(id) {
+  const db = await perfDb();
+  await new Promise((ok, ko) => { const t = db.transaction('photos', 'readwrite'); t.objectStore('photos').delete(id); t.oncomplete = ok; t.onerror = () => ko(t.error); });
 }
 async function perfEffacerTout() {
   P = { mesures: [] }; try { localStorage.removeItem(LS_PERF); } catch (_) { /* rien */ }
@@ -128,9 +131,6 @@ async function ecranPerf() {
   const versObj = obj && dep ? Math.sign(obj - dep.poids) : -1;
   const bonSens = delta !== 0 && Math.sign(delta) === versObj;
   const pct = obj && dep && act && dep.poids !== obj ? Math.max(0, Math.min(100, Math.round(((dep.poids - act.poids) / (dep.poids - obj)) * 100))) : 0;
-  const dernier = ms_[ms_.length - 1];
-  const jours = dernier ? Math.round((dateDe(jourISO(Date.now())) - dateDe(dernier.date)) / 864e5) : 0;
-  const reste = PERF_RYTHME_JOURS - jours;
 
   const carteMesure = (c) => {
     const avec = ms_.filter((m) => Number(m[c.k]));
@@ -164,12 +164,6 @@ async function ecranPerf() {
     <div class="perf-grid">${PERF_MESURES.map(carteMesure).join('')}</div>
     <h2 class="h2 perf-sec">Mes photos</h2>
     <div class="card perf-card" id="perfPhotos"><div class="perf-vide">${ms('photo_camera')}<p>Chargement…</p></div></div>
-    <div class="card perf-bilan">
-      <div class="ic">${ms('event_available')}</div>
-      <div class="txt"><small>Dernier bilan</small><b>${dernier ? esc(jjmmaaaa(dernier.date)) : 'Aucun pour l\'instant'}</b>
-        ${dernier && Number(dernier.poids) ? `<span>Poids : ${kg(dernier.poids)} kg</span>` : ''}</div>
-      ${dernier ? `<div class="next${reste <= 0 ? ' due' : ''}"><small>Prochaine mise à jour</small><b>${reste <= 0 ? 'Aujourd\'hui' : `dans ${reste} jour${reste > 1 ? 's' : ''}`}</b></div>` : ''}
-    </div>
     </div></div>
   </section>`;
 
@@ -189,15 +183,16 @@ async function perfRendrePhotos() {
   const img = (date, lbl) => {
     if (!date) return `<div class="perf-ph vide"><span>${ms('add_a_photo')}</span><small>${lbl}</small><em>${dep ? 'Ajoute une nouvelle série pour comparer' : 'Pas encore de photo'}</em></div>`;
     const u = URL.createObjectURL(trouve(date).blob); perfUrls.push(u);
-    return `<button class="perf-ph" data-zoom="${u}" data-date="${date}"><img src="${u}" alt="Photo ${perfVue} du ${jjmmaaaa(date)}" /><small>${lbl}</small><em>${jjmmaaaa(date)}</em></button>`;
+    return `<button class="perf-ph" data-zoom="${u}" data-date="${date}" data-id="${esc(trouve(date).id)}"><img src="${u}" alt="Photo ${perfVue} du ${jjmmaaaa(date)}" /><small>${lbl}</small><em>${jjmmaaaa(date)}</em></button>`;
   };
   zone.innerHTML = `
     <div class="chip-grid perf-vues">${PERF_VUES.map((v) => `<button class="chip${v.v === perfVue ? ' on' : ''}" data-vue="${v.v}">${v.t}</button>`).join('')}</div>
     <div class="perf-compare">${img(dep, 'Départ')}${img(auj, 'Aujourd\'hui')}</div>
     <button class="btn btn-soft btn-block perf-addph" id="addPh">${ms('add_a_photo')}Ajouter des photos</button>
-    <p class="perf-prive">${ms('lock')}Tes photos restent sur ce téléphone, elles ne sont envoyées nulle part.</p>`;
+    <p class="perf-prive">${ms('lock')}Tes photos restent sur ce téléphone, elles ne sont envoyées nulle part.</p>
+    ${avecVue.length ? '<p class="perf-astuce">Touche une photo pour l\'agrandir, la remplacer ou la supprimer.</p>' : ''}`;
   zone.querySelectorAll('[data-vue]').forEach((b) => (b.onclick = () => { perfVue = b.dataset.vue; perfRendrePhotos(); }));
-  zone.querySelectorAll('[data-zoom]').forEach((b) => (b.onclick = () => perfZoom(b.dataset.zoom, b.dataset.date)));
+  zone.querySelectorAll('[data-zoom]').forEach((b) => (b.onclick = () => perfZoom(b.dataset.zoom, b.dataset.date, b.dataset.id)));
   document.getElementById('addPh').onclick = perfFormPhotos;
 }
 
@@ -292,11 +287,34 @@ function perfFormPhotos() {
   }));
 }
 
-function perfZoom(url, date) {
+function perfZoom(url, date, id) {
+  const vue = PERF_VUES.find((v) => v.v === perfVue).t;
   const back = document.createElement('div');
   back.className = 'sheet-back perf-zoom';
-  back.innerHTML = `<div class="sheet"><div class="top"><h2>${esc(PERF_VUES.find((v) => v.v === perfVue).t)} · ${esc(jjmmaaaa(date))}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div><img src="${url}" alt="" /></div>`;
-  back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) { back.remove(); document.body.style.overflow = ''; } });
+  back.innerHTML = `<div class="sheet"><div class="top"><h2>${esc(vue)} · ${esc(jjmmaaaa(date))}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div>
+    <img src="${url}" alt="" />
+    <div class="perf-zoom-actions">
+      <label class="btn btn-soft">${ms('photo_camera')}Remplacer<input type="file" accept="image/*" hidden id="remplacer" /></label>
+      <button class="btn btn-danger-soft" id="supprimer">${ms('delete')}Supprimer</button>
+    </div>
+    <p class="form-error" id="zerr" hidden></p></div>`;
+  const fermer = () => { back.remove(); document.body.style.overflow = ''; };
+  back.addEventListener('click', (e) => { if (e.target === back || e.target.closest('[data-close]')) fermer(); });
+  // Remplacer : la nouvelle photo prend la place de l'ancienne (même date, même vue).
+  back.querySelector('#remplacer').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    try {
+      await perfPhotosEnregistrer([{ id, date, vue: perfVue, blob: await perfReduire(f) }]);
+      fermer(); toast('Photo remplacée ✓'); perfRendrePhotos();
+    } catch (ex) { const z = back.querySelector('#zerr'); z.textContent = ex.message; z.hidden = false; }
+  });
+  back.querySelector('#supprimer').onclick = () => {
+    fermer();
+    confirmer('Supprimer cette photo ?', `Ta photo ${vue.toLowerCase()} du ${jjmmaaaa(date)} sera supprimée de ce téléphone.`, 'Supprimer', async () => {
+      try { await perfPhotoSupprimer(id); toast('Photo supprimée'); } catch (ex) { toast(ex.message); }
+      perfRendrePhotos();
+    });
+  };
   document.body.style.overflow = 'hidden';
   document.body.appendChild(back);
 }

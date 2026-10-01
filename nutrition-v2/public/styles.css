@@ -746,16 +746,6 @@ button.chip-float:disabled { opacity: .6; }
 .perf-addph { margin-top: 14px; min-height: 50px; font-size: 16px; }
 .perf-prive { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 10px 0 0; color: var(--slate); font-size: 12.5px; text-align: center; }
 .perf-prive .ms { font-size: 16px; }
-.perf-bilan { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-top: 16px; }
-.perf-bilan .ic { flex: none; width: 44px; height: 44px; border-radius: 12px; background: var(--saphir-softer); color: var(--saphir); display: grid; place-items: center; }
-.perf-bilan .txt { flex: 1; min-width: 0; }
-.perf-bilan small { display: block; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
-.perf-bilan b { display: block; font-size: 16px; }
-.perf-bilan .txt span { display: block; color: var(--text-2); font-size: 13px; }
-.perf-bilan .next { flex: none; text-align: right; padding: 6px 10px; border-radius: 12px; background: var(--surface-2); }
-.perf-bilan .next b { font-size: 14px; }
-.perf-bilan .next.due { background: var(--vert-soft); }
-.perf-bilan .next.due b { color: var(--vert-deep); }
 .perf-sheet .measures.perf-m1 { grid-template-columns: 1fr; }
 .perf-sheet .measures.perf-m2 { grid-template-columns: 1fr 1fr; }
 .perf-sheet .measure input { max-width: 110px; }
@@ -768,6 +758,11 @@ button.chip-float:disabled { opacity: .6; }
 .perf-slot.on .ph { border: 2px solid var(--saphir); }
 .perf-slot b { font-size: 14px; }
 .perf-zoom .sheet { padding-bottom: 20px; }
+.perf-zoom-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.perf-zoom-actions .btn { min-height: 50px; font-size: 16px; padding: 0 12px; }
+.perf-zoom-actions label.btn { cursor: pointer; }
+.btn-danger-soft { background: #fdecec; color: var(--danger); }
+.perf-astuce { margin: 4px 0 0; color: var(--slate); font-size: 12.5px; text-align: center; }
 .perf-zoom .top h2 { font-size: 18px; }
 .perf-zoom img { width: 100%; max-height: 72dvh; object-fit: contain; border-radius: 14px; margin-top: 10px; background: var(--surface-2); }
 @media screen and (min-width: 960px) {
