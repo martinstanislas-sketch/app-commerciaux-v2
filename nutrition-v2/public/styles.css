@@ -681,6 +681,7 @@ button.chip-float:disabled { opacity: .6; }
 }
 
 /* ---------- Barre du haut : accès au profil ---------- */
+.bottom-nav .nav-me { display: none; }
 .topbar .me { flex: none; width: 34px; height: 34px; margin: -4px 0; font-size: 15px; }
 .topbar .me:active { transform: scale(.96); }
 
@@ -770,7 +771,12 @@ button.chip-float:disabled { opacity: .6; }
 .perf-zoom .top h2 { font-size: 18px; }
 .perf-zoom img { width: 100%; max-height: 72dvh; object-fit: contain; border-radius: 14px; margin-top: 10px; background: var(--surface-2); }
 @media screen and (min-width: 960px) {
-  .topbar .me { margin-right: 330px; }
+  .topbar .me { display: none; }
+  .bottom-nav { grid-template-columns: repeat(4, auto); }
+  .bottom-nav .nav-me { display: grid; place-items: center; padding: 0 4px 0 6px; }
+  .bottom-nav .nav-me .avatar { width: 36px; height: 36px; font-size: 15px; }
+  .bottom-nav .nav-me.on { background: none; }
+  .bottom-nav .nav-me.on .avatar { box-shadow: 0 0 0 3px var(--saphir-soft); }
   .perf-screen .dk-cols { margin-top: 8px; }
   .perf-screen .dk-main > .perf-card:first-child { margin-top: 0; }
   .perf-grid { grid-template-columns: repeat(4, 1fr); }

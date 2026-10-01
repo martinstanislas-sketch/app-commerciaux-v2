@@ -170,6 +170,7 @@ function render() {
   const avecNav = ['plan', 'courses', 'perf', 'profil'].includes(route);
   nav.hidden = !avecNav;
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === '#/' + route));
+  const navMe = document.getElementById('navMe'); if (navMe) navMe.textContent = initiale();
   document.querySelector('.sheet-back')?.remove(); document.body.style.overflow = '';
   if (document.getElementById('print-plan')) nettoyerExportPDF();
   app.innerHTML = '';
