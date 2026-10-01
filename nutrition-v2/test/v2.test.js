@@ -101,3 +101,19 @@ test('routes protégées sans session', async () => {
   assert.equal((await call('/account/save', { prenom: 'x' })).status, 401);
   assert.equal((await call('/api/nimporte')).status, 404);
 });
+
+test('plan : la répartition P/G/L suit la cible (lipides à ±15 % en moyenne)', () => {
+  const { genererPlanDemo } = require('../lib/planGenerator');
+  let ecartL = 0, ecartG = 0, n = 0;
+  for (let seed = 1; seed <= 10; seed++) {
+    const p = genererPlanDemo({ objectif: 'perte', sexe: 'femme', age: 34, taille_cm: 165, poids_kg: 68, activite: 'leger', jours: 7, mangeMatin: true, collations: ['apres-midi'] }, { budget: 'normal', temps_max: 45 }, seed * 101);
+    for (const j of p.jours) {
+      const t = j.repas.reduce((a, r) => ({ l: a.l + (r.recette ? r.recette.lipides : 0), g: a.g + (r.recette ? r.recette.glucides : 0) }), { l: 0, g: 0 });
+      ecartL += Math.abs(t.l - p.besoins.macros.lipides) / p.besoins.macros.lipides;
+      ecartG += Math.abs(t.g - p.besoins.macros.glucides) / p.besoins.macros.glucides;
+      n++;
+    }
+  }
+  assert.ok(ecartL / n < 0.15, 'écart lipides moyen ' + (ecartL / n));
+  assert.ok(ecartG / n < 0.15, 'écart glucides moyen ' + (ecartG / n));
+});

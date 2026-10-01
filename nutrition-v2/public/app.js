@@ -74,7 +74,7 @@ const JOURS_COURTS = { Lundi: 'Lun', Mardi: 'Mar', Mercredi: 'Mer', Jeudi: 'Jeu'
 // ---------------------------------------------------------------------------
 function draftVide() {
   return {
-    objectif: '', sexe: '', age: '', taille: '', poids: '', activite: '',
+    prenom: '', objectif: '', sexe: '', age: '', taille: '', poids: '', activite: '',
     cuisines: [], aimes: [], deteste: [], matin: 'les-deux', collations: ['apres-midi'],
     allergies: [], regime: 'omnivore', budget: 'normal', temps: 45, jours: 7,
   };
@@ -284,7 +284,7 @@ function adopterCompte(compte, pousserLocal) {
     const change = !S.plan || JSON.stringify(S.plan) !== JSON.stringify(compte.plan);
     S.profil = compte.profil; S.preferences = compte.preferences || {}; S.plan = compte.plan;
     if (change) { S.coches = {}; S.jour = 0; }
-    if (S.profil) S.draft = draftDepuis(S.profil, S.preferences);
+    if (S.profil) S.draft = Object.assign(draftDepuis(S.profil, S.preferences), { prenom: S.prenom || '' });
   } else if (pousserLocal && S.plan) {
     syncServeur({ profil: S.profil, preferences: S.preferences, plan: S.plan, prenom: S.prenom || undefined });
   }
@@ -315,6 +315,8 @@ function ecranQuestionnaire(arg) {
     corps = `
       <div class="q-head"><h1 class="h1">Parlons un peu de toi</h1>
         <p class="lead">Ces repères servent à estimer tes besoins caloriques quotidiens.</p></div>
+      <div class="section-title">Ton prénom <small>Facultatif</small></div>
+      <div class="input-wrap">${ms('person')}<input id="prenom" autocomplete="given-name" autocapitalize="words" maxlength="40" placeholder="Ex. Julie" value="${esc(d.prenom || '')}" /></div>
       <div class="section-title">Sexe</div>
       <div class="seg-2">
         <button class="tile${d.sexe === 'homme' ? ' on' : ''}" data-set="sexe" data-v="homme">${ms('male')}Homme</button>
@@ -382,6 +384,8 @@ function ecranQuestionnaire(arg) {
     persist(); ecranQuestionnaireRefresh(n);
   }));
   app.querySelectorAll('[data-clear]').forEach((b) => b.addEventListener('click', () => { d[b.dataset.clear] = []; persist(); ecranQuestionnaireRefresh(n); }));
+  const champPrenom = document.getElementById('prenom');
+  if (champPrenom) champPrenom.addEventListener('input', () => { d.prenom = champPrenom.value.trim().slice(0, 40); persist(); });
   app.querySelectorAll('.measure input').forEach((inp) => inp.addEventListener('input', () => {
     inp.value = inp.value.replace(/[^0-9.,]/g, '');
     d[inp.name] = inp.value.replace(',', '.'); inp.closest('.measure').classList.remove('err'); maj();
@@ -521,9 +525,10 @@ async function genererPlan() {
   if (!r.plan || !r.plan.jours || !r.plan.jours.length) throw new Error('Aucun plan renvoyé.');
   if (r.plan.poolVide) throw new Error('Aucune recette ne correspond à toutes tes contraintes. Assouplis un critère (temps, budget ou aliments à éviter).');
   S.profil = profil; S.preferences = preferences; S.plan = r.plan; S.seed = r.seed;
+  if (S.draft.prenom) S.prenom = S.draft.prenom;
   S.jour = 0; S.coches = {}; S.genDemandee = false;
   persist();
-  syncServeur({ profil, preferences, plan: r.plan });
+  syncServeur({ profil, preferences, plan: r.plan, prenom: S.prenom || undefined });
 }
 
 // ---------------------------------------------------------------------------
@@ -757,7 +762,7 @@ function ecranProfil() {
     syncServeur({ prenom: S.prenom }); toast('Prénom enregistré ✓'); ecranProfil();
   };
   const save = document.getElementById('save'); if (save) save.onclick = () => go('#/connexion');
-  document.getElementById('edit').onclick = () => { if (S.profil) S.draft = draftDepuis(S.profil, S.preferences); persist(); go('#/questionnaire/1'); };
+  document.getElementById('edit').onclick = () => { if (S.profil) S.draft = Object.assign(draftDepuis(S.profil, S.preferences), { prenom: S.prenom || '' }); persist(); go('#/questionnaire/1'); };
   document.getElementById('regen').onclick = () => confirmer('Créer un nouveau plan ?', 'Mêmes réglages, nouvelles recettes. Ton plan actuel et ta liste de courses cochée seront remplacés.', 'Créer mon nouveau plan', lancerGeneration, true);
   const logout = document.getElementById('logout');
   if (logout) logout.onclick = async () => {

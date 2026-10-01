@@ -249,9 +249,24 @@ const RASSASIANT_KEYS = /legume|brocoli|courgette|salade|haricot|epinard|lentill
 // pour coller au positionnement "manger facile". (Compare sur nom normalise sans accents.)
 const INGREDIENTS_SPECIALISES = /proteine (de pois|de soja|vegetale)|\bwhey\b|isolate|tofu (soyeux|fume)|tempeh|edamame|\blupin|sarrasin|\bmillet\b|psyllium|levure maltee|spiruline|graines de chanvre|\bagar\b|konjac|matcha|farine de pois chiche|farine de riz/;
 
+// Part de l'energie apportee par chaque macro (P/G a 4 kcal/g, L a 9 kcal/g).
+function partsMacros(x) {
+  const p = (Number(x.proteines) || 0) * 4, g = (Number(x.glucides) || 0) * 4, l = (Number(x.lipides) || 0) * 9;
+  const t = p + g + l;
+  return t > 0 ? { p: p / t, g: g / t, l: l / t } : null;
+}
+
+// Poids de l'ajustement macros dans le score (v2) : penalise une recette dont la
+// repartition P/G/L s'eloigne de ce qu'il reste a couvrir dans la journee.
+const POIDS_MACROS = Number(process.env.NUTRITION_POIDS_MACROS || 220);
+
 function scoreRecette(r, ctx) {
   const { kcalCible, prefs } = ctx;
   let score = 0;
+  if (ctx.partsCible && POIDS_MACROS > 0) {
+    const pr = partsMacros(r);
+    if (pr) score -= (Math.abs(pr.p - ctx.partsCible.p) + Math.abs(pr.g - ctx.partsCible.g) + Math.abs(pr.l - ctx.partsCible.l)) * POIDS_MACROS;
+  }
   // Proximite calorique (max ~50 pts, decroit avec l'ecart).
   const ecart = Math.abs(r.kcal - kcalCible) / Math.max(kcalCible, 1);
   score += Math.max(0, 50 - ecart * 100);
@@ -505,6 +520,7 @@ function genererPlanDemo(profil, prefs, seed) {
     const repasDuJour = [];
     let recetteVeillePlat = null;
     const idsDuJour = new Set(); // dedup PAR JOUR : jamais 2x la meme recette dans la meme journee
+    const mange = { kcal: 0, proteines: 0, glucides: 0, lipides: 0 }; // deja planifie ce jour
     for (const creneau of besoins.repartitionRepas) {
       const typePool = creneau.type === 'dejeuner' || creneau.type === 'diner' ? 'plat' : creneau.type;
       let candidats = parType[typePool] || [];
@@ -517,18 +533,28 @@ function genererPlanDemo(profil, prefs, seed) {
         if (pref.length >= 3) candidats = pref;
       }
       if (typePool === 'collation') candidats = prefererCollation(candidats, prefs, profil, creneau);
-      const ctx = { kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type), protPrioritaire: ['perte', 'muscle'].includes(norm(profil.objectif || '')) };
+      // Repartition P/G/L visee pour CE repas : ce qu'il reste a couvrir dans la
+      // journee, pour que les ecarts d'un repas soient compenses par les suivants.
+      const reste = {
+        proteines: Math.max(0, besoins.macros.proteines - mange.proteines),
+        glucides: Math.max(0, besoins.macros.glucides - mange.glucides),
+        lipides: Math.max(0, besoins.macros.lipides - mange.lipides),
+      };
+      const partsCible = partsMacros(reste) || partsMacros(besoins.macros);
+      const ctx = { partsCible, kcalCible: creneau.kcal, prefs, rand, rassasiant: rassasiantCreneau.has(creneau.type), protPrioritaire: ['perte', 'muscle'].includes(norm(profil.objectif || '')) };
       const exclure = creneau.type === 'diner' ? recetteVeillePlat : null;
       const recette = choisirRecette(candidats, ctx, st, exclure, typePool, idsDuJour);
       if (creneau.type === 'dejeuner' && recette) recetteVeillePlat = recette.id;
 
       if (recette) { marquerVariete(st, recette, typePool); idsDuJour.add(recette.id); }
 
+      const fr = recette ? formaterRecette(recette, creneau.kcal) : null;
+      if (fr) Object.keys(mange).forEach((k) => { mange[k] += Number(fr[k]) || 0; });
       repasDuJour.push({
         creneau: creneau.type,
         label: creneau.label,
         kcalCible: creneau.kcal,
-        recette: recette ? formaterRecette(recette, creneau.kcal) : null,
+        recette: fr,
       });
     }
     jours.push({ jour: JOURS[d] || `Jour ${d + 1}`, repas: repasDuJour });
@@ -563,7 +589,7 @@ function regenererRepas(profil, prefs, creneauType, kcalCible, exclureId, seed, 
     if (r) marquerVariete(st, r, r.type === 'plat' ? 'plat' : creneauType);
     else st.usedIds.set(id, 1);
   });
-  const ctx = { kcalCible: kcalCible || 500, prefs, rand, protPrioritaire: ['perte', 'muscle'].includes(norm((profil || {}).objectif || '')) };
+  const ctx = { partsCible: partsMacros(calculerBesoins(profil || {}).macros), kcalCible: kcalCible || 500, prefs, rand, protPrioritaire: ['perte', 'muscle'].includes(norm((profil || {}).objectif || '')) };
   // Exclusion DURE des recettes déjà présentes -> jamais un doublon réintroduit.
   const recette = choisirRecette(candidats, ctx, st, exclureId, typePool, new Set(dejaLa));
   return recette ? formaterRecette(recette, kcalCible) : null;
