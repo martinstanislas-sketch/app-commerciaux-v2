@@ -22,10 +22,11 @@ const srv = app.listen(0);
 test.before(() => { base = `http://127.0.0.1:${srv.address().port}`; });
 test.after(() => srv.close());
 
-async function call(p, body, tok, method) {
+// Par défaut, les appels portent le code studio de Wasquehal (studio = null : aucun code).
+async function call(p, body, tok, method, studio = 'mcwasquehal', ip) {
   const r = await fetch(base + p, {
     method: method || (body ? 'POST' : 'GET'),
-    headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}), ...(studio ? { 'X-Studio-Code': studio } : {}), ...(ip ? { 'X-Forwarded-For': ip } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   return { status: r.status, data: await r.json() };
@@ -120,4 +121,50 @@ test('plan : la répartition P/G/L suit la cible (lipides à ±15 % en moyenne)'
   }
   assert.ok(ecartL / n < 0.15, 'écart lipides moyen ' + (ecartL / n));
   assert.ok(ecartG / n < 0.15, 'écart glucides moyen ' + (ecartG / n));
+});
+
+// --- Code d'accès studio ---------------------------------------------------------
+test('code studio : majuscules, espaces et accents ignorés ; code inconnu refusé', async () => {
+  const { trouverStudio, STUDIOS } = require('../lib/studios');
+  assert.equal(STUDIOS.length, 12);
+  assert.equal(new Set(STUDIOS.map((s) => s.code)).size, 12, 'codes uniques');
+  assert.deepEqual(trouverStudio('mcwasquehal'), { id: 'wasquehal', nom: 'Wasquehal' });
+  assert.equal(trouverStudio('  MC Wasquehal ').nom, 'Wasquehal');
+  assert.equal(trouverStudio('MCVEIGNÉ').nom, 'Veigné');
+  assert.equal(trouverStudio('mcparis 15').nom, 'Paris 15');
+  assert.equal(trouverStudio('wasquehal'), null);
+  assert.equal(trouverStudio(''), null);
+
+  const ok = await call('/api/studio/verify', { code: ' MCMarcq ' }, null, null, null, '10.0.0.1');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.studio.nom, 'Marcq-en-Barœul');
+  assert.equal(ok.data.code, 'mcmarcq', 'code normalisé renvoyé');
+  assert.ok(!JSON.stringify(ok.data).includes('mcwasquehal'), 'la liste des codes ne sort pas');
+  const ko = await call('/api/studio/verify', { code: 'mcinconnu' }, null, null, null, '10.0.0.2');
+  assert.equal(ko.status, 401);
+  assert.equal(ko.data.studioInvalide, true);
+});
+
+test('code studio : blocage après 10 codes faux, sans gêner les autres adresses', async () => {
+  for (let i = 0; i < 10; i++) assert.equal((await call('/api/studio/verify', { code: 'faux' + i }, null, null, null, '10.0.0.9')).status, 401);
+  const bloque = await call('/api/studio/verify', { code: 'mcnice' }, null, null, null, '10.0.0.9');
+  assert.equal(bloque.status, 429, 'même un bon code est refusé pendant le blocage');
+  assert.equal((await call('/api/studio/verify', { code: 'mcnice' }, null, null, null, '10.0.0.10')).status, 200);
+  const { createLimiteur } = require('../lib/studios');
+  const l = createLimiteur({ max: 2, fenetreMs: 1000 });
+  l.echec('a', 0); l.echec('a', 10);
+  assert.equal(l.bloque('a', 20), true);
+  assert.equal(l.bloque('a', 2000), false, 'débloqué après la fenêtre');
+});
+
+test('code studio : plan, besoins et changement de repas exigent un code valide', async () => {
+  for (const [p, b] of [['/api/plan', { profil, preferences }], ['/api/needs', profil], ['/api/meal', { profil, preferences, creneau: 'diner', kcalCible: 500 }]]) {
+    const sans = await call(p, b, null, null, null, '10.0.1.1');
+    assert.equal(sans.status, 401, p + ' sans code');
+    assert.equal(sans.data.studioInvalide, true);
+    assert.equal((await call(p, b, null, null, 'mcfaux', '10.0.1.2')).status, 401, p + ' code faux');
+    assert.equal((await call(p, b, null, null, 'MC Caen', '10.0.1.3')).status, 200, p + ' code valide');
+  }
+  assert.equal((await call('/api/status', null, null, null, null)).status, 200, 'statut public');
+  assert.equal((await call('/api/recipe-photos-index', null, null, null, null)).status, 200, 'photos publiques');
 });

@@ -1,7 +1,7 @@
 'use strict';
 /* ============================================================================
    My Coach Nutrition v2 — front (écrans Stitch).
-   Écrans : accueil, connexion (lien magique), vérification, questionnaire en
+   Écrans : code studio, accueil, connexion (lien magique, désactivée), questionnaire en
    4 étapes, génération, plan de la semaine, liste de courses, profil.
    Le moteur (plan + courses) est celui de nutrition-solo, inchangé.
    ========================================================================== */
@@ -13,6 +13,9 @@ const APP_NOM = 'My Coach Nutrition';
 const COMPTES = false;
 const LS_STATE = 'nv2.state';
 const LS_TOKEN = 'nv2.token';
+// Studio validé sur cet appareil : { id, nom, code, valideLe }. Clé séparée de
+// l'état (nv2.state) : le code d'accès ne touche jamais au plan enregistré.
+const LS_STUDIO = 'nv2.studio';
 const app = document.getElementById('app');
 const nav = document.getElementById('nav');
 
@@ -92,6 +95,9 @@ S.portions = S.portions || 1;
 S.coches = S.coches || {};
 S.jour = S.jour || 0;
 let token = COMPTES ? lsGet(LS_TOKEN) : null;
+let studio = (() => { try { const v = JSON.parse(lsGet(LS_STUDIO)); return v && v.code && v.nom ? v : null; } catch (_) { return null; } })();
+function memoriserStudio(st, code) { studio = { id: st.id, nom: st.nom, code, valideLe: new Date().toISOString() }; lsSet(LS_STUDIO, JSON.stringify(studio)); }
+function oublierStudio() { studio = null; lsSet(LS_STUDIO, null); }
 let photos = {};
 let authCtx = { email: '', lienDev: '', minutes: 15 };
 
@@ -108,11 +114,14 @@ const logo = (cls) => `<img class="${cls || 'logo'}" src="logo-mycoach-noir.png"
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = 'Bearer ' + token;
+  if (studio && studio.code) headers['X-Studio-Code'] = studio.code;
   const res = await fetch(path.replace(/^\//, ''), { method: opts.method || (opts.body ? 'POST' : 'GET'), headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
   let data = {};
   try { data = await res.json(); } catch (_) { /* réponse vide */ }
   if (!res.ok || data.ok === false) {
     if (res.status === 401 && data.noAccount) { token = null; lsSet(LS_TOKEN, null); S.email = ''; persist(); }
+    // Code studio refusé par le serveur (changé ou retiré) : on le redemande, le plan reste.
+    if (res.status === 401 && data.studioInvalide && !opts.sansRedirection) { oublierStudio(); location.replace('#/code'); }
     const err = new Error(data.error || 'Une erreur est survenue.');
     err.status = res.status; throw err;
   }
@@ -145,12 +154,14 @@ async function syncServeur(champs) {
 //  Routeur
 // ---------------------------------------------------------------------------
 const ROUTES = {
-  '': ecranAccueil, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
+  '': ecranAccueil, code: ecranCode, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
   questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, profil: ecranProfil,
 };
 function render() {
   const [, name = '', arg] = location.hash.split('/');
   let route = name;
+  // Porte d'entrée : sans studio validé sur l'appareil, seul l'écran du code s'affiche.
+  if (!studio && route !== 'code') return location.replace('#/code');
   // Garde-fous : pas de plan -> questionnaire ; plan existant -> pas d'accueil.
   if (['plan', 'courses'].includes(route) && !S.plan) return location.replace('#/questionnaire/1');
   if (route === '' && S.plan) return location.replace('#/plan');
@@ -175,7 +186,7 @@ function ecranAccueil() {
   <section class="screen landing">
     ${logo('logo-top')}
     <div class="dk dk-hero">
-    <span class="pill"><span class="dot"></span>TON COACH NUTRITION</span>
+    <span class="pill"><span class="dot"></span>${studio ? 'MY COACH ' + esc(studio.nom.toUpperCase()) : 'TON COACH NUTRITION'}</span>
     <h1 class="display">Mange mieux,<br/>sans y penser.</h1>
     <p class="lead">Un plan de la semaine adapté à tes goûts, avec la liste de courses.</p>
     <div class="hero-img" aria-hidden="true"><span class="plate">🥗</span>
@@ -196,6 +207,46 @@ function ecranAccueil() {
     <p class="legal">Estimations indicatives, ne remplace pas un avis médical.</p>
   </section>`;
   document.getElementById('start').onclick = () => go('#/questionnaire/1');
+}
+
+// ---------------------------------------------------------------------------
+//  Code d'accès du studio
+// ---------------------------------------------------------------------------
+function ecranCode() {
+  const changement = !!studio;
+  app.innerHTML = `
+  <section class="screen studio-gate">
+    ${logo('logo-top')}
+    <h1 class="h1">Entre le code de ton studio</h1>
+    <form id="f" novalidate>
+      <div class="input-wrap">${ms('storefront')}<input id="code" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="60" placeholder="Code studio" aria-label="Code de ton studio" /></div>
+      <p class="form-error" id="err" role="alert" hidden></p>
+      <button class="btn btn-primary btn-block" id="ok" type="submit">Valider ${ms('arrow_forward')}</button>
+    </form>
+    ${changement ? `<button class="btn btn-ghost keep" id="keep">Rester sur My Coach ${esc(studio.nom)}</button>` : ''}
+  </section>`;
+  const champ = document.getElementById('code');
+  const err = document.getElementById('err');
+  const btn = document.getElementById('ok');
+  if (!matchMedia('(pointer: coarse)').matches) champ.focus();
+  champ.addEventListener('input', () => { err.hidden = true; });
+  const keep = document.getElementById('keep');
+  if (keep) keep.onclick = () => go(S.plan ? '#/profil' : '#/');
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const code = champ.value.trim();
+    if (!code) { err.textContent = 'Saisis le code donné par ton studio.'; err.hidden = false; champ.focus(); return; }
+    btn.disabled = true; err.hidden = true;
+    try {
+      const r = await api('/api/studio/verify', { body: { code }, sansRedirection: true });
+      memoriserStudio(r.studio, r.code);
+      toast('Bienvenue chez My Coach ' + r.studio.nom);
+      location.replace(S.plan ? '#/plan' : '#/');
+    } catch (ex) {
+      err.textContent = ex.status ? ex.message : 'Pas de connexion internet. Réessaie dès que tu as du réseau.';
+      err.hidden = false; btn.disabled = false; champ.select();
+    }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -802,6 +853,7 @@ function ecranProfil() {
       <div class="macro-rows">${macroRow('Protéines', b.macros.proteines, 4)}${macroRow('Glucides', b.macros.glucides, 4)}${macroRow('Lipides', b.macros.lipides, 9)}</div>`}</div>` : ''}
     </div><div class="dk dk-main">
     <div class="card list-card">
+      ${studio ? `<button class="list-row" id="studio"><span class="ic">${ms('storefront')}</span><span class="txt"><b>My Coach ${esc(studio.nom)}</b><span class="link-txt">Changer de studio</span></span>${ms('chevron_right')}</button>` : ''}
       <button class="list-row" id="edit"><span class="ic">${ms('tune')}</span><span class="txt"><b>Modifier mes réponses</b><span>Objectif, mesures, goûts, contraintes</span></span>${ms('chevron_right')}</button>
       <div class="list-row"><span class="ic">${ms('restaurant')}</span><span class="txt"><b>Régime &amp; tolérances</b><span>${esc(contraintes)}</span></span></div>
       ${pr.cuisines && pr.cuisines.length ? `<div class="list-row"><span class="ic">${ms('public')}</span><span class="txt"><b>Cuisines préférées</b><span>${esc(listeTxt(pr.cuisines, CUISINES))}</span></span></div>` : ''}
@@ -826,6 +878,7 @@ function ecranProfil() {
     syncServeur({ prenom: S.prenom }); toast('Prénom enregistré ✓'); ecranProfil();
   };
   const save = document.getElementById('save'); if (save) save.onclick = () => go('#/connexion');
+  const btnStudio = document.getElementById('studio'); if (btnStudio) btnStudio.onclick = () => go('#/code');
   document.getElementById('edit').onclick = () => { if (S.profil) S.draft = Object.assign(draftDepuis(S.profil, S.preferences), { prenom: S.prenom || '' }); persist(); go('#/questionnaire/1'); };
   document.getElementById('regen').onclick = () => confirmer('Créer un nouveau plan ?', 'Mêmes réglages, nouvelles recettes. Ton plan actuel et ta liste de courses cochée seront remplacés.', 'Créer mon nouveau plan', lancerGeneration, true);
   const logout = document.getElementById('logout');
@@ -869,6 +922,16 @@ function confirmer(titre, texte, action, onOk, doux) {
   fetch('api/recipe-photos-index').then((r) => r.json()).then((j) => { photos = (j && j.photos) || {}; if (Object.keys(photos).length && /plan/.test(location.hash)) render(); }).catch(() => {});
   if (COMPTES && new URLSearchParams(location.search).has('lien')) { await traiterLienMagique(); render(); return; }
   render();
+  // Vérification discrète du code mémorisé. Code refusé : on le redemande (le plan
+  // reste). Pas de réseau ou serveur indisponible : l'accès est maintenu.
+  if (studio) {
+    try {
+      const r = await api('/api/studio/verify', { body: { code: studio.code }, sansRedirection: true });
+      memoriserStudio(r.studio, r.code);
+    } catch (ex) {
+      if (ex.status === 401) { oublierStudio(); location.replace('#/code'); }
+    }
+  }
   if (COMPTES && token) {
     try { const r = await api('/account/me'); adopterCompte(r.compte, false); if (/^#\/(plan|profil|courses)?$/.test(location.hash || '#/')) render(); } catch (_) { /* hors ligne ou session expirée */ }
   }

@@ -25,6 +25,7 @@ const { RECIPES } = require('./lib/recipes-v2');
 const { getDb, nowIso, readJson } = require('./lib/db');
 const { createAuth, normEmail, LIEN_MINUTES } = require('./lib/auth');
 const { envoyerLienMagique, smtpConfigure } = require('./lib/mailer');
+const { trouverStudio, normaliserCode, createLimiteur } = require('./lib/studios');
 
 const APP_NOM = process.env.APP_NOM || 'My Coach Nutrition';
 const PORT = process.env.PORT || 3000;
@@ -87,11 +88,43 @@ app.get('/api/status', (req, res) => {
   res.json({ ok: true, app: APP_NOM, connecte: !!req.user, email: smtpConfigure() ? 'smtp' : (PROD ? 'absent' : 'dev') });
 });
 
-app.post('/api/needs', (req, res) => {
+// --- Code d'accès studio -------------------------------------------------------
+// Adresse du visiteur pour l'anti-essais : la dernière entrée de X-Forwarded-For
+// est celle ajoutée par le proxy de l'hébergeur (non falsifiable par le client).
+function ipClient(req) {
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return xff.length ? xff[xff.length - 1] : (req.socket && req.socket.remoteAddress) || '?';
+}
+const limiteur = createLimiteur();
+const MSG_TROP = 'Trop d\'essais. Réessaie dans quelques minutes.';
+const MSG_INCONNU = 'Code inconnu. Vérifie le code auprès de ton studio.';
+
+app.post('/api/studio/verify', (req, res) => {
+  const ip = ipClient(req);
+  if (limiteur.bloque(ip)) return res.status(429).json({ ok: false, trop: true, error: MSG_TROP });
+  const code = (req.body || {}).code;
+  const studio = trouverStudio(code);
+  if (!studio) { limiteur.echec(ip); return res.status(401).json({ ok: false, studioInvalide: true, error: MSG_INCONNU }); }
+  limiteur.reussite(ip);
+  res.json({ ok: true, studio, code: normaliserCode(code) });
+});
+
+// Le calcul des besoins, la création du plan et le changement de repas exigent
+// un code studio valide (en-tête X-Studio-Code envoyé par l'application).
+function exigeStudio(req, res, next) {
+  const studio = trouverStudio(req.headers['x-studio-code']);
+  if (studio) { req.studio = studio; return next(); }
+  const ip = ipClient(req);
+  if (limiteur.bloque(ip)) return res.status(429).json({ ok: false, trop: true, error: MSG_TROP });
+  limiteur.echec(ip);
+  res.status(401).json({ ok: false, studioInvalide: true, error: 'Code studio requis.' });
+}
+
+app.post('/api/needs', exigeStudio, (req, res) => {
   try { res.json({ ok: true, besoins: calculerBesoins(req.body || {}) }); } catch (e) { res.status(400).json({ ok: false, error: 'Profil invalide.' }); }
 });
 
-app.post('/api/plan', (req, res) => {
+app.post('/api/plan', exigeStudio, (req, res) => {
   const { profil = {}, preferences = {} } = req.body || {};
   const seed = seedFromRequest(req.body);
   try {
@@ -103,7 +136,7 @@ app.post('/api/plan', (req, res) => {
   }
 });
 
-app.post('/api/meal', (req, res) => {
+app.post('/api/meal', exigeStudio, (req, res) => {
   const { profil = {}, preferences = {}, creneau, kcalCible, exclureId, exclus = [] } = req.body || {};
   try {
     const recette = regenererRepas(profil, preferences, creneau, kcalCible, exclureId, seedFromRequest(req.body), Array.isArray(exclus) ? exclus : []);

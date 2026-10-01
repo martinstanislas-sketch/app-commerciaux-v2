@@ -26,6 +26,20 @@ Sans SMTP, le lien de connexion s'affiche à l'écran (bouton « Mode test ») e
 | `PHOTOS_SOURCE_URL` | Importe au démarrage les photos de plats manquantes (ex. `https://app.stanmartinapp.cloud/nutrition`) |
 | `NODE_ENV=production` | Masque le lien de test ; sans SMTP, la connexion renvoie une erreur claire |
 
+## Codes studio
+
+L'application s'ouvre sur « Entre le code de ton studio ». La liste des studios et
+de leurs codes est dans `lib/studios.js` (serveur uniquement) : pour ajouter un
+studio ou changer un code, modifier ce fichier puis pousser.
+
+- Codes insensibles aux majuscules, espaces et accents (`MC Wasquehal` = `mcwasquehal`).
+- Vérification côté serveur (`POST /api/studio/verify`) ; `/api/needs`, `/api/plan`
+  et `/api/meal` exigent l'en-tête `X-Studio-Code`. Photos et statut restent publics.
+- Anti-essais : 10 codes faux en 15 min depuis une même adresse → refus pendant 15 min.
+- Le studio validé est mémorisé sur l'appareil (`nv2.studio`), à part du plan
+  (`nv2.state`). À chaque ouverture, vérification discrète : code refusé → on le
+  redemande (plan conservé) ; pas de réseau → accès maintenu.
+
 ## Écrans
 Accueil · Connexion · Vérification e-mail · Questionnaire (objectif, profil, goûts, contraintes) ·
 Génération · Plan (jours, repères du jour, cartes repas, remplacer un repas, fiche recette) ·
