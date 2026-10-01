@@ -181,7 +181,7 @@ function ecranAccueil() {
       <img src="api/recipe-photo/plat-bowl-lentilles-oeuf-feta" alt="" onerror="this.remove()" />
       <span class="float">${ms('verified', 'fill')}100 % personnalisé</span></div>
     <button class="btn btn-primary btn-block" id="start">Créer mon plan ${ms('arrow_forward')}</button>
-    <p class="small muted center" style="margin:10px 0 22px">2 minutes · gratuit · sans inscription</p>
+    <p class="small muted center" style="margin:10px 0 22px">2 minutes · réservé aux adhérents My Coach</p>
     <div class="card feature"><div class="ic">${ms('bolt')}</div><div><div class="head"><b class="h3">Plan en 2 minutes</b><span class="badge">Express</span></div>
       <p>Quelques questions simples pour générer ta semaine.</p></div></div>
     <div class="card feature"><div class="ic">${ms('add_shopping_cart')}</div><div><div class="head"><b class="h3">Courses automatiques</b><span class="badge ok">${ms('check')}Prêt</span></div>
