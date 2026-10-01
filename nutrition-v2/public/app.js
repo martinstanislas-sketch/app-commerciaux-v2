@@ -155,7 +155,7 @@ async function syncServeur(champs) {
 // ---------------------------------------------------------------------------
 const ROUTES = {
   '': ecranAccueil, code: ecranCode, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
-  questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, profil: ecranProfil,
+  questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, perf: ecranPerf, profil: ecranProfil,
 };
 function render() {
   const [, name = '', arg] = location.hash.split('/');
@@ -167,7 +167,7 @@ function render() {
   if (route === '' && S.plan) return location.replace('#/plan');
   if (route && !ROUTES[route]) return location.replace('#/');
   const fn = ROUTES[route] || ecranAccueil;
-  const avecNav = ['plan', 'courses', 'profil'].includes(route);
+  const avecNav = ['plan', 'courses', 'perf', 'profil'].includes(route);
   nav.hidden = !avecNav;
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === '#/' + route));
   document.querySelector('.sheet-back')?.remove(); document.body.style.overflow = '';
@@ -178,6 +178,7 @@ function render() {
 }
 window.addEventListener('hashchange', render);
 nav.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
+app.addEventListener('click', (e) => { if (e.target.closest('[data-me]')) go('#/profil'); });
 
 // ---------------------------------------------------------------------------
 //  Accueil
@@ -640,7 +641,7 @@ function ecranPlan() {
 
   app.innerHTML = `
   <section class="screen with-nav plan-screen">
-    <div class="topbar">${logo()}<span class="title">Plan de repas</span></div>
+    ${barreHaut('Plan de repas')}
     <span class="pill">${ms('eco')}${esc(objectifLabel(S.profil.objectif))} · ${plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">${S.prenom ? esc(S.prenom) + ', ton' : 'Ton'} menu de la semaine</h1>
     <p class="lead">Calibré pour ton objectif et tes goûts.</p>
@@ -902,6 +903,11 @@ function quantiteTxt(i) {
 }
 function labelRepas(l) { return String(l || '').replace(/apres/g, 'après'); }
 
+// Barre du haut des onglets : logo, titre et accès au profil (pastille avec l'initiale).
+function barreHaut(titre) {
+  return `<div class="topbar">${logo()}<span class="title">${esc(titre)}</span><button class="avatar me" data-me aria-label="Mon profil">${esc(initiale())}</button></div>`;
+}
+
 function initiale() { return ((S.prenom || S.email || 'M').trim()[0] || 'M').toUpperCase(); }
 
 function ouvrirRecette(repas) {
@@ -956,7 +962,7 @@ function ecranCourses() {
 
   app.innerHTML = `
   <section class="screen with-nav">
-    <div class="topbar">${logo()}<span class="title">Courses</span></div>
+    ${barreHaut('Courses')}
     <span class="pill">${ms('calendar_month')}Plan de ${S.plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">Liste de courses</h1>
     <p class="lead">Tous les ingrédients de ton plan, calculés pour la semaine.</p>
@@ -1049,7 +1055,7 @@ function ecranProfil() {
     <div class="card list-card">
       ${token ? `<button class="list-row" id="logout"><span class="ic">${ms('logout')}</span><span class="txt"><b>Se déconnecter</b></span></button>` : ''}
       <button class="list-row" id="erase"><span class="ic" style="color:var(--danger)">${ms('delete')}</span><span class="txt"><b style="color:var(--danger)">${token ? 'Supprimer mon compte' : 'Effacer mes données'}</b>
-        <span>${token ? 'Supprime ton compte et ton plan, définitivement' : 'Efface le plan enregistré sur cet appareil'}</span></span></button>
+        <span>${token ? 'Supprime ton compte et ton plan, définitivement' : 'Efface ton plan et ton suivi sur cet appareil'}</span></span></button>
     </div>
     </div></div>
     <p class="legal center">Estimations à titre indicatif. Cette application ne remplace pas l'avis d'un professionnel de santé.</p>
@@ -1075,12 +1081,13 @@ function ecranProfil() {
   };
   document.getElementById('erase').onclick = () => confirmer(
     token ? 'Supprimer ton compte ?' : 'Effacer tes données ?',
-    token ? 'Ton compte et ton plan seront supprimés définitivement.' : 'Le plan enregistré sur cet appareil sera effacé.',
+    token ? 'Ton compte et ton plan seront supprimés définitivement.' : 'Ton plan, tes mesures et tes photos enregistrés sur cet appareil seront effacés.',
     token ? 'Supprimer' : 'Effacer',
     async () => {
       if (token) { try { await api('/account', { method: 'DELETE' }); } catch (ex) { toast(ex.message); return; } }
       token = null; lsSet(LS_TOKEN, null);
       S = { draft: draftVide(), portions: 1, coches: {}, jour: 0 }; persist();
+      await perfEffacerTout();
       toast('C\'est fait.'); go('#/');
     },
   );
