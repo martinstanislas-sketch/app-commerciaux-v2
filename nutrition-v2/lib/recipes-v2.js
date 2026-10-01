@@ -24169,4 +24169,7 @@ const RECIPES = [
   }
 ];
 
+// v2 : ajout des recettes végétales riches en protéines (cf. fichier dédié).
+RECIPES.push(...require('./recettes-vegetales-proteinees').RECETTES);
+
 module.exports = { RECIPES };

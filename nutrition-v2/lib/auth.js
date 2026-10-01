@@ -44,6 +44,9 @@ function createAuth({ getDb, nowIso }) {
     if (nouveau) {
       db().prepare('INSERT INTO users (email, cree_le) VALUES (?, ?)').run(mail, nowIso());
     }
+    // Un seul lien valable à la fois : les liens précédents encore inutilisés
+    // sont annulés (un ancien e-mail retrouvé ne doit plus ouvrir le compte).
+    db().prepare('UPDATE magic_links SET utilise_le = ? WHERE email = ? AND utilise_le IS NULL').run(nowIso(), mail);
     const token = crypto.randomBytes(32).toString('base64url');
     const expire = new Date(maintenant + LIEN_MINUTES * 60e3).toISOString();
     db().prepare('INSERT INTO magic_links (token_hash, email, cree_le, expire_le) VALUES (?, ?, ?, ?)')
@@ -55,7 +58,7 @@ function createAuth({ getDb, nowIso }) {
     if (!token) return { ok: false, error: 'Lien invalide.' };
     const row = db().prepare('SELECT * FROM magic_links WHERE token_hash = ?').get(empreinte(token));
     if (!row) return { ok: false, error: 'Ce lien n\'est pas valide.' };
-    if (row.utilise_le) return { ok: false, error: 'Ce lien a déjà été utilisé. Demande-en un nouveau.' };
+    if (row.utilise_le) return { ok: false, error: 'Ce lien n\'est plus valable (déjà utilisé ou remplacé par un plus récent). Utilise le dernier e-mail reçu.' };
     if (Date.parse(row.expire_le) < maintenant) return { ok: false, error: 'Ce lien a expiré. Demande-en un nouveau.' };
     db().prepare('UPDATE magic_links SET utilise_le = ? WHERE token_hash = ?').run(nowIso(), row.token_hash);
     db().prepare('UPDATE users SET vu_le = ? WHERE email = ?').run(nowIso(), row.email);

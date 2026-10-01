@@ -51,6 +51,9 @@ test('lien magique : usage unique, puis session valide', async () => {
 test('lien magique : e-mail invalide, expiration, anti-abus, jeton non stocké en clair', () => {
   const auth = createAuth({ getDb, nowIso });
   assert.equal(auth.demanderLien('pas-un-mail').ok, false);
+  const a1 = auth.demanderLien('renvoi@exemple.fr'); const a2 = auth.demanderLien('renvoi@exemple.fr');
+  assert.equal(auth.consommerLien(a1.token).ok, false, 'l\'ancien lien est annulé par le renvoi');
+  assert.equal(auth.consommerLien(a2.token).ok, true, 'le dernier lien fonctionne');
   const t0 = Date.now();
   const l = auth.demanderLien('expire@exemple.fr', t0);
   assert.equal(getDb().prepare('SELECT COUNT(*) n FROM magic_links WHERE token_hash = ?').get(l.token).n, 0);
