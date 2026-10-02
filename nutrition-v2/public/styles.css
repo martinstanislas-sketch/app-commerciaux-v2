@@ -856,7 +856,7 @@ button.chip-float:disabled { opacity: .6; }
    lien discret « Voir la séance › », bouton lecture compact en bas à droite. */
 .vid-seance, .gd-card { position: relative; cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; }
 .vid-seance .vid-thumb { cursor: pointer; }
-.vid-seance .vid-play { left: auto; top: auto; right: 10px; bottom: 10px; transform: none; width: 44px; height: 44px; }
+.vid-seance .vid-play { left: 10px; top: auto; right: auto; bottom: 10px; transform: none; width: 44px; height: 44px; }
 .vid-seance .vid-play .ms { font-size: 26px; }
 .vid-ouvrir { all: unset; cursor: pointer; }
 .vid-ouvrir::after { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
