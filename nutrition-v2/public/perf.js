@@ -93,31 +93,56 @@ function perfReduire(fichier) {
 }
 
 // --- Courbe ---------------------------------------------------------------------
+// Graduations régulières (3 à 5) aux bornes arrondies, englobant mesures et objectif.
+function perfGraduations(lo, hi) {
+  for (const pas of [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50]) {
+    let a = Math.floor(lo / pas) * pas, b = Math.ceil(hi / pas) * pas;
+    if (b - a < 1e-9) b = a + pas;
+    let n = Math.round((b - a) / pas) + 1;
+    if (n > 5) continue;
+    for (let haut = true; n < 3; haut = !haut, n++) { if (haut) b += pas; else a -= pas; }
+    return Array.from({ length: n }, (_, i) => Math.round((a + i * pas) * 10) / 10);
+  }
+  return [lo, hi];
+}
+
+// Indices des points dont la date est écrite : toutes jusqu'à 6 points, puis une sur
+// deux (ou moins si nécessaire), en gardant toujours la première et la dernière.
+function perfIdxDates(n) {
+  if (n <= 6) return [...Array(n).keys()];
+  const k = Math.max(2, Math.ceil((n - 1) / 6));
+  const idx = [];
+  for (let i = 0; i < n - 1; i += k) if (n - 1 - i >= k || i === 0) idx.push(i);
+  if (idx[idx.length - 1] !== n - 1) idx.push(n - 1);
+  return idx;
+}
+
 function perfCourbe(ms_) {
-  if (ms_.length < 2) return `<div class="perf-vide">${ms('show_chart')}<p>Ta courbe apparaîtra dès ta 2<sup>e</sup> mesure.</p></div>`;
-  const W = 340, H = 168, g = 36, d = 10, h = 12, b = 26;
-  const t = ms_.map((m) => dateDe(m.date).getTime());
-  const vals = ms_.map((m) => m.poids);
+  if (!ms_.length) return `<div class="perf-vide">${ms('show_chart')}<p>Ta courbe apparaîtra dès ta 1<sup>re</sup> mesure.</p></div>`;
+  const W = 340, H = 184, g = 38, d = 12, h = 24, b = 30, marge = 16;
+  const n = ms_.length;
+  const vals = ms_.map((m) => Number(m.poids));
   const obj = Number(P.objectif) || null;
-  let lo = Math.min(...vals, ...(obj ? [obj] : [])), hi = Math.max(...vals, ...(obj ? [obj] : []));
-  const marge = Math.max(0.5, (hi - lo) * 0.12); lo -= marge; hi += marge;
-  const x = (v) => g + ((v - t[0]) / Math.max(1, t[t.length - 1] - t[0])) * (W - g - d);
+  const ticks = perfGraduations(Math.min(...vals, ...(obj ? [obj] : [])), Math.max(...vals, ...(obj ? [obj] : [])));
+  const lo = ticks[0], hi = ticks[ticks.length - 1];
+  // Points régulièrement espacés : chaque mesure a sa place et sa date juste dessous.
+  const x = (i) => (n === 1 ? (g + W - d) / 2 : g + marge + (i * (W - g - d - 2 * marge)) / (n - 1));
   const y = (v) => h + (1 - (v - lo) / (hi - lo)) * (H - h - b);
-  const pts = ms_.map((m, i) => [x(t[i]), y(m.poids)]);
+  const pts = vals.map((v, i) => [x(i), y(v)]);
   const ligne = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const aire = `${ligne} L${pts[pts.length - 1][0].toFixed(1)} ${H - b} L${pts[0][0].toFixed(1)} ${H - b} Z`;
-  const idxX = ms_.length > 2 ? [0, Math.floor((ms_.length - 1) / 2), ms_.length - 1] : [0, ms_.length - 1];
-  const grille = [hi - marge, lo + marge].map((v) => `<line x1="${g}" x2="${W - d}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pc-grid"/><text x="${g - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="pc-lbl">${kg(v)}</text>`).join('');
-  const objLigne = obj ? `<line x1="${g}" x2="${W - d}" y1="${y(obj).toFixed(1)}" y2="${y(obj).toFixed(1)}" class="pc-obj"/><text x="${W - d}" y="${(y(obj) - 5).toFixed(1)}" text-anchor="end" class="pc-objlbl">Objectif ${kg(obj)} kg</text>` : '';
-  const der = pts[pts.length - 1];
-  return `<svg class="perf-courbe" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du poids de ${kg(vals[0])} kg à ${kg(vals[vals.length - 1])} kg">
+  const aire = n > 1 ? `<path d="${ligne} L${pts[n - 1][0].toFixed(1)} ${H - b} L${pts[0][0].toFixed(1)} ${H - b} Z" fill="url(#pcg)"/><path d="${ligne}" class="pc-line"/>` : '';
+  const grille = ticks.map((v) => `<line x1="${g}" x2="${W - d}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pc-grid"/><text x="${g - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="pc-lbl">${kg(v)}</text>`).join('');
+  const objLigne = obj ? `<line x1="${g}" x2="${W - d}" y1="${y(obj).toFixed(1)}" y2="${y(obj).toFixed(1)}" class="pc-obj"/><text x="${g + 4}" y="${(y(obj) - 5).toFixed(1)}" text-anchor="start" class="pc-objlbl">Objectif ${kg(obj)} kg</text>` : '';
+  const der = pts[n - 1];
+  const dates = perfIdxDates(n);
+  return `<svg class="perf-courbe" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du poids de ${kg(vals[0])} kg à ${kg(vals[n - 1])} kg">
     <defs><linearGradient id="pcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f52ba" stop-opacity=".18"/><stop offset="1" stop-color="#0f52ba" stop-opacity="0"/></linearGradient></defs>
-    ${grille}${objLigne}
-    <path d="${aire}" fill="url(#pcg)"/><path d="${ligne}" class="pc-line"/>
-    ${pts.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === pts.length - 1 ? 5 : 3}" class="${i === pts.length - 1 ? 'pc-last' : 'pc-pt'}"/>`).join('')}
-    <text x="${der[0].toFixed(1)}" y="${(der[1] - 10).toFixed(1)}" text-anchor="end" class="pc-val">${kg(vals[vals.length - 1])} kg</text>
-    ${idxX.map((i) => `<text x="${pts[i][0].toFixed(1)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === ms_.length - 1 ? 'end' : 'middle'}" class="pc-lbl">${jjmm(ms_[i].date)}</text>`).join('')}
-  </svg>`;
+    ${grille}${objLigne}${aire}
+    ${pts.map((p, i) => `<line x1="${p[0].toFixed(1)}" x2="${p[0].toFixed(1)}" y1="${H - b}" y2="${H - b + 4}" class="pc-tick"/>`).join('')}
+    ${pts.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === n - 1 ? 5 : 3}" class="${i === n - 1 ? 'pc-last' : 'pc-pt'}"/>`).join('')}
+    <text x="${der[0].toFixed(1)}" y="${(der[1] - 10).toFixed(1)}" text-anchor="${n === 1 ? 'middle' : 'end'}" class="pc-val">${kg(vals[n - 1])} kg</text>
+    ${dates.map((i) => `<text x="${pts[i][0].toFixed(1)}" y="${H - b + 17}" text-anchor="middle" class="pc-lbl pc-date">${jjmm(ms_[i].date)}</text>`).join('')}
+  </svg>${n === 1 ? '<p class="pc-note">Ta courbe se dessinera dès ta 2<sup>e</sup> mesure.</p>' : ''}`;
 }
 
 // --- Écran ------------------------------------------------------------------------

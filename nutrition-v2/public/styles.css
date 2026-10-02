@@ -711,6 +711,8 @@ button.chip-float:disabled { opacity: .6; }
 .perf-courbe { display: block; width: 100%; height: auto; max-width: 100%; overflow: visible; }
 .pc-grid { stroke: var(--line); stroke-width: 1; }
 .pc-lbl { fill: var(--slate); font-size: 11px; font-family: inherit; }
+.pc-tick { stroke: #c7d3ea; stroke-width: 1; }
+.pc-note { margin: 6px 0 0; text-align: center; color: var(--slate); font-size: 13px; }
 .pc-line { fill: none; stroke: var(--saphir); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .pc-pt { fill: #fff; stroke: var(--saphir); stroke-width: 2; }
 .pc-last { fill: var(--saphir); stroke: #fff; stroke-width: 2; }
