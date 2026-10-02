@@ -89,7 +89,11 @@ h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
 
 /* ---------- Barre d'en-tête ---------- */
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 14px var(--gutter);
-  margin: 0 calc(var(--gutter) * -1) 8px; background: rgba(248, 249, 255, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  margin: 0 calc(var(--gutter) * -1) 8px; background: var(--bg); }
+/* Fine bordure basse dès qu'on a défilé (étendue à toute la largeur par des ombres, sans débordement) */
+.topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line);
+  box-shadow: -50vw 0 0 var(--line), 50vw 0 0 var(--line); opacity: 0; transition: opacity .15s; pointer-events: none; }
+.a-defile .topbar::after { opacity: 1; }
 .topbar .logo { height: 26px; width: auto; }
 .topbar .title { font-weight: 700; font-size: 18px; flex: 1; }
 .topbar .spacer { flex: 1; }

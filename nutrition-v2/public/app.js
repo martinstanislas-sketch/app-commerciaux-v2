@@ -159,6 +159,10 @@ const ROUTES = {
   '': ecranAccueil, code: ecranCode, ...(COMPTES ? { connexion: ecranConnexion, verification: ecranVerification } : {}),
   questionnaire: ecranQuestionnaire, generation: ecranGeneration, plan: ecranPlan, courses: ecranCourses, perf: ecranPerf, bonus: ecranVideos, profil: ecranProfil,
 };
+// En-tête fixe : bordure basse visible seulement quand la page a défilé.
+const majDefile = () => document.documentElement.classList.toggle('a-defile', window.scrollY > 4);
+window.addEventListener('scroll', majDefile, { passive: true });
+
 function render() {
   const [, name = '', arg] = location.hash.split('/');
   let route = name;
