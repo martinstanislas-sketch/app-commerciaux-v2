@@ -42,9 +42,10 @@ img { display: block; max-width: 100%; }
 .ms.fill { font-variation-settings: "FILL" 1, "wght" 500, "GRAD" 0, "opsz" 24; }
 
 .app { max-width: 480px; margin: 0 auto; min-height: 100dvh; position: relative; background: var(--bg); }
-.screen { padding: 0 var(--gutter) 32px; animation: fade .25s ease; }
+/* Entrée de page : courte (120 ms) pour que le contenu soit net en moins de 200 ms. */
+.screen { padding: 0 var(--gutter) 32px; animation: fade .12s ease-out; }
 .screen.with-nav { padding-bottom: calc(var(--nav-h) + 32px); }
-@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: .35; } to { opacity: 1; } }
 
 /* ---------- Typo ---------- */
 h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
@@ -840,4 +841,11 @@ button.chip-float:disabled { opacity: .6; }
   .bonus-seg { max-width: 360px; }
   .gd-jour { max-width: 520px; }
   .gd-modal .sheet { max-width: 820px; }
+}
+
+/* Mouvement réduit demandé par l'appareil : aucune animation ni transition
+   (seul l'indicateur de chargement continue de tourner). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .spinner { animation: spin 1.6s linear infinite !important; }
 }
