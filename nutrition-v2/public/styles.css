@@ -450,6 +450,12 @@ button.chip-float:disabled { opacity: .6; }
 .dk { display: contents; }
 /* Visibles seulement sur ordinateur / seulement sur mobile */
 .dk-only { display: none; }
+/* En-tête de page (titre, sous-titre, puis pastille) : même ordre sur mobile et ordinateur */
+.pg-head { display: flex; flex-direction: column; margin-top: 0; }
+.pg-head.dk-only { display: none; }
+.pg-head .h1 { order: 1; margin-top: 0 !important; }
+.pg-head .lead { order: 2; }
+.pg-head .pill { order: 3; align-self: flex-start; margin-top: 14px; }
 
 @media screen and (min-width: 960px) {
   :root { --gutter: 32px; --wmax: 1180px; --topbar-h: 64px; --side-w: 370px; }
@@ -478,10 +484,7 @@ button.chip-float:disabled { opacity: .6; }
      En-tête de page identique, puis colonne latérale fixe pendant le défilement + colonne principale. */
   .dk-only { display: block; }
   .mob-only { display: none !important; }
-  .pg-head { display: flex; flex-direction: column; margin-top: 0; }
-  .pg-head .h1 { order: 1; margin-top: 0 !important; }
-  .pg-head .lead { order: 2; }
-  .pg-head .pill { order: 3; align-self: flex-start; margin-top: 14px; }
+  .pg-head.dk-only { display: flex; }
   .dk-cols { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); gap: 32px; align-items: start; margin-top: 24px; }
   .dk-cols.solo { grid-template-columns: minmax(0, 1fr); }
   .dk-side, .dk-main { display: block; min-width: 0; }
