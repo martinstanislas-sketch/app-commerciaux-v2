@@ -89,8 +89,8 @@ function ecranVideos() {
   app.innerHTML = `
   <section class="screen with-nav videos-screen">
     <div class="topbar">${logo()}<span class="title">Bonus</span></div>
-    <h1 class="h1">Tes séances My Coach</h1>
-    <p class="lead">Continue à bouger où que tu sois.</p>
+    <header class="pg-head"><h1 class="h1">Tes séances My Coach</h1>
+    <p class="lead">Continue à bouger où que tu sois.</p></header>
     ${seg}
     <div class="input-wrap vid-search">${ms('search')}<input id="vidQ" type="search" placeholder="Rechercher une séance…" aria-label="Rechercher une séance" autocomplete="off" value="${esc(vidRecherche)}" /></div>
     <div class="vid-filtres" role="tablist">${VIDEO_FILTRES.filter((f) => f.v === 'tous' || VIDEOS.some((v) => v.category === f.v)).map((f) => `<button class="chip${f.v === vidFiltre ? ' on' : ''}" data-vf="${f.v}" role="tab" aria-selected="${f.v === vidFiltre}">${f.t}</button>`).join('')}</div>
@@ -143,8 +143,8 @@ function ecranGuides(seg) {
   app.innerHTML = `
   <section class="screen with-nav videos-screen guides-screen">
     <div class="topbar">${logo()}<span class="title">Bonus</span></div>
-    <h1 class="h1">Tes guides My Coach</h1>
-    <p class="lead">Des conseils concrets pour réussir ton challenge.</p>
+    <header class="pg-head"><h1 class="h1">Tes guides My Coach</h1>
+    <p class="lead">Des conseils concrets pour réussir ton challenge.</p></header>
     ${seg}
     <div class="input-wrap vid-search">${ms('search')}<input id="gdQ" type="search" placeholder="Rechercher un guide…" aria-label="Rechercher un guide" autocomplete="off" value="${esc(gdRecherche)}" /></div>
     <div class="vid-filtres" role="tablist">${GUIDE_FILTRES.map((f) => `<button class="chip${f.v === gdFiltre ? ' on' : ''}" data-gf="${f.v}" role="tab" aria-selected="${f.v === gdFiltre}">${f.t}</button>`).join('')}</div>

@@ -168,8 +168,8 @@ async function ecranPerf() {
   app.innerHTML = `
   <section class="screen with-nav perf-screen">
     ${barreHaut('Perf')}
-    <h1 class="h1">Ma progression</h1>
-    <p class="lead">${dep ? `Ton suivi depuis le ${esc(jjmmaaaa(dep.date))}.` : 'Ajoute ta première mesure pour lancer ton suivi.'}</p>
+    <header class="pg-head"><h1 class="h1">Ma progression</h1>
+    <p class="lead">${dep ? `Ton suivi depuis le ${esc(jjmmaaaa(dep.date))}.` : 'Ajoute ta première mesure pour lancer ton suivi.'}</p></header>
     <div class="dk dk-cols"><div class="dk dk-side">
     <div class="hero-card perf-hero">
       <div class="perf-kpis">

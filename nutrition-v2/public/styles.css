@@ -448,9 +448,11 @@ button.chip-float:disabled { opacity: .6; }
    sont neutres (display: contents) : l'affichage reste strictement identique.
    ========================================================================== */
 .dk { display: contents; }
+/* Visibles seulement sur ordinateur / seulement sur mobile */
+.dk-only { display: none; }
 
 @media screen and (min-width: 960px) {
-  :root { --gutter: 32px; --wmax: 1180px; }
+  :root { --gutter: 32px; --wmax: 1180px; --topbar-h: 64px; --side-w: 370px; }
   .app { max-width: var(--wmax); box-shadow: none; }
   .screen { padding-bottom: 56px; }
   .screen.with-nav { padding-bottom: 56px; }
@@ -472,11 +474,19 @@ button.chip-float:disabled { opacity: .6; }
   .card.meal { transition: transform .15s, box-shadow .15s; }
   .card.meal:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
 
-  /* Colonnes génériques : volet latéral + contenu principal */
-  .dk-cols { display: grid; grid-template-columns: clamp(300px, 28vw, 360px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  /* ---------- Mise en page commune (Plan, Courses, Perf, Profil ; Bonus en pleine largeur) ----------
+     En-tête de page identique, puis colonne latérale fixe pendant le défilement + colonne principale. */
+  .dk-only { display: block; }
+  .mob-only { display: none !important; }
+  .pg-head { display: flex; flex-direction: column; margin-top: 0; }
+  .pg-head .h1 { order: 1; margin-top: 0 !important; }
+  .pg-head .lead { order: 2; }
+  .pg-head .pill { order: 3; align-self: flex-start; margin-top: 14px; }
+  .dk-cols { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); gap: 32px; align-items: start; margin-top: 24px; }
   .dk-cols.solo { grid-template-columns: minmax(0, 1fr); }
   .dk-side, .dk-main { display: block; min-width: 0; }
-  .dk-side { position: sticky; top: 96px; }
+  .dk-side { position: sticky; top: calc(var(--topbar-h) + 16px); }
+  .dk-side > :first-child, .dk-main > :first-child { margin-top: 0; }
 
   /* ---------- Accueil ---------- */
   .landing { padding-top: 36px; }
@@ -507,7 +517,6 @@ button.chip-float:disabled { opacity: .6; }
   /* ---------- Plan ---------- */
   .plan-screen .days { max-width: 640px; }
   .plan-screen .energie { margin-top: 0; }
-  .plan-screen .dk-cols { margin-top: 24px; }
   .dk-meals { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
   .dk-meals .meals-head, .dk-meals .end-cta { grid-column: 1 / -1; }
   .dk-meals .meals-head { margin: 0; }
@@ -517,18 +526,11 @@ button.chip-float:disabled { opacity: .6; }
   .dk-meals .end-cta .btn { width: auto; padding: 0 36px; }
 
   /* ---------- Courses ---------- */
-  .dk-courses { grid-template-rows: auto 1fr; margin-top: 24px; }
-  .dk-courses .dk-side { position: static; grid-column: 1; grid-row: 1; }
-  .dk-courses .dk-side .portions { margin-top: 0; }
-  .dk-courses .dk-rayons { grid-column: 2; grid-row: 1 / span 2; columns: 2; column-gap: 20px; }
+  .dk-courses .dk-rayons { columns: 2; column-gap: 20px; }
   .dk-courses .dk-rayons .rayon { margin: 0 0 20px; break-inside: avoid; display: block; }
-  .dk-courses .dk-actions { display: block; grid-column: 1; grid-row: 2; align-self: start; }
-  .dk-courses .dk-actions #share { margin-top: 4px !important; }
+  .dk-courses .dk-actions [data-act="share"] { margin-top: 16px !important; }
 
   /* ---------- Profil ---------- */
-  .dk-profil { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 8px; }
-  .dk-profil .dk-main .list-card:first-child { margin-top: 0; }
-  .dk-profil .dk-side { position: static; }
   .dk-profil .profile-head { margin-top: 0; }
 
   /* ---------- Fiche recette et confirmations : fenêtres centrées ---------- */
@@ -765,8 +767,6 @@ button.chip-float:disabled { opacity: .6; }
 .perf-zoom .top h2 { font-size: 18px; }
 .perf-zoom img { width: 100%; max-height: 72dvh; object-fit: contain; border-radius: 14px; margin-top: 10px; background: var(--surface-2); }
 @media screen and (min-width: 960px) {
-  .perf-screen .dk-cols { margin-top: 8px; }
-  .perf-screen .dk-main > .perf-card:first-child { margin-top: 0; }
   .perf-grid { grid-template-columns: repeat(4, 1fr); }
   .perf-compare { max-width: 400px; }
   .perf-courbe { max-width: 560px; margin: 0 auto; }

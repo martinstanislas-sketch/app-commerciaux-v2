@@ -642,9 +642,9 @@ function ecranPlan() {
   app.innerHTML = `
   <section class="screen with-nav plan-screen">
     ${barreHaut('Plan de repas')}
-    <span class="pill">${ms('eco')}${esc(objectifLabel(S.profil.objectif))} · ${plan.jours.length} jours</span>
+    <header class="pg-head"><span class="pill">${ms('eco')}${esc(objectifLabel(S.profil.objectif))} · ${plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">${S.prenom ? esc(S.prenom) + ', ton' : 'Ton'} menu de la semaine</h1>
-    <p class="lead">Calibré pour ton objectif et tes goûts.</p>
+    <p class="lead">Calibré pour ton objectif et tes goûts.</p></header>
     <div class="days" role="tablist" style="--n:${plan.jours.length}">${plan.jours.map((j, i) => `<button class="day${i === S.jour ? ' on' : ''}" data-day="${i}" role="tab" aria-selected="${i === S.jour}">
       ${JOURS_COURTS[j.jour] || j.jour.slice(0, 3)}</button>`).join('')}</div>
     <div class="dk dk-cols${doux && !(COMPTES && !token) ? ' solo' : ''}"><div class="dk dk-side">
@@ -960,12 +960,18 @@ function ecranCourses() {
   const rayonsFinis = rayons.filter((ry) => faitsDans(parRayon[ry]) === parRayon[ry].length);
   const rayonsEnCours = rayons.filter((ry) => !rayonsFinis.includes(ry));
 
+  // Actions de la liste : dans la colonne latérale sur ordinateur, en bas sur mobile.
+  const actions = (cl) => `<div class="dk-actions ${cl}">
+    <button class="btn btn-primary btn-block no-print" style="margin-top:22px" data-act="share">${ms('ios_share')}Partager la liste</button>
+    <div class="export-row no-print"><button class="btn btn-ghost" data-act="pdf">${ms('download')}Exporter en PDF</button>
+      ${faits ? `<button class="btn btn-ghost" data-act="reset">${ms('restart_alt')}Tout décocher</button>` : ''}</div></div>`;
+
   app.innerHTML = `
   <section class="screen with-nav">
     ${barreHaut('Courses')}
-    <span class="pill">${ms('calendar_month')}Plan de ${S.plan.jours.length} jours</span>
+    <header class="pg-head"><span class="pill">${ms('calendar_month')}Plan de ${S.plan.jours.length} jours</span>
     <h1 class="h1" style="margin-top:12px">Liste de courses</h1>
-    <p class="lead">Tous les ingrédients de ton plan, calculés pour la semaine.</p>
+    <p class="lead">Tous les ingrédients de ton plan, calculés pour la semaine.</p></header>
     <p class="print-only">${esc(APP_NOM)} — pour ${S.plan.jours.length} jours · ${S.portions} personne(s)</p>
     <div class="dk dk-cols dk-courses"><div class="dk dk-side">
     <div class="card portions"><div class="ic">${ms('group')}</div><div class="txt"><b>Cuisiner pour</b><span>Quantités ajustées</span></div>
@@ -974,6 +980,7 @@ function ecranCourses() {
         <button id="plus" aria-label="Une personne de plus" ${S.portions >= 12 ? 'disabled' : ''}>${ms('add')}</button></div></div>
     <div class="card progress-card"><div class="row"><span>${ms('check_circle', 'fill')}${faits} sur ${tous.length} articles</span><span>${pct} %</span></div>
       <div class="bar"><i style="width:${pct}%"></i></div></div>
+    ${actions('dk-only')}
     </div><div class="dk dk-main dk-rayons">
     ${rayonsEnCours.map((ry) => `<div class="card rayon"><div class="head"><div class="ic">${ms(RAYON_IC[ry] || 'shopping_basket')}</div><h3>${esc(ry)}</h3>
       <small>${faitsDans(parRayon[ry])}/${parRayon[ry].length}</small></div>${trier(parRayon[ry]).map(itemHTML).join('')}</div>`).join('')}
@@ -982,11 +989,7 @@ function ecranCourses() {
       <p class="section-help" style="margin:4px 0 0">Condiments et basiques : vérifie avant d'en racheter.</p>${trier(liste.placard).map(itemHTML).join('')}</details>` : ''}
     ${rayonsFinis.map((ry) => `<details class="card rayon fini"><summary class="head"><div class="ic">${ms('check', 'fill')}</div><h3>${esc(ry)}</h3>
       <small>Tout est pris</small>${ms('expand_more', 'chev')}</summary>${parRayon[ry].map(itemHTML).join('')}</details>`).join('')}
-    </div><div class="dk dk-actions">
-    <button class="btn btn-primary btn-block no-print" style="margin-top:22px" id="share">${ms('ios_share')}Partager la liste</button>
-    <div class="export-row no-print"><button class="btn btn-ghost" id="pdf">${ms('download')}Exporter en PDF</button>
-      ${faits ? `<button class="btn btn-ghost" id="reset">${ms('restart_alt')}Tout décocher</button>` : ''}</div>
-    </div></div>
+    </div>${actions('mob-only')}</div>
   </section>`;
 
   const reRender = () => {
@@ -1001,15 +1004,16 @@ function ecranCourses() {
   }));
   document.getElementById('minus').onclick = () => { S.portions = Math.max(1, S.portions - 1); persist(); syncCourses(); reRender(); };
   document.getElementById('plus').onclick = () => { S.portions = Math.min(12, S.portions + 1); persist(); syncCourses(); reRender(); };
-  document.getElementById('pdf').onclick = () => exporterCoursesPDF(liste);
-  const reset = document.getElementById('reset'); if (reset) reset.onclick = () => { S.coches = {}; persist(); syncCourses(); reRender(); };
-  document.getElementById('share').onclick = async () => {
+  const surAction = (a, f) => app.querySelectorAll(`[data-act="${a}"]`).forEach((b) => (b.onclick = f));
+  surAction('pdf', () => exporterCoursesPDF(liste));
+  surAction('reset', () => { S.coches = {}; persist(); syncCourses(); reRender(); });
+  surAction('share', async () => {
     const texte = CoursesEngine.rendreTexte(liste, { jours: S.plan.jours.length, personnes: S.portions, programme: APP_NOM });
     try {
       if (navigator.share) { await navigator.share({ title: 'Ma liste de courses', text: texte }); return; }
       await navigator.clipboard.writeText(texte); toast('Liste copiée ✓');
     } catch (ex) { if (ex && ex.name !== 'AbortError') toast('Partage impossible sur cet appareil.'); }
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1032,6 +1036,7 @@ function ecranProfil() {
   app.innerHTML = `
   <section class="screen with-nav">
     <div class="topbar">${logo()}<span class="title">Profil</span></div>
+    <header class="pg-head dk-only"><h1 class="h1">Mon profil</h1><p class="lead">Tes réglages, ton objectif et ton studio.</p></header>
     <div class="dk dk-cols dk-profil"><div class="dk dk-side">
     <div class="profile-head"><div class="avatar">${esc(initiale())}</div><div class="who">
       <b>${esc(S.prenom || 'Ajoute ton prénom')}</b><span>${token ? esc(S.email || '') : 'Ton plan est enregistré sur ce téléphone'}</span></div>
