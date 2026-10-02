@@ -712,15 +712,15 @@ button.chip-float:disabled { opacity: .6; }
 .perf-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
 .perf-courbe { display: block; width: 100%; height: auto; max-width: 100%; overflow: visible; }
 .pc-grid { stroke: var(--line); stroke-width: 1; }
-.pc-lbl { fill: var(--slate); font-size: 11px; font-family: inherit; }
+.pc-lbl { fill: var(--slate); font-size: 12px; font-family: inherit; }
 .pc-tick { stroke: #c7d3ea; stroke-width: 1; }
 .pc-note { margin: 6px 0 0; text-align: center; color: var(--slate); font-size: 13px; }
 .pc-line { fill: none; stroke: var(--saphir); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .pc-pt { fill: #fff; stroke: var(--saphir); stroke-width: 2; }
 .pc-last { fill: var(--saphir); stroke: #fff; stroke-width: 2; }
-.pc-val { fill: var(--navy); font-size: 12px; font-weight: 800; font-family: inherit; }
+.pc-val { fill: var(--navy); font-size: 13px; font-weight: 800; font-family: inherit; }
 .pc-obj { stroke: var(--vert); stroke-width: 1.5; stroke-dasharray: 5 4; }
-.pc-objlbl { fill: var(--vert-deep); font-size: 10.5px; font-weight: 700; font-family: inherit; }
+.pc-objlbl { fill: var(--vert-deep); font-size: 13px; font-weight: 700; font-family: inherit; }
 .perf-vide { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 8px; color: var(--slate); text-align: center; }
 .perf-vide .ms { font-size: 30px; color: #b8c8e6; }
 .perf-vide p { margin: 0; font-size: 14px; }
@@ -769,7 +769,7 @@ button.chip-float:disabled { opacity: .6; }
 @media screen and (min-width: 960px) {
   .perf-grid { grid-template-columns: repeat(4, 1fr); }
   .perf-compare { max-width: 400px; }
-  .perf-courbe { max-width: 560px; margin: 0 auto; }
+  #perfCourbe { max-width: 560px; margin: 0 auto; }
   .perf-zoom .sheet { max-width: 640px; }
 }
 

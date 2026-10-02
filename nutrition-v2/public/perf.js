@@ -108,18 +108,23 @@ function perfGraduations(lo, hi) {
 
 // Indices des points dont la date est écrite : toutes jusqu'à 6 points, puis une sur
 // deux (ou moins si nécessaire), en gardant toujours la première et la dernière.
-function perfIdxDates(n) {
-  if (n <= 6) return [...Array(n).keys()];
-  const k = Math.max(2, Math.ceil((n - 1) / 6));
+function perfIdxDates(n, max = 6) {
+  if (n <= max) return [...Array(n).keys()];
+  const k = Math.max(2, Math.ceil((n - 1) / max));
   const idx = [];
   for (let i = 0; i < n - 1; i += k) if (n - 1 - i >= k || i === 0) idx.push(i);
   if (idx[idx.length - 1] !== n - 1) idx.push(n - 1);
   return idx;
 }
 
-function perfCourbe(ms_) {
+// W = largeur réelle affichée (en px) : le viewBox suit l'écran, donc les textes
+// gardent leur taille CSS (12-13 px) quelle que soit la largeur ; seul le tracé s'étire.
+let perfResize = () => {};
+
+function perfCourbe(ms_, W = 340) {
   if (!ms_.length) return `<div class="perf-vide">${ms('show_chart')}<p>Ta courbe apparaîtra dès ta 1<sup>re</sup> mesure.</p></div>`;
-  const W = 340, H = 184, g = 38, d = 12, h = 24, b = 30, marge = 16;
+  W = Math.max(240, Math.round(W));
+  const H = Math.round(Math.min(260, Math.max(184, W * 0.5))), g = 40, d = 12, h = 26, b = 32, marge = 18;
   const n = ms_.length;
   const vals = ms_.map((m) => Number(m.poids));
   const obj = Number(P.objectif) || null;
@@ -134,13 +139,14 @@ function perfCourbe(ms_) {
   const grille = ticks.map((v) => `<line x1="${g}" x2="${W - d}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="pc-grid"/><text x="${g - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="pc-lbl">${kg(v)}</text>`).join('');
   const objLigne = obj ? `<line x1="${g}" x2="${W - d}" y1="${y(obj).toFixed(1)}" y2="${y(obj).toFixed(1)}" class="pc-obj"/><text x="${g + 4}" y="${(y(obj) - 5).toFixed(1)}" text-anchor="start" class="pc-objlbl">Objectif ${kg(obj)} kg</text>` : '';
   const der = pts[n - 1];
-  const dates = perfIdxDates(n);
+  // Au plus 6 dates, et moins sur un écran très étroit (≈ 44 px par date en 12 px).
+  const dates = perfIdxDates(n, Math.max(2, Math.min(6, Math.floor((W - g - d) / 44))));
   return `<svg class="perf-courbe" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du poids de ${kg(vals[0])} kg à ${kg(vals[n - 1])} kg">
     <defs><linearGradient id="pcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f52ba" stop-opacity=".18"/><stop offset="1" stop-color="#0f52ba" stop-opacity="0"/></linearGradient></defs>
     ${grille}${objLigne}${aire}
     ${pts.map((p, i) => `<line x1="${p[0].toFixed(1)}" x2="${p[0].toFixed(1)}" y1="${H - b}" y2="${H - b + 4}" class="pc-tick"/>`).join('')}
     ${pts.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === n - 1 ? 5 : 3}" class="${i === n - 1 ? 'pc-last' : 'pc-pt'}"/>`).join('')}
-    <text x="${der[0].toFixed(1)}" y="${(der[1] - 10).toFixed(1)}" text-anchor="${n === 1 ? 'middle' : 'end'}" class="pc-val">${kg(vals[n - 1])} kg</text>
+    <text x="${der[0].toFixed(1)}" y="${(Math.min(der[1], n > 1 ? pts[n - 2][1] : der[1]) - 10).toFixed(1)}" text-anchor="${n === 1 ? 'middle' : 'end'}" class="pc-val">${kg(vals[n - 1])} kg</text>
     ${dates.map((i) => `<text x="${pts[i][0].toFixed(1)}" y="${H - b + 17}" text-anchor="middle" class="pc-lbl pc-date">${jjmm(ms_[i].date)}</text>`).join('')}
   </svg>${n === 1 ? '<p class="pc-note">Ta courbe se dessinera dès ta 2<sup>e</sup> mesure.</p>' : ''}`;
 }
@@ -187,7 +193,7 @@ async function ecranPerf() {
     <button class="btn btn-primary btn-block perf-add" id="addMes">${ms('add')}Ajouter une mesure</button>
     </div><div class="dk dk-main">
     <div class="card perf-card"><div class="perf-head"><h2 class="h3">Évolution du poids</h2><span class="muted small">${avecPoids.length} mesure${avecPoids.length > 1 ? 's' : ''}</span></div>
-      ${perfCourbe(avecPoids)}</div>
+      <div id="perfCourbe">${perfCourbe(avecPoids)}</div></div>
     <h2 class="h2 perf-sec">Mes mensurations</h2>
     ${aMensurations ? `<div class="perf-grid">${PERF_MESURES.map(carteMesure).join('')}</div>`
       : `<div class="card perf-card perf-mes-vide"><div class="perf-vide">${ms('straighten')}<p>Ajoute tes mensurations pour suivre ta silhouette.</p></div>
@@ -197,6 +203,17 @@ async function ecranPerf() {
     </div></div>
   </section>`;
 
+  // Redessine la courbe à la largeur réelle (et à chaque redimensionnement).
+  const zoneCourbe = document.getElementById('perfCourbe');
+  const ajusterCourbe = () => {
+    if (!zoneCourbe.isConnected) return window.removeEventListener('resize', perfResize);
+    const w = zoneCourbe.clientWidth;
+    if (w && zoneCourbe.querySelector('svg') && Math.abs(w - (zoneCourbe.dataset.w || 0)) > 1) { zoneCourbe.dataset.w = w; zoneCourbe.innerHTML = perfCourbe(avecPoids, w); }
+  };
+  ajusterCourbe();
+  window.removeEventListener('resize', perfResize);
+  perfResize = () => { clearTimeout(perfResize.t); perfResize.t = setTimeout(ajusterCourbe, 120); };
+  window.addEventListener('resize', perfResize);
   document.getElementById('addMes').onclick = () => perfFormMesure();
   const addMens = document.getElementById('addMens');
   if (addMens) addMens.onclick = () => perfFormMesure({ mensurations: true });
