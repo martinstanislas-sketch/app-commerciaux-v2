@@ -868,3 +868,10 @@ button.chip-float:disabled { opacity: .6; }
 .vid-seance:has(.vid-ouvrir:focus-visible) { outline: 3px solid var(--saphir); outline-offset: 2px; }
 .vid-seance:hover .vid-play { transform: scale(1.08); }
 @media (prefers-reduced-motion: reduce) { .vid-seance:hover, .vid-seance:focus-within { transform: none !important; } }
+
+/* Miniatures des séances : léger dégradé navy en bas pour harmoniser fonds clairs
+   et fonds sombres ; image recadrée uniformément. */
+.vid-seance .vid-thumb img { object-fit: cover; object-position: center; }
+.vid-seance .vid-thumb::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top, rgba(4, 23, 59, .55), transparent 50%); }
+.vid-seance .vid-play { z-index: 1; }
