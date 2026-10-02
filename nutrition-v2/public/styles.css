@@ -854,7 +854,7 @@ button.chip-float:disabled { opacity: .6; }
 
 /* Bonus › Séances : carte entière cliquable (le bouton du titre couvre la carte),
    lien discret « Voir la séance › », bouton lecture compact en bas à droite. */
-.vid-seance { position: relative; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.vid-seance { position: relative; cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s; }
 .vid-seance .vid-thumb { cursor: pointer; }
 .vid-seance .vid-play { left: auto; top: auto; right: 10px; bottom: 10px; transform: none; width: 44px; height: 44px; }
 .vid-seance .vid-play .ms { font-size: 26px; }
