@@ -881,3 +881,8 @@ button.chip-float:disabled { opacity: .6; }
 @media (max-width: 419px) { .portions .txt span { display: none; } }
 .profile-head .icon-btn { flex: none; }
 .profile-head .who span { white-space: nowrap; }
+
+/* Perf : état vide unique des mensurations */
+.perf-mes-vide { padding: 4px 16px 16px; }
+.perf-mes-vide .btn { margin-top: 2px; }
+@media screen and (min-width: 960px) { .perf-mes-vide .btn { width: auto; margin: 2px auto 0; display: flex; padding: 0 28px; } }

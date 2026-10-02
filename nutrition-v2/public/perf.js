@@ -165,6 +165,9 @@ async function ecranPerf() {
       <span class="perf-delta${dlt ? (dlt < 0 ? ' down' : ' up') : ''}">${dlt == null ? (v ? 'Première mesure' : 'Pas encore mesuré') : signe(dlt, c.u)}</span></div>`;
   };
 
+  // Tant qu'aucune mensuration n'est saisie : une seule carte d'état vide.
+  const aMensurations = ms_.some((m) => PERF_MESURES.some((c) => Number(m[c.k])));
+
   app.innerHTML = `
   <section class="screen with-nav perf-screen">
     ${barreHaut('Perf')}
@@ -186,13 +189,17 @@ async function ecranPerf() {
     <div class="card perf-card"><div class="perf-head"><h2 class="h3">Évolution du poids</h2><span class="muted small">${avecPoids.length} mesure${avecPoids.length > 1 ? 's' : ''}</span></div>
       ${perfCourbe(avecPoids)}</div>
     <h2 class="h2 perf-sec">Mes mensurations</h2>
-    <div class="perf-grid">${PERF_MESURES.map(carteMesure).join('')}</div>
+    ${aMensurations ? `<div class="perf-grid">${PERF_MESURES.map(carteMesure).join('')}</div>`
+      : `<div class="card perf-card perf-mes-vide"><div class="perf-vide">${ms('straighten')}<p>Ajoute tes mensurations pour suivre ta silhouette.</p></div>
+        <button class="btn btn-soft btn-block" id="addMens">${ms('add')}Ajouter mes mensurations</button></div>`}
     <h2 class="h2 perf-sec">Mes photos</h2>
     <div class="card perf-card" id="perfPhotos"><div class="perf-vide">${ms('photo_camera')}<p>Chargement…</p></div></div>
     </div></div>
   </section>`;
 
   document.getElementById('addMes').onclick = () => perfFormMesure();
+  const addMens = document.getElementById('addMens');
+  if (addMens) addMens.onclick = () => perfFormMesure({ mensurations: true });
   document.getElementById('setObj').onclick = () => perfFormObjectif();
   perfRendrePhotos();
 }
@@ -246,15 +253,19 @@ function perfChamp(name, label, unit, val) {
   return `<div class="measure"><label for="pm-${name}">${label}</label><div class="val"><input id="pm-${name}" name="${name}" inputmode="decimal" autocomplete="off" placeholder="—" value="${val == null ? '' : String(val).replace('.', ',')}" /><span class="unit">${unit}</span></div></div>`;
 }
 
-function perfFormMesure() {
+function perfFormMesure(opt = {}) {
   const dern = mesuresTriees().slice(-1)[0] || {};
-  const f = perfFenetre(`<h2 class="h2">Nouvelle mesure</h2>
-    <p class="lead">Seul le poids est obligatoire.</p>
+  // Depuis « Ajouter mes mensurations » : poids prérempli avec la dernière valeur.
+  const poidsInit = opt.mensurations && dern.poids ? String(dern.poids).replace('.', ',') : '';
+  // … et rattachées à la dernière mesure (même date) pour ne pas dupliquer le point de poids.
+  const dateInit = opt.mensurations && dern.date ? dern.date : jourISO(Date.now());
+  const f = perfFenetre(`<h2 class="h2">${opt.mensurations ? 'Mes mensurations' : 'Nouvelle mesure'}</h2>
+    <p class="lead">${opt.mensurations ? 'Mesure-toi avec un mètre ruban, sans serrer. Elles complètent ta dernière mesure de poids.' : 'Seul le poids est obligatoire.'}</p>
     <div class="section-title">Date</div>
-    <div class="input-wrap">${ms('calendar_today')}<input type="date" name="date" id="pm-date" value="${jourISO(Date.now())}" max="${jourISO(Date.now())}" /></div>
+    <div class="input-wrap">${ms('calendar_today')}<input type="date" name="date" id="pm-date" value="${dateInit}" max="${jourISO(Date.now())}" /></div>
     <div class="section-title">Poids</div>
-    <div class="measures perf-m1">${perfChamp('poids', 'Poids', 'kg', '')}</div>
-    <div class="section-title">Mensurations <small>Facultatif</small></div>
+    <div class="measures perf-m1">${perfChamp('poids', 'Poids', 'kg', poidsInit)}</div>
+    <div class="section-title">Mensurations${opt.mensurations ? '' : ' <small>Facultatif</small>'}</div>
     <div class="measures perf-m2">${PERF_MESURES.map((c) => perfChamp(c.k, c.champ, c.u, '')).join('')}</div>
     ${dern.poids ? `<p class="section-help" style="margin-top:10px">Dernière mesure : ${kg(dern.poids)} kg le ${jjmmaaaa(dern.date)}.</p>` : ''}`, (form) => {
     const fd = new FormData(form);
@@ -274,6 +285,7 @@ function perfFormMesure() {
     perfSave(); toast('Mesure enregistrée ✓'); ecranPerf();
   });
   f.querySelectorAll('.measure input').forEach((inp) => inp.addEventListener('input', () => inp.closest('.measure').classList.remove('err')));
+  if (opt.mensurations) { const t = f.querySelector('#pm-tourTaille'); if (t) t.focus(); }
 }
 
 function perfFormObjectif() {
