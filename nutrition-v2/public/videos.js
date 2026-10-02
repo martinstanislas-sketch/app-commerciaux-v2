@@ -172,20 +172,20 @@ function gdListe(jour) {
   grille.innerHTML = liste.length ? liste.map((g) => {
     const verrou = g.day > jour;
     const cat = gdCat(g.category);
+    // Carte entière cliquable : le bouton du titre couvre toute la carte (comme les séances).
     return `<article class="card vid-card gd-card${verrou ? ' locked' : ''}">
-      <button class="vid-thumb gd-thumb" data-gd="${g.i}" ${verrou ? 'aria-disabled="true"' : ''} aria-label="${verrou ? 'Débloqué au jour ' + g.day : 'Lire le guide ' + esc(g.title)}">
+      <div class="vid-thumb gd-thumb">
         <img src="guides/${esc(g.slug)}.jpg" alt="" loading="lazy" />
         ${verrou ? `<span class="gd-lock">${ms('lock', 'fill')}Débloqué au jour ${g.day}</span>` : ''}
-      </button>
+      </div>
       <div class="body">
-        <h3 class="name">${esc(g.title)}</h3>
+        <h3 class="name"><button class="vid-ouvrir" data-gd="${g.i}" ${verrou ? 'aria-disabled="true"' : ''} aria-label="${verrou ? 'Débloqué au jour ' + g.day : 'Lire le guide ' + esc(g.title)}">${esc(g.title)}</button></h3>
         <p class="gd-sub">${esc(g.subtitle)}</p>
         <div class="vid-meta">
           <span>${ms(cat.ic)}${esc(cat.t)}</span>
           <span>${ms('description')}${g.pages} pages</span>
         </div>
-        ${verrou ? `<button class="btn btn-block vid-btn gd-btn-lock" data-gd="${g.i}" aria-disabled="true">${ms('lock')}Débloqué au jour ${g.day}</button>`
-          : `<button class="btn btn-primary btn-block vid-btn" data-gd="${g.i}">${ms('menu_book')}Lire le guide</button>`}
+        <span class="vid-lien" aria-hidden="true">${verrou ? `Débloqué au jour ${g.day}` : 'Lire le guide'}${ms(verrou ? 'lock' : 'chevron_right')}</span>
       </div></article>`;
   }).join('')
     : `<div class="card vid-vide">${ms('search_off')}<p>Aucun guide ne correspond à « ${esc(gdRecherche)} ».</p><button class="btn btn-ghost" id="gdReset">Voir tous les guides</button></div>`;
