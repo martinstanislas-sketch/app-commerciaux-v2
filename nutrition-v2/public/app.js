@@ -652,7 +652,7 @@ function ecranPlan() {
       <div class="head"><div><small>Énergie du ${esc((jour.jour || '').toLowerCase())}</small><b>${fmt(t.kcal)} <span>/ ${fmt(b.kcalCible)} kcal</span></b></div>
         <span class="badge${kcalPct >= 95 && kcalPct <= 105 ? ' ok' : ''}">${kcalPct >= 95 && kcalPct <= 105 ? ms('check') + 'Équilibré' : kcalPct + ' %'}</span></div>
       <div class="bar big${kcalPct >= 95 && kcalPct <= 105 ? ' ok' : ''}"><i style="width:${pct(t.kcal, b.kcalCible)}%"></i></div>
-      <details class="macros-detail"${S.voirMacros ? ' open' : ''}><summary>Voir le détail (protéines, glucides, lipides)${ms('expand_more', 'chev')}</summary>
+      <details class="macros-detail"${S.voirMacros ? ' open' : ''}><summary>Voir les macros${ms('expand_more', 'chev')}</summary>
         ${macroLigne('Protéines', t.proteines, b.macros.proteines)}${macroLigne('Glucides', t.glucides, b.macros.glucides)}${macroLigne('Lipides', t.lipides, b.macros.lipides)}</details>
     </div>`}
     ${COMPTES && !token ? `<div class="save-banner">${ms('cloud_upload')}<div style="flex:1"><b>Garde ton plan</b><p>Retrouve-le sur tous tes appareils.</p></div><button id="save">Sauvegarder</button></div>` : ''}
@@ -1039,7 +1039,7 @@ function ecranProfil() {
     <header class="pg-head dk-only"><h1 class="h1">Mon profil</h1><p class="lead">Tes réglages, ton objectif et ton studio.</p></header>
     <div class="dk dk-cols dk-profil"><div class="dk dk-side">
     <div class="profile-head"><div class="avatar">${esc(initiale())}</div><div class="who">
-      <b>${esc(S.prenom || 'Ajoute ton prénom')}</b><span>${token ? esc(S.email || '') : 'Ton plan est enregistré sur ce téléphone'}</span></div>
+      <b>${esc(S.prenom || 'Ajoute ton prénom')}</b><span>${token ? esc(S.email || '') : 'Enregistré sur ce téléphone'}</span></div>
       <button class="icon-btn" id="editName" aria-label="Modifier mon prénom">${ms('edit')}</button></div>
     <form class="name-edit" id="nameForm" hidden><div class="input-wrap"><input id="prenom" placeholder="Ton prénom" value="${esc(S.prenom || '')}" maxlength="60" aria-label="Ton prénom" autocomplete="given-name" /></div>
       <button class="btn btn-soft" type="submit">OK</button></form>

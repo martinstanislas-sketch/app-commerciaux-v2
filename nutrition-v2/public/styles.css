@@ -875,3 +875,9 @@ button.chip-float:disabled { opacity: .6; }
 .vid-seance .vid-thumb::after { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(to top, rgba(4, 23, 59, .55), transparent 50%); }
 .vid-seance .vid-play { z-index: 1; }
+
+/* Libellés tenus sur une ligne en mobile */
+.portions .txt b { white-space: nowrap; }
+@media (max-width: 419px) { .portions .txt span { display: none; } }
+.profile-head .icon-btn { flex: none; }
+.profile-head .who span { white-space: nowrap; }
