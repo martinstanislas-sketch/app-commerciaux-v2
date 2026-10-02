@@ -9,13 +9,22 @@
        duration: '25 min', level: 'Intermédiaire', equipment: 'Aucun', category: 'fullbody' }
    - youtubeId et miniature sont déduits automatiquement de l'url ;
    - category : une des clés de VIDEO_FILTRES (fullbody, cardio, haut, bas, abdos, mobilite).
-   Valeurs neutres tant qu'une info n'est pas connue : duration « À renseigner »,
-   level « Tous niveaux », equipment « Voir la séance ».
+   Info inconnue : la pastille durée ou matériel est simplement masquée ;
+   level vaut « Tous niveaux » par défaut.
    ========================================================================== */
 
-const VID_DUREE = 'À renseigner';
+const VID_DUREE = '';
 const VID_NIVEAU = 'Tous niveaux';
-const VID_MATERIEL = 'Voir la séance';
+const VID_MATERIEL = '';
+
+// Pastilles durée / niveau / matériel : une info vide n'est pas affichée.
+function vidPastilles(v) {
+  const p = [];
+  if (v.duration) p.push(`<span>${ms('schedule')}${esc(v.duration)}</span>`);
+  if (v.level) p.push(`<span>${ms('signal_cellular_alt')}${esc(v.level)}</span>`);
+  if (v.equipment) p.push(`<span>${ms('fitness_center')}${esc(v.equipment === 'Aucun' ? 'Aucun matériel' : v.equipment)}</span>`);
+  return p.join('');
+}
 
 const VIDEOS = [
   { title: 'Full body', url: 'https://www.youtube.com/watch?v=qAyrBCA-NQE', category: 'fullbody' },
@@ -259,19 +268,15 @@ function vidListe() {
   document.getElementById('vidCount').textContent = `${liste.length} séance${liste.length > 1 ? 's' : ''}`;
   const grille = document.getElementById('vidGrid');
   grille.innerHTML = liste.length ? liste.map((v) => `
-    <article class="card vid-card">
-      <button class="vid-thumb" data-play="${v.i}" aria-label="Voir la séance ${esc(v.title)}">
+    <article class="card vid-card vid-seance">
+      <div class="vid-thumb">
         <img src="${vidMiniature(v.youtubeId)}" alt="" loading="lazy" />
-        <span class="vid-play">${ms('play_arrow', 'fill')}</span>
-      </button>
+        <span class="vid-play" aria-hidden="true">${ms('play_arrow', 'fill')}</span>
+      </div>
       <div class="body">
-        <h3 class="name">${esc(v.title)}</h3>
-        <div class="vid-meta">
-          <span>${ms('schedule')}${esc(v.duration)}</span>
-          <span>${ms('signal_cellular_alt')}${esc(v.level)}</span>
-          <span>${ms('fitness_center')}${esc(v.equipment === 'Aucun' ? 'Aucun matériel' : v.equipment)}</span>
-        </div>
-        <button class="btn btn-primary btn-block vid-btn" data-play="${v.i}">${ms('play_circle')}Voir la séance</button>
+        <h3 class="name"><button class="vid-ouvrir" data-play="${v.i}" aria-label="Voir la séance ${esc(v.title)}">${esc(v.title)}</button></h3>
+        <div class="vid-meta">${vidPastilles(v)}</div>
+        <span class="vid-lien" aria-hidden="true">Voir la séance${ms('chevron_right')}</span>
       </div>
     </article>`).join('')
     : `<div class="card vid-vide">${ms('search_off')}<p>Aucune séance ne correspond à « ${esc(vidRecherche)} ».</p><button class="btn btn-ghost" id="vidReset">Voir toutes les séances</button></div>`;
@@ -288,9 +293,7 @@ function vidOuvrir(v) {
     <div class="top"><h2>${esc(v.title)}</h2><button class="icon-btn" data-close aria-label="Fermer">${ms('close')}</button></div>
     <div class="vid-player"><iframe src="https://www.youtube-nocookie.com/embed/${v.youtubeId}?rel=0&playsinline=1"
       title="${esc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-    <div class="vid-meta">
-      <span>${ms('schedule')}${esc(v.duration)}</span><span>${ms('signal_cellular_alt')}${esc(v.level)}</span><span>${ms('fitness_center')}${esc(v.equipment === 'Aucun' ? 'Aucun matériel' : v.equipment)}</span>
-    </div>
+    <div class="vid-meta">${vidPastilles(v)}</div>
     <a class="vid-yt" href="${esc(v.url)}" target="_blank" rel="noopener">${ms('open_in_new')}La vidéo ne se lance pas ? Ouvrir sur YouTube</a>
   </div>`;
   // Fermer retire le lecteur : la vidéo s'arrête.

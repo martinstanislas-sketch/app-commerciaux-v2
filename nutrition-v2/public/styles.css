@@ -849,3 +849,20 @@ button.chip-float:disabled { opacity: .6; }
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .spinner { animation: spin 1.6s linear infinite !important; }
 }
+
+/* Bonus › Séances : carte entière cliquable (le bouton du titre couvre la carte),
+   lien discret « Voir la séance › », bouton lecture compact en bas à droite. */
+.vid-seance { position: relative; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.vid-seance .vid-thumb { cursor: pointer; }
+.vid-seance .vid-play { left: auto; top: auto; right: 10px; bottom: 10px; transform: none; width: 44px; height: 44px; }
+.vid-seance .vid-play .ms { font-size: 26px; }
+.vid-ouvrir { all: unset; cursor: pointer; }
+.vid-ouvrir::after { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
+.vid-seance .vid-meta:empty { display: none; }
+.vid-seance .vid-meta { margin-bottom: 10px; }
+.vid-lien { margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; color: var(--saphir); font-size: 15px; font-weight: 700; }
+.vid-lien .ms { font-size: 20px; }
+.vid-seance:hover, .vid-seance:focus-within { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--saphir); }
+.vid-seance:has(.vid-ouvrir:focus-visible) { outline: 3px solid var(--saphir); outline-offset: 2px; }
+.vid-seance:hover .vid-play { transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) { .vid-seance:hover, .vid-seance:focus-within { transform: none !important; } }
