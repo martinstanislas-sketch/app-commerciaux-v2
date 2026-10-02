@@ -108,7 +108,9 @@ function persist() { const { ...copie } = S; lsSet(LS_STATE, JSON.stringify(copi
 // ---------------------------------------------------------------------------
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('fr-FR');
-const ms = (name, cls) => `<span class="ms${cls ? ' ' + cls : ''}" aria-hidden="true">${name}</span>`;
+// Icône Material : le nom passe par un attribut et s'affiche via CSS (::before),
+// pour ne jamais être lu comme du texte (lecteurs d'écran, copier-coller, innerText).
+const ms = (name, cls) => `<span class="ms${cls ? ' ' + cls : ''}" data-icon="${name}" aria-hidden="true"></span>`;
 const logo = (cls) => `<img class="${cls || 'logo'}" src="logo-mycoach-noir.png" alt="My Coach" />`;
 
 async function api(path, opts = {}) {
@@ -191,7 +193,7 @@ function ecranAccueil() {
     <span class="pill"><span class="dot"></span>${studio ? 'MY COACH ' + esc(studio.nom.toUpperCase()) : 'TON COACH NUTRITION'}</span>
     <h1 class="display">Mange mieux,<br/>sans y penser.</h1>
     <p class="lead">Un plan de la semaine adapté à tes goûts, avec la liste de courses.</p>
-    <div class="hero-img" aria-hidden="true"><span class="plate">🥗</span>
+    <div class="hero-img" aria-hidden="true"><span class="plate" data-e="🥗"></span>
       <img src="api/recipe-photo/plat-bowl-lentilles-oeuf-feta" alt="" onerror="this.remove()" />
       <span class="float">${ms('verified', 'fill')}100 % personnalisé</span></div>
     <button class="btn btn-primary btn-block" id="start">Créer mon plan ${ms('arrow_forward')}</button>
@@ -406,7 +408,7 @@ function ecranQuestionnaire(arg) {
       <div class="q-head"><h1 class="h1">Quels sont tes goûts ?</h1>
         <p class="lead">Pour des repas que tu auras vraiment plaisir à manger. Tout est facultatif.</p></div>
       <div class="section-title">Cuisines préférées <small>Plusieurs choix</small></div>
-      <div class="cuisine-grid">${CUISINES.map((c) => `<button class="cuisine${d.cuisines.includes(c.v) ? ' on' : ''}" data-toggle="cuisines" data-v="${c.v}"><span class="emo">${c.e}</span>${c.t}${ms('check_circle', 'fill chk')}</button>`).join('')}</div>
+      <div class="cuisine-grid">${CUISINES.map((c) => `<button class="cuisine${d.cuisines.includes(c.v) ? ' on' : ''}" data-toggle="cuisines" data-v="${c.v}"><span class="emo" data-e="${c.e}" aria-hidden="true"></span>${c.t}${ms('check_circle', 'fill chk')}</button>`).join('')}</div>
       <div class="section-title">Le matin, tu manges plutôt…</div>
       <div class="chip-grid">${MATIN.map((m) => `<button class="chip${d.matin === m.v ? ' on' : ''}" data-set="matin" data-v="${m.v}">${m.t}</button>`).join('')}</div>
       <div class="section-title">Une collation dans la journée ? <small>Plusieurs choix</small></div>
@@ -624,7 +626,7 @@ function photoHTML(r) {
   const c = CRENEAU[r.creneau] || CRENEAU.dejeuner;
   const img = r.recette && photos[r.recette.id]
     ? `<img src="api/recipe-photo/${encodeURIComponent(r.recette.id)}?v=${encodeURIComponent(photos[r.recette.id])}" alt="" loading="lazy" onerror="this.remove()" />` : '';
-  return `<span class="emo" aria-hidden="true">${c.e}</span>${img}`;
+  return `<span class="emo" data-e="${c.e}" aria-hidden="true"></span>${img}`;
 }
 
 function ecranPlan() {

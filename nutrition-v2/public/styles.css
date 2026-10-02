@@ -886,3 +886,7 @@ button.chip-float:disabled { opacity: .6; }
 .perf-mes-vide { padding: 4px 16px 16px; }
 .perf-mes-vide .btn { margin-top: 2px; }
 @media screen and (min-width: 960px) { .perf-mes-vide .btn { width: auto; margin: 2px auto 0; display: flex; padding: 0 28px; } }
+
+/* Icônes et emojis décoratifs : affichés en CSS, jamais présents dans le texte de la page */
+.ms::before { content: attr(data-icon); }
+.emo::before, .plate::before { content: attr(data-e); }
