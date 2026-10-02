@@ -877,8 +877,17 @@ button.chip-float:disabled { opacity: .6; }
 .vid-seance .vid-play { z-index: 1; }
 
 /* Libellés tenus sur une ligne en mobile */
-.portions .txt b { white-space: nowrap; }
+.portions .txt b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 419px) { .portions .txt span { display: none; } }
+/* Carte « Cuisiner pour » sur petit écran : sans icône, stepper compact sur une ligne */
+@media (max-width: 479px) {
+  .portions { gap: 8px; }
+  .portions .ic { display: none; }
+  .portions .stepper { gap: 2px; }
+  .portions .stepper button { width: 32px; height: 32px; }
+  .portions .stepper output { display: flex; align-items: baseline; justify-content: center; gap: 3px; min-width: 0; padding: 0 4px; white-space: nowrap; }
+  .portions .stepper output small { display: inline; }
+}
 .profile-head .icon-btn { flex: none; }
 .profile-head .who span { white-space: nowrap; }
 
